@@ -20,7 +20,7 @@ begin
   end if;
 end $$;
 
--- Utilidades
+-- Función de utilidad para timestamps
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -29,31 +29,6 @@ begin
   new.updated_at = now();
   return new;
 end;
-$$;
-
--- Importante: helpers para policies. SECURITY DEFINER para evitar problemas con RLS.
-create or replace function public.current_user_role()
-returns public.rol_usuario
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select p.rol
-  from public.perfiles p
-  where p.id = auth.uid();
-$$;
-
-create or replace function public.current_user_zona_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select p.zona_id
-  from public.perfiles p
-  where p.id = auth.uid();
 $$;
 
 -- Tablas core
@@ -84,6 +59,31 @@ create index if not exists perfiles_zona_idx on public.perfiles (zona_id);
 create trigger perfiles_set_updated_at
 before update on public.perfiles
 for each row execute function public.set_updated_at();
+
+-- Helpers para policies. SECURITY DEFINER para evitar problemas con RLS.
+create or replace function public.current_user_role()
+returns public.rol_usuario
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.rol
+  from public.perfiles p
+  where p.id = auth.uid();
+$$;
+
+create or replace function public.current_user_zona_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.zona_id
+  from public.perfiles p
+  where p.id = auth.uid();
+$$;
 
 -- Niños: separar datos operativos (visible a voluntarios) vs sensibles (solo roles autorizados)
 create table if not exists public.ninos (
