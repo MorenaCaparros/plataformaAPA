@@ -48,7 +48,12 @@ Este es un proyecto de colaboración entre **GlobalIA** y la **ONG Adelante**. L
 
 ### 4. Usabilidad
 - Formularios de sesión deben completarse en **5 minutos máximo**
-- Diseño mobile-first (voluntarios usan celular)
+- **Diseño 100% responsive mobile-first** (voluntarios usan celular)
+  - TODAS las páginas deben funcionar perfectamente en móviles
+  - Touch-friendly: botones grandes, espaciado adecuado
+  - Textos legibles sin zoom
+  - Inputs optimizados para teclado móvil
+  - Navegación fácil con una mano
 - Lenguaje claro, sin jerga técnica innecesaria
 - Feedback inmediato en acciones del usuario
 - Manejo de errores amigable

@@ -81,33 +81,47 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Sesiones
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Niños - Para voluntarios y coordinadores */}
+          <a
+            href="/dashboard/ninos"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 sm:p-8 hover:shadow-2xl transition-shadow cursor-pointer group active:scale-98 min-h-[120px] flex flex-col justify-center"
+          >
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
+              👦 Niños Asignados
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">
-              Registrar nuevas sesiones educativas
+            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
+              Ver niños asignados y registrar sesiones
             </p>
-          </div>
+          </a>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Niños
+          {/* Historial */}
+          <a
+            href="/dashboard/sesiones"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-2xl transition-shadow cursor-pointer group"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
+              📝 Historial de Sesiones
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
-              Ver y gestionar perfiles de niños
+              Ver todas las sesiones registradas
             </p>
-          </div>
+          </a>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Reportes
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">
-              Generar informes y análisis
-            </p>
-          </div>
+          {/* Biblioteca - Solo psicopedagogía y admin */}
+          {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'admin') && (
+            <a
+              href="/dashboard/biblioteca"
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-2xl transition-shadow cursor-pointer group"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition">
+                📚 Biblioteca con IA
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                Documentos psicopedagógicos y chat con IA
+              </p>
+            </a>
+          )}
         </div>
       </main>
     </div>

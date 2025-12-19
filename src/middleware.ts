@@ -59,7 +59,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Rutas públicas
-  const publicPaths = ['/login', '/registro'];
+  const publicPaths = ['/login', '/registro', '/recuperar-contrasena', '/restablecer-contrasena'];
   const isPublicPath = publicPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );

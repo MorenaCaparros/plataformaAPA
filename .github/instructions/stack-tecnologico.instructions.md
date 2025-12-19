@@ -32,10 +32,12 @@ applyTo: '**'
 
 ### UI/Styling
 **Tailwind CSS + shadcn/ui**
-- Diseño mobile-first
+- **Mobile-first OBLIGATORIO** - TODA la plataforma debe funcionar perfectamente en celular
 - Componentes accesibles (WCAG 2.1)
 - Temas dark/light (opcional)
-- Diseño responsive por defecto
+- Breakpoints: mobile (base), tablet (md:), desktop (lg:)
+- Touch targets mínimo 44x44px
+- Inputs con type adecuado (tel, email, number) para mejor teclado móvil
 
 **Alternativas consideradas:**
 - Material-UI / Chakra UI (más pesados)

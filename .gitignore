@@ -56,3 +56,7 @@ Thumbs.db
 # Supabase
 .branches
 .temp
+
+# Archivos SQL (no subir migraciones sensibles)
+*.sql
+supabase/migrations/*.sql
