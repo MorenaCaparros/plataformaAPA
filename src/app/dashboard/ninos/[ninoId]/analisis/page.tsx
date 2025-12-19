@@ -198,7 +198,7 @@ export default function AnalisisNinoPage() {
 
     setGuardandoArtefacto(true);
     try {
-      const tipoInfo = TIPOS_ARTEFACTOS[ultimoArtefacto.tipo];
+      const tipoInfo = TIPOS_ARTEFACTOS[ultimoArtefacto.tipo as TipoArtefacto];
       
       // Obtener session token
       const { data: { session } } = await supabase.auth.getSession();

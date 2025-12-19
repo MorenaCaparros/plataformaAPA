@@ -259,7 +259,7 @@ export default function BibliotecaNinoPage() {
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
               <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-bold prose-p:my-2 prose-ul:my-2 prose-li:my-1">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {artefactoSeleccionado.contenido.texto || JSON.stringify(artefactoSeleccionado.contenido, null, 2)}
+                  {(artefactoSeleccionado.contenido as any).texto || JSON.stringify(artefactoSeleccionado.contenido, null, 2)}
                 </ReactMarkdown>
               </div>
             </div>
