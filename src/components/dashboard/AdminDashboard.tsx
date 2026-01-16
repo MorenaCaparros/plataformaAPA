@@ -27,15 +27,21 @@ export default function AdminDashboard() {
 
   const cargarMetricas = async () => {
     try {
+      console.log('🔍 Cargando métricas del dashboard...');
+      
       // Total niños
-      const { count: countNinos } = await supabase
+      const { count: countNinos, error: errorNinos } = await supabase
         .from('ninos')
         .select('*', { count: 'exact', head: true });
+      
+      console.log('Total niños:', countNinos, errorNinos ? `Error: ${errorNinos.message}` : '✅');
 
       // Total sesiones
-      const { count: countSesiones } = await supabase
+      const { count: countSesiones, error: errorSesiones } = await supabase
         .from('sesiones')
         .select('*', { count: 'exact', head: true });
+      
+      console.log('Total sesiones:', countSesiones, errorSesiones ? `Error: ${errorSesiones.message}` : '✅');
 
       // Sesiones este mes
       const inicioMes = new Date();
@@ -74,16 +80,19 @@ export default function AdminDashboard() {
         }
       }
 
-      setMetricas({
+      const metricas = {
         totalNinos: countNinos || 0,
         totalSesiones: countSesiones || 0,
         totalVoluntarios: countVoluntarios || 0,
         totalEquipos: countEquipos || 0,
         sesionesEsteMes: countSesionesMes || 0,
         ninosSinSesiones,
-      });
+      };
+      
+      console.log('📊 Métricas finales:', metricas);
+      setMetricas(metricas);
     } catch (error) {
-      console.error('Error cargando métricas:', error);
+      console.error('❌ Error cargando métricas:', error);
     }
   };
 

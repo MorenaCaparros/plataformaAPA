@@ -41,7 +41,8 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <PWAInitializer />
-          <OnlineStatusIndicator />
+          {/* Temporalmente deshabilitado hasta implementar sincronización completa */}
+          {/* <OnlineStatusIndicator /> */}
           {children}
         </AuthProvider>
       </body>
