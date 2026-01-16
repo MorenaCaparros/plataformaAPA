@@ -68,16 +68,31 @@ La plataforma registra información relevante en cada sesión educativa, permiti
 
 ### 4. Privacidad y Accesos
 
-**Datos protegidos:**
-- Información de niños NO es pública
-- Solo psicopedagogía y coordinación ven identificación completa
+**Sistema de anonimización:**
+- Cada niño tiene un **número de legajo** (identificador único)
+- Solo **Psicopedagogía** y **Director/Administrador** ven identificación completa
+- El **Director/Administrador** puede "destrabar" accesos cuando sea necesario
 - Cumplimiento de normativas de protección de datos de menores
 
 **Voluntarios visualizan:**
-- Nombre o alias operativo
+- **Número de legajo**
+- **Nombre** (si no recuerdan pueden consultarlo)
 - Edad/rango etario
 - Historial educativo básico
+- Objetivos asignados para ese niño
 - Sus propias observaciones
+- Qué hizo el niño anteriormente y qué aprendió
+- Si va encaminado o no con los objetivos
+
+**Coordinadores visualizan:**
+- Información completa de su zona/barrio
+- Asignación de voluntarios
+- Reportes grupales
+
+**Apellido del niño:**
+- Oculto por defecto
+- Solo accesible por psicopedagogía y director/administrador
+- Desbloqueado por director/administrador cuando sea estrictamente necesario
 
 ---
 
@@ -113,10 +128,114 @@ La plataforma registra información relevante en cada sesión educativa, permiti
 - Frecuencia y duración de sesiones
 
 **Definición de roles:**
+- Director/Administrador (y Director de Programa) - Rol único con máximo acceso
+- Coordinador (Nivel 2, dividido por equipos)
 - Voluntario alfabetizador
-- Coordinador
+- Trabajadora Social
 - Psicopedagogía
-- Administrador
+
+---
+
+## Flujo Operativo del Programa
+
+### Paso 1: Ingreso Formal del Niño
+
+**Responsable principal:** Trabajadora Social + Psicopedagoga
+
+**Proceso:**
+1. **Registro inicial**
+   - Asignación de número de legajo (identificador único)
+   - Datos básicos del niño
+
+2. **Entrevista inicial a la familia** (Trabajadora Social)
+   - Alimentación durante el embarazo
+   - Alimentación actual del niño
+   - Asistencia a la escuela (concurrencia escolar)
+   - Contexto familiar y social
+   - Pronóstico inicial
+
+3. **Ingreso formal** (Psicopedagoga)
+   - Validación de datos
+   - Evaluación diagnóstica inicial
+   - Asignación a grupo/barrio
+   - Creación de perfil en la plataforma
+
+**Nota:** Las trabajadoras sociales trabajan principalmente con celular y pueden utilizar grabación de voz para facilitar el registro.
+
+### Paso 2: Evaluación de Dificultades
+
+**Responsable:** Psicopedagoga (Evaluador)
+
+**Áreas de evaluación:**
+1. **Lenguaje y Vocabulario**
+   - Comprensión de órdenes
+   - Identificación de objetos
+   - Formación de oraciones
+   - Pronunciación
+
+2. **Grafismo y Motricidad Fina**
+   - Agarre del lápiz
+   - Tipo de trazo
+   - Representación de figuras
+
+3. **Lectura y Escritura**
+   - Reconocimiento de vocales/consonantes
+   - Identificación de sílabas
+   - Lectura de palabras y textos
+   - Escritura (nombre, palabras, oraciones)
+   - Comprensión lectora
+
+4. **Nociones Matemáticas**
+   - Conteo y reconocimiento de números
+   - Conceptos básicos (suma, resta, etc.)
+   - Razonamiento lógico
+
+**Resultado:** Informe de dificultades identificadas
+
+### Paso 3: Plan de Intervención
+
+**Responsable:** Psicopedagoga (Planificación)
+
+**Proceso:**
+1. **Definición de objetivos**
+   - Objetivos anuales (generales)
+   - Objetivos a corto plazo (mensuales)
+   - Sincronización entre ambos
+
+2. **Diseño de actividades**
+   - Actividades específicas según dificultades detectadas
+   - Estimulación de áreas con deficiencia
+   - Adaptación según edad y nivel
+
+3. **Asignación de voluntario**
+   - Match voluntario-niño según disponibilidad y zona
+   - Reasignación cuando sea necesario
+   - Registro de capacitaciones del voluntario
+
+4. **Recursos y materiales**
+   - Selección de actividades de la biblioteca
+   - Materiales necesarios
+   - Tiempo estimado de cada actividad
+
+### Evaluación Continua
+
+**Evaluación a corto plazo (MENSUAL):**
+- Realizada por Psicopedagoga
+- Basada en registros semanales del voluntario
+- Objetivo: detectar si el plan funciona rápidamente
+- Ajustes inmediatos según resultados
+
+**Evaluación a mediano plazo (Cada 3-6 meses):**
+- Evaluación formal de progreso
+- Contraste con objetivos de mediano plazo
+- Ajuste del plan de intervención
+
+**Evaluación anual:**
+- Evaluación completa de inicio a fin de año
+- Contraste con objetivos anuales
+- Decisión sobre continuidad/graduación
+
+**Desafío clave:** Determinar rápidamente si las intervenciones están funcionando para el aprendizaje del niño.
 
 ---
 

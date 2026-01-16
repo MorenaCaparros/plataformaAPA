@@ -32,7 +32,7 @@ export type Database = {
       perfiles: {
         Row: {
           id: string
-          rol: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin'
+          rol: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajador_social' | 'director'
           zona_id: string | null
           metadata: Json
           created_at: string
@@ -40,7 +40,7 @@ export type Database = {
         }
         Insert: {
           id: string
-          rol?: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin'
+          rol?: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajador_social' | 'director'
           zona_id?: string | null
           metadata?: Json
           created_at?: string
@@ -48,7 +48,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          rol?: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin'
+          rol?: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajador_social' | 'director'
           zona_id?: string | null
           metadata?: Json
           created_at?: string

@@ -23,7 +23,7 @@ export async function DELETE(
       .eq('id', user.id)
       .single();
 
-    if (!perfil || !['psicopedagogia', 'admin'].includes(perfil.rol)) {
+    if (!perfil || !['psicopedagogia', 'director'].includes(perfil.rol)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 

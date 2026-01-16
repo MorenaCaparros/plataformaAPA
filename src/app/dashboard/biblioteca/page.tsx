@@ -124,7 +124,7 @@ export default function BibliotecaPage() {
             >
               💬 Chat con IA
             </Link>
-            {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'admin') && (
+            {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director') && (
               <Link
                 href="/dashboard/biblioteca/subir"
                 className="px-4 sm:px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-center min-h-[48px] flex items-center justify-center active:scale-95"
@@ -139,7 +139,7 @@ export default function BibliotecaPage() {
         {documentos.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <p className="text-gray-600 mb-4">No hay documentos en la biblioteca todavía.</p>
-            {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'admin') && (
+            {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director') && (
               <Link
                 href="/dashboard/biblioteca/subir"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
@@ -190,7 +190,7 @@ export default function BibliotecaPage() {
                   >
                     Ver documento
                   </Link>
-                  {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'admin') && (
+                  {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director') && (
                     <button
                       onClick={() => handleEliminar(doc.id, doc.titulo)}
                       disabled={eliminando === doc.id}

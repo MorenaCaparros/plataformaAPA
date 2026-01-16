@@ -4,6 +4,72 @@ applyTo: '**'
 
 # Instrucciones Técnicas - Plataforma APA
 
+## ⚠️ SEGURIDAD CRÍTICA - LEER ANTES DE CUALQUIER CAMBIO
+
+### 🔴 REGLAS ABSOLUTAS DE SEGURIDAD
+
+**ANTES de escribir, modificar o commitear CUALQUIER código, SIEMPRE verificar:**
+
+#### 1. NUNCA EXPONER CLAVES SECRETAS
+❌ **PROHIBIDO subir al repositorio:**
+- API Keys (Google AI, OpenAI, etc.)
+- Tokens de autenticación
+- Service Role Keys de Supabase
+- Claves de encriptación
+- Contraseñas o credenciales
+- URLs privadas con tokens embebidos
+- Cualquier secreto en archivos de configuración
+
+✅ **OBLIGATORIO:**
+- Usar variables de entorno (`.env.local`)
+- NUNCA commitear archivos `.env*` (verificar `.gitignore`)
+- Usar `NEXT_PUBLIC_` SOLO para claves públicas que deben exponerse al navegador
+- Rotar claves inmediatamente si se exponen por error
+- Usar Netlify/Vercel Environment Variables en producción
+
+#### 2. DATOS SENSIBLES DE MENORES
+⚠️ **Trabajamos con información de NIÑOS en contextos vulnerables:**
+
+**SIEMPRE considerar:**
+- Los datos de los niños son **INFORMACIÓN EXTREMADAMENTE SENSIBLE**
+- Cumplir con normativas de protección de datos de menores
+- Implementar encriptación para nombres completos y fechas de nacimiento
+- Nunca loguear datos personales identificables
+- Minimizar exposición de datos en APIs
+- Implementar auditoría de accesos a datos sensibles
+- Validar permisos en CADA operación con datos de niños
+
+**PROHIBIDO:**
+- Exponer datos completos de niños sin autenticación/autorización
+- Guardar datos sensibles en logs
+- Usar datos reales en ejemplos o documentación
+- Compartir datos fuera de la plataforma sin anonimizar
+- Cachear datos sensibles sin protección
+- Permitir acceso sin validación de roles (RLS)
+
+#### 3. CHECKLIST ANTES DE CADA COMMIT
+```
+[ ] ¿Estoy subiendo algún archivo .env?
+[ ] ¿Hay API keys hardcodeadas en el código?
+[ ] ¿Expongo datos sensibles de niños sin protección?
+[ ] ¿Implementé RLS en nuevas tablas de Supabase?
+[ ] ¿Valido roles antes de operaciones sensibles?
+[ ] ¿Encripté datos identificables de menores?
+[ ] ¿Los logs NO contienen información personal?
+[ ] ¿Documenté nuevos secretos en .env.example?
+```
+
+#### 4. EN CASO DE EXPOSICIÓN ACCIDENTAL
+**Acción inmediata si se sube un secreto por error:**
+1. 🚨 NO simplemente borrar el commit (queda en historial de Git)
+2. Rotar/regenerar la clave expuesta INMEDIATAMENTE
+3. Revocar acceso de la clave comprometida
+4. Limpiar historial de Git si es necesario (git filter-branch)
+5. Notificar al equipo
+6. Actualizar todas las instancias con la nueva clave
+
+---
+
 ## Contexto General
 Este es un proyecto de colaboración entre **GlobalIA** y la **ONG Adelante**. La plataforma APA es una herramienta de gestión y seguimiento educativo que permite el registro sistemático de sesiones educativas con niños, análisis de datos con IA, y generación de informes psicopedagógicos.
 
@@ -23,21 +89,49 @@ Este es un proyecto de colaboración entre **GlobalIA** y la **ONG Adelante**. L
 - **NUNCA** exponer datos completos de niños en APIs públicas
 
 ### 2. Acceso por Roles
-**Voluntario Alfabetizador:**
-- Solo ve: nombre/alias operativo, edad, historial educativo básico
-- Puede: registrar sesiones, ver sus propias observaciones
 
-**Coordinador:**
-- Ve: información completa de niños asignados a su zona/grupo
-- Puede: revisar sesiones, generar reportes, asignar voluntarios
+**Sistema de Anonimización:**
+- Cada niño tiene un **número de legajo** (identificador único)
+- Solo **Psicopedagogía** y **Director** ven identificación completa (incluyendo apellido)
+- El **Administrador** puede "destrabar" accesos cuando sea estrictamente necesario
+- Apellido oculto por defecto para todos los demás roles
+
+**Voluntario Alfabetizador:**
+- Ve: **número de legajo**, **nombre** (sin apellido), edad, historial educativo básico
+- Ve: objetivos asignados para ese niño, qué hizo anteriormente, qué aprendió
+- Ve: si el niño va encaminado o no con los objetivos
+- Puede: registrar sesiones, ver sus propias observaciones
+- Puede: consultar nombre completo si no lo recuerda
+
+**Coordinador (Nivel 2, por Equipo/Barrio):**
+- Ve: información completa de niños asignados a su zona/grupo (con apellido)
+- Ve: voluntarios de su equipo y asignaciones
+- Puede: revisar sesiones, generar reportes, asignar y reasignar voluntarios
+- Puede: gestionar inventario de materiales de su sede
+- Puede: registrar feedback a voluntarios (cualitativo y cuantitativo)
+
+**Trabajadora Social:**
+- Ve: datos sociofamiliares completos, información de contacto de familias
+- Puede: registrar entrevista inicial (con opción de grabación de voz)
+- Puede: seguimiento de intervenciones con familias
+- Puede: generar alertas sociales (ausentismo, cambios en contexto familiar)
+- Dispositivo principal: Celular (mobile-first + offline)
 
 **Psicopedagogía:**
-- Acceso completo a todos los datos
-- Puede: analizar patrones, generar informes, subir bibliografía
-- Acceso a la biblioteca psicopedagógica y sistema RAG
+- Acceso completo a todos los datos (incluyendo legajo completo con apellido)
+- Puede: evaluar, planificar intervenciones, analizar patrones, generar informes
+- Puede: subir bibliografía, consultar sistema RAG, usar herramientas de IA
+- Puede: crear y ajustar planes de intervención
+- Puede: gestionar base de datos de voluntarios con capacitaciones
 
-**Administrador:**
-- Gestión completa del sistema
+**Director/Administrador (y Director de Programa):**
+- **Rol único** con acceso completo a todos los datos del programa
+- Ve: dashboard ejecutivo con métricas e impacto
+- Puede: gestionar roles y permisos, exportar datos, generar reportes institucionales
+- Puede: dar feedback a coordinadores (palabras y cuantificación con Gemini)
+- Puede: desbloquear accesos (ver apellido cuando sea necesario)
+- Puede: gestionar backups, seguridad, usuarios
+- Gestión completa del sistema y configuración técnica
 
 ### 3. Offline-First (Mobile)
 - La aplicación móvil debe funcionar sin conexión

@@ -13,46 +13,73 @@ interface Sesion {
   observaciones_libres: string;
   items: any[];
   ninos: {
+    id?: string;
     alias: string;
     rango_etario: string;
+    metadata?: {
+      nombre_completo?: string;
+      apellido?: string;
+      numero_legajo?: string;
+    };
   };
 }
 
+// Función helper para normalizar texto (quitar acentos)
+const normalizarTexto = (texto: string) => {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+};
+
 export default function HistorialPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, perfil } = useAuth();
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroNino, setFiltroNino] = useState<string>('todos');
+  const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
   const [ninos, setNinos] = useState<Array<{ id: string; alias: string }>>([]);
 
   useEffect(() => {
-    if (user) {
+    if (user && perfil) {
       fetchNinos();
       fetchSesiones();
     }
-  }, [user]);
+  }, [user, perfil]);
 
   const fetchNinos = async () => {
     try {
-      const { data } = await supabase
-        .from('nino_voluntarios')
-        .select(`
-          nino_id,
-          ninos (
-            id,
-            alias
-          )
-        `)
-        .eq('voluntario_id', user?.id)
-        .eq('activo', true);
+      if (perfil?.rol === 'voluntario') {
+        // Voluntario: solo sus niños asignados
+        const { data } = await supabase
+          .from('nino_voluntarios')
+          .select(`
+            nino_id,
+            ninos (
+              id,
+              alias
+            )
+          `)
+          .eq('voluntario_id', user?.id)
+          .eq('activo', true);
 
-      const ninosData = data?.map((item: any) => ({
-        id: item.ninos.id,
-        alias: item.ninos.alias
-      })) || [];
-      
-      setNinos(ninosData);
+        const ninosData = data?.map((item: any) => ({
+          id: item.ninos.id,
+          alias: item.ninos.alias
+        })) || [];
+        
+        setNinos(ninosData);
+      } else {
+        // Admin, psico, coordinador: todos los niños
+        const { data, error } = await supabase
+          .from('ninos')
+          .select('id, alias')
+          .order('alias', { ascending: true });
+
+        if (error) throw error;
+        setNinos(data || []);
+      }
     } catch (error) {
       console.error('Error:', error);
     }
@@ -60,7 +87,7 @@ export default function HistorialPage() {
 
   const fetchSesiones = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('sesiones')
         .select(`
           id,
@@ -68,13 +95,26 @@ export default function HistorialPage() {
           duracion_minutos,
           observaciones_libres,
           items,
+          voluntario_id,
+          perfiles!sesiones_voluntario_id_fkey (
+            id,
+            metadata
+          ),
           ninos (
+            id,
             alias,
-            rango_etario
+            rango_etario,
+            metadata
           )
         `)
-        .eq('voluntario_id', user?.id)
         .order('fecha', { ascending: false });
+
+      // Solo filtrar por voluntario_id si el rol es 'voluntario'
+      if (perfil?.rol === 'voluntario') {
+        query = query.eq('voluntario_id', user?.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setSesiones(data || []);
@@ -85,9 +125,31 @@ export default function HistorialPage() {
     }
   };
 
-  const sesionesFiltradas = filtroNino === 'todos' 
-    ? sesiones 
-    : sesiones.filter(s => ninos.find(n => n.alias === s.ninos.alias)?.id === filtroNino);
+  // Filtrar sesiones
+  const sesionesFiltradas = sesiones.filter(sesion => {
+    // Filtro por niño específico
+    if (filtroNino !== 'todos') {
+      const ninoEncontrado = ninos.find(n => n.alias === sesion.ninos.alias);
+      if (ninoEncontrado?.id !== filtroNino) return false;
+    }
+
+    // Filtro por búsqueda (nombre, apellido o alias) - sin acentos
+    if (filtroBusqueda) {
+      const busqueda = normalizarTexto(filtroBusqueda);
+      const alias = normalizarTexto(sesion.ninos.alias || '');
+      const metadata = (sesion.ninos as any).metadata || {};
+      const nombreCompleto = normalizarTexto(metadata.nombre_completo || '');
+      const apellido = normalizarTexto(metadata.apellido || '');
+
+      return (
+        alias.includes(busqueda) ||
+        nombreCompleto.includes(busqueda) ||
+        apellido.includes(busqueda)
+      );
+    }
+
+    return true;
+  });
 
   const formatFecha = (fecha: string) => {
     const date = new Date(fecha);
@@ -134,22 +196,46 @@ export default function HistorialPage() {
 
       <main className="max-w-7xl mx-auto px-4 py-4 sm:py-6">
         {/* Filtros */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Filtrar por niño
-          </label>
-          <select
-            value={filtroNino}
-            onChange={(e) => setFiltroNino(e.target.value)}
-            className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="todos">Todos los niños ({sesiones.length})</option>
-            {ninos.map(nino => (
-              <option key={nino.id} value={nino.id}>
-                {nino.alias} ({sesiones.filter(s => s.ninos.alias === nino.alias).length})
-              </option>
-            ))}
-          </select>
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 space-y-4">
+          {/* Búsqueda por nombre/apellido */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Buscar por nombre o apellido
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: Lucas, González, etc."
+              value={filtroBusqueda}
+              onChange={(e) => setFiltroBusqueda(e.target.value)}
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Filtro por niño */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Filtrar por niño
+            </label>
+            <select
+              value={filtroNino}
+              onChange={(e) => setFiltroNino(e.target.value)}
+              className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="todos">Todos los niños ({sesiones.length})</option>
+              {ninos.map(nino => (
+                <option key={nino.id} value={nino.id}>
+                  {nino.alias} ({sesiones.filter(s => s.ninos.alias === nino.alias).length})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Contador de resultados */}
+          {(filtroNino !== 'todos' || filtroBusqueda) && (
+            <div className="text-sm text-gray-600">
+              Mostrando {sesionesFiltradas.length} de {sesiones.length} sesiones
+            </div>
+          )}
         </div>
 
         {/* Lista de sesiones */}

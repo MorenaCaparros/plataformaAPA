@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 
-type Rol = 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajador_social' | 'admin';
+type Rol = 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajador_social' | 'director';
 
 export default function RegistroPage() {
   const router = useRouter();

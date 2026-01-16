@@ -28,10 +28,18 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env files
+# ==================================
+# ⚠️ SEGURIDAD CRÍTICA - Variables de Entorno
+# ==================================
+# NUNCA subir claves secretas, API keys o credenciales
 .env
-.env*.local
+.env.local
+.env.development
 .env.production
+.env.test
+.env*.local
+# PERMITIR solo el template sin valores reales
+!.env.example
 
 # vercel / netlify
 .vercel

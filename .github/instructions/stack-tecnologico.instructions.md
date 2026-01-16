@@ -367,9 +367,39 @@ GOOGLE_AI_API_KEY= # Gemini API (gratis en https://aistudio.google.com)pleto = d
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY= # Solo backend
-OPENAI_API_KEY=
+GOOGLE_AI_API_KEY= # Gemini API (gratis en https://aistudio.google.com)
 ENCRYPTION_KEY= # Para datos sensibles
 ```
+
+**🔴 SEGURIDAD CRÍTICA:**
+
+❌ **NUNCA commitear archivos con secretos:**
+```bash
+# Verificar que .gitignore incluya:
+.env*
+.env.local
+.env.production
+!.env.example
+```
+
+✅ **Buenas prácticas:**
+- Crear `.env.example` SIN valores reales (solo nombres de variables)
+- Usar `NEXT_PUBLIC_` SOLO para keys que pueden ser públicas (anon key de Supabase)
+- Rotar claves si se exponen accidentalmente
+- Documentar qué variables son obligatorias
+- Nunca loguear valores de variables de entorno
+- En Netlify: configurar variables en dashboard, NO en código
+
+✅ **Para desarrollo local:**
+1. Copiar `.env.example` a `.env.local`
+2. Llenar con claves reales del dashboard de Supabase/Google AI
+3. NUNCA commitear `.env.local`
+
+✅ **Para producción (Netlify):**
+1. Site settings → Environment variables
+2. Agregar todas las variables necesarias
+3. Marcar como "sensitive" las claves privadas
+4. NO usar secrets en build logs
 
 **NUNCA** commitear `.env.local`
 
