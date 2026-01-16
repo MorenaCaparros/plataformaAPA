@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
 // Función helper para normalizar texto (quitar acentos)
@@ -38,7 +38,7 @@ interface Zona {
   nombre: string;
 }
 
-export default function MisNinosPage() {
+function MisNinosPageContent() {
   const { user, perfil, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -388,5 +388,20 @@ export default function MisNinosPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function MisNinosPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <MisNinosPageContent />
+    </Suspense>
   );
 }
