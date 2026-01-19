@@ -57,7 +57,7 @@ async function crearEvaluacionesIniciales() {
     return;
   }
 
-  const evaluaciones = ninos.map((nino) => {
+  const evaluaciones = ninos.map((nino: { id: string; nombre: string; apellido: string; rango_etario: string }) => {
     const edad = nino.rango_etario === '5-7' ? 6 : nino.rango_etario === '8-10' ? 9 : 12;
     
     return {
@@ -174,9 +174,9 @@ async function crearPlanesIntervencion() {
 
   if (!evaluaciones) return;
 
-  const planes = evaluaciones.map((eval) => ({
-    nino_id: eval.nino_id,
-    evaluacion_id: eval.id,
+  const planes = evaluaciones.map((evaluacion: { id: string; nino_id: string }) => ({
+    nino_id: evaluacion.nino_id,
+    evaluacion_id: evaluacion.id,
     psicopedagoga_id: IDS.psicopedagogia,
     fecha_inicio: randomDate(new Date('2025-11-01'), new Date('2025-12-15')),
     fecha_fin_estimada: new Date('2026-07-31'), // Fin de ciclo lectivo
@@ -319,7 +319,7 @@ async function crearEntrevistasFamiliares() {
 
   if (!ninos) return;
 
-  const entrevistas = ninos.map((nino) => {
+  const entrevistas = ninos.map((nino: { id: string; nombre: string; apellido: string }) => {
     const edadMadre = Math.floor(Math.random() * 15) + 25;
     const edadPadre = edadMadre + Math.floor(Math.random() * 5);
     const cantHermanos = Math.floor(Math.random() * 4);
@@ -489,7 +489,7 @@ async function crearAlertasSociales() {
 
   if (!ninos) return;
 
-  const alertas = ninos.slice(0, 7).map((nino) => ({
+  const alertas = ninos.slice(0, 7).map((nino: { id: string; nombre: string; apellido: string }) => ({
     nino_id: nino.id,
     trabajador_social_id: IDS.trabajadoraSocial,
     tipo_alerta: randomChoice(['ausentismo', 'contexto_familiar', 'salud', 'violencia', 'otro']),

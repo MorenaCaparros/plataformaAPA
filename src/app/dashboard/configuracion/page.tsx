@@ -11,12 +11,12 @@ export default function ConfiguracionPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      // Solo admin puede acceder
-      if (perfil?.rol !== 'admin') {
+      // Solo director (administrador) puede acceder
+      if (perfil?.rol !== 'director') {
         router.push('/dashboard');
       }
     }
-  }, [authLoading, user, perfil]);
+  }, [authLoading, user, perfil, router]);
 
   if (authLoading) {
     return (

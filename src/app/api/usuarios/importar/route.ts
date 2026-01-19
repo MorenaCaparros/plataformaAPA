@@ -112,7 +112,15 @@ export async function POST(request: NextRequest) {
           } else {
             // Existe en auth pero no tiene perfil, podemos crear el perfil
             // Usar el ID existente
-            const zona_id = await obtenerZonaId(usuario.equipo);
+            let zona_id = null;
+            if (usuario.equipo) {
+              const { data: zona } = await supabaseAdmin
+                .from('zonas')
+                .select('id')
+                .eq('nombre', usuario.equipo)
+                .single();
+              zona_id = zona?.id;
+            }
             
             const { error: perfilError } = await supabaseAdmin
               .from('perfiles')
@@ -146,7 +154,7 @@ export async function POST(request: NextRequest) {
           await supabaseAdmin
             .from('perfiles')
             .delete()
-            .in('id', perfilesHuerfanos.map(p => p.id));
+            .in('id', perfilesHuerfanos.map((p: { id: string }) => p.id));
         }
 
         // Generar o usar password del CSV

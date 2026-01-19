@@ -1,13 +1,32 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// Función helper para crear cliente de Supabase
+function createSupabaseClient() {
+  const cookieStore = cookies();
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        persistSession: false,
+      },
+      global: {
+        headers: {
+          cookie: cookieStore.toString(),
+        },
+      },
+    }
+  );
+}
+
 // GET - Listar entrevistas
 export async function GET(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createSupabaseClient();
     const { searchParams } = new URL(request.url);
     const ninoId = searchParams.get('nino_id');
 
@@ -52,7 +71,7 @@ export async function GET(request: Request) {
 // POST - Crear nueva entrevista
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createSupabaseClient();
 
     // Verificar autenticación y rol
     const {

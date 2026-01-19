@@ -18,8 +18,8 @@ export default function NuevaEvaluacionPage() {
     notas_lenguaje: '',
 
     // Grafismo y Motricidad Fina
-    agarre_lapiz: 'en_desarrollo' as const,
-    tipo_trazo: 'irregular' as const,
+    agarre_lapiz: 'en_desarrollo' as 'adecuado' | 'inadecuado' | 'en_desarrollo',
+    tipo_trazo: 'irregular' as 'firme' | 'tembloroso' | 'irregular',
     representacion_figuras: 3,
     notas_grafismo: '',
 

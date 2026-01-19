@@ -138,7 +138,7 @@ export default function RegistroPage() {
                 <option value="coordinador">Coordinador</option>
                 <option value="psicopedagogia">Psicopedagogo/a</option>
                 <option value="trabajador_social">Trabajador/a Social</option>
-                <option value="admin">Administrador</option>
+                <option value="director">Director/a</option>
               </select>
             </div>
 

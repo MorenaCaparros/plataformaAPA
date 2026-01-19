@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Upload, UserPlus } from 'lucide-react';
+import { Upload, UserPlus, Key } from 'lucide-react';
 
 interface Usuario {
   id: string;
@@ -27,11 +27,12 @@ function UsuariosPageContent() {
   const [loading, setLoading] = useState(true);
   const [filtroRol, setFiltroRol] = useState<string>('todos');
   const [filtroZona, setFiltroZona] = useState<string>(zonaParam || 'todas');
+  const [reseteandoPasswords, setReseteandoPasswords] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user) {
-      // Solo admin puede acceder
-      if (perfil?.rol !== 'admin' && perfil?.rol !== 'psicopedagogia') {
+      // Solo director y psicopedagogía pueden acceder
+      if (perfil?.rol !== 'director' && perfil?.rol !== 'psicopedagogia') {
         router.push('/dashboard');
         return;
       }
@@ -78,6 +79,94 @@ function UsuariosPageContent() {
     }
   };
 
+  const resetearPasswordsPrueba = async () => {
+    if (!confirm('¿Estás seguro de resetear TODAS las contraseñas de prueba a "123456"?\n\nUsuarios afectados:\n- volun1-6@gmail.com\n- coord1-4@gmail.com\n- psico1-2@gmail.com\n- admin1-3@gmail.com')) {
+      return;
+    }
+
+    try {
+      setReseteandoPasswords(true);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Sesión expirada');
+        return;
+      }
+
+      const response = await fetch('/api/usuarios/resetear-password', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al resetear contraseñas');
+      }
+
+      alert(`✅ Contraseñas reseteadas correctamente!\n\n` +
+            `Exitosos: ${result.exitosos}\n` +
+            `Errores: ${result.errores}\n\n` +
+            `Ahora puedes entrar con:\n` +
+            `Email: volun1@gmail.com (u otros)\n` +
+            `Contraseña: 123456`);
+
+    } catch (error: any) {
+      console.error('Error:', error);
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setReseteandoPasswords(false);
+    }
+  };
+
+  const resetearPasswordIndividual = async (email: string) => {
+    const password = prompt(`Ingresa la nueva contraseña para ${email}:\n\n(Mínimo 6 caracteres, deja vacío para usar "123456")`);
+    
+    if (password === null) return; // Canceló
+    
+    const passwordFinal = password.trim() || '123456';
+    
+    if (passwordFinal.length < 6) {
+      alert('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Sesión expirada');
+        return;
+      }
+
+      const response = await fetch('/api/usuarios/resetear-password', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email,
+          nuevaPassword: passwordFinal
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al resetear contraseña');
+      }
+
+      alert(`✅ Contraseña actualizada correctamente para ${email}\n\nNueva contraseña: ${passwordFinal}`);
+
+    } catch (error: any) {
+      console.error('Error:', error);
+      alert(`❌ Error: ${error.message}`);
+    }
+  };
+
   const usuariosFiltrados = usuarios.filter(u => {
     // Filtro por rol
     if (filtroRol !== 'todos' && u.rol !== filtroRol) {
@@ -92,7 +181,7 @@ function UsuariosPageContent() {
 
   const getRolBadgeColor = (rol: string) => {
     switch (rol) {
-      case 'admin':
+      case 'director':
         return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
       case 'psicopedagogia':
         return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
@@ -100,6 +189,8 @@ function UsuariosPageContent() {
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'voluntario':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'trabajador_social':
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
@@ -107,14 +198,16 @@ function UsuariosPageContent() {
 
   const getRolNombre = (rol: string) => {
     switch (rol) {
-      case 'admin':
-        return 'Administrador';
+      case 'director':
+        return 'Director';
       case 'psicopedagogia':
         return 'Psicopedagogía';
       case 'coordinador':
         return 'Coordinador';
       case 'voluntario':
         return 'Voluntario';
+      case 'trabajador_social':
+        return 'Trabajador Social';
       default:
         return rol;
     }
@@ -150,13 +243,24 @@ function UsuariosPageContent() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12">
         {/* Opciones de gestión */}
         <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between">
-          <Link
-            href="/dashboard/usuarios/importar"
-            className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm active:scale-95"
-          >
-            <Upload className="w-5 h-5" />
-            Importar desde CSV
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/dashboard/usuarios/importar"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm active:scale-95"
+            >
+              <Upload className="w-5 h-5" />
+              Importar desde CSV
+            </Link>
+
+            <button
+              onClick={resetearPasswordsPrueba}
+              disabled={reseteandoPasswords}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Key className="w-5 h-5" />
+              {reseteandoPasswords ? 'Reseteando...' : 'Resetear Passwords'}
+            </button>
+          </div>
 
           {/* Filtros */}
           <div className="flex flex-col sm:flex-row gap-3">
@@ -167,10 +271,11 @@ function UsuariosPageContent() {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[48px]"
             >
               <option value="todos">Todos los roles</option>
-              <option value="admin">Administradores</option>
+              <option value="director">Directores</option>
               <option value="psicopedagogia">Psicopedagogía</option>
               <option value="coordinador">Coordinadores</option>
               <option value="voluntario">Voluntarios</option>
+              <option value="trabajador_social">Trabajadores Sociales</option>
             </select>
 
             {/* Filtro por zona */}
@@ -247,12 +352,22 @@ function UsuariosPageContent() {
                       {new Date(usuario.created_at).toLocaleDateString('es-AR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Link
-                        href={`/dashboard/usuarios/${usuario.id}/editar`}
-                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
-                      >
-                        Editar
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          href={`/dashboard/usuarios/${usuario.id}/editar`}
+                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                        >
+                          Editar
+                        </Link>
+                        <button
+                          onClick={() => resetearPasswordIndividual(usuario.email)}
+                          className="flex items-center gap-1 text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300 font-medium"
+                          title="Resetear contraseña"
+                        >
+                          <Key className="w-4 h-4" />
+                          Reset
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -12,8 +12,8 @@ export default function ImportarUsuariosPage() {
   const [procesando, setProcesando] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
 
-  // Solo admin puede acceder
-  if (perfil && perfil.rol !== 'admin') {
+  // Solo director puede acceder (rol con máximo privilegio)
+  if (perfil && perfil.rol !== 'director') {
     router.push('/dashboard');
     return null;
   }
@@ -103,7 +103,7 @@ export default function ImportarUsuariosPage() {
               coord1@apa.org,María,González,coordinador,La Herradura,987654321,Segura456
             </code>
             <div className="mt-3 text-sm text-blue-800 dark:text-blue-400 space-y-1">
-              <p><strong>Roles válidos:</strong> voluntario, coordinador, psicopedagogia, admin</p>
+              <p><strong>Roles válidos:</strong> voluntario, coordinador, psicopedagogia, director</p>
               <p><strong>Equipos válidos:</strong> Las Dalias, La Herradura, Parque Palermo, Villa de Paso</p>
               <p><strong>Password:</strong> Mínimo 8 caracteres. Si se deja vacío, se genera automáticamente.</p>
             </div>

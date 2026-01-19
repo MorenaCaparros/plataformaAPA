@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ClipboardList, Plus, Calendar, User, Target, FileText } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase/client';
 
 interface PlanIntervencion {
   id: string;
@@ -31,7 +31,6 @@ export default function PlanesPage() {
   const [planes, setPlanes] = useState<PlanIntervencion[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'todos' | 'activos' | 'completados'>('activos');
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     fetchPlanes();

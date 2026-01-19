@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import VoluntarioDashboard from '@/components/dashboard/VoluntarioDashboard';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
+import PsicopedagogiaDashboard from '@/components/dashboard/PsicopedagogiaDashboard';
 
 export default function DashboardPage() {
   const { user, perfil, loading, signOut } = useAuth();
@@ -65,7 +66,7 @@ export default function DashboardPage() {
             </div>
             <VoluntarioDashboard userId={user?.id || ''} />
           </>
-        ) : perfil?.rol === 'admin' ? (
+        ) : perfil?.rol === 'director' ? (
           <>
             <div className="mb-6">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -76,6 +77,18 @@ export default function DashboardPage() {
               </p>
             </div>
             <AdminDashboard />
+          </>
+        ) : perfil?.rol === 'psicopedagogia' ? (
+          <>
+            <div className="mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                Panel de Psicopedagogía 🎯
+              </h2>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                Evaluaciones, planes de intervención y análisis con IA
+              </p>
+            </div>
+            <PsicopedagogiaDashboard />
           </>
         ) : (
           <>
@@ -144,7 +157,7 @@ export default function DashboardPage() {
                 </p>
               </a>
 
-              {/* Biblioteca - Solo psicopedagogía y admin */}
+              {/* Biblioteca - Solo psicopedagogía y director */}
               {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director') && (
                 <a
                   href="/dashboard/biblioteca"

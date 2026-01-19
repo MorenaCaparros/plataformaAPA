@@ -9,7 +9,7 @@ interface UsuarioEdit {
   email: string;
   nombre: string;
   apellido: string;
-  rol: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin';
+  rol: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajador_social' | 'director';
   equipo: string;
   telefono: string;
   zona_id: string | null;
@@ -40,7 +40,7 @@ export default function EditarUsuarioPage() {
   });
 
   useEffect(() => {
-    if (!user || perfil?.rol !== 'admin') {
+    if (!user || perfil?.rol !== 'director') {
       router.push('/dashboard');
       return;
     }
@@ -210,7 +210,8 @@ export default function EditarUsuarioPage() {
               <option value="voluntario">Voluntario</option>
               <option value="coordinador">Coordinador</option>
               <option value="psicopedagogia">Psicopedagogía</option>
-              <option value="admin">Administrador</option>
+              <option value="trabajador_social">Trabajador Social</option>
+              <option value="director">Director</option>
             </select>
           </div>
 

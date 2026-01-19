@@ -71,7 +71,7 @@ export default function HistorialPage() {
         
         setNinos(ninosData);
       } else {
-        // Admin, psico, coordinador: todos los niños
+        // Director, psico, coordinador: todos los niños
         const { data, error } = await supabase
           .from('ninos')
           .select('id, alias')

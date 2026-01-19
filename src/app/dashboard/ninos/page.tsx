@@ -51,7 +51,7 @@ function MisNinosPageContent() {
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
 
   // Determinar si el usuario tiene acceso completo
-  const rolesConAccesoCompleto = ['psicopedagogia', 'admin'];
+  const rolesConAccesoCompleto = ['psicopedagogia', 'director'];
   const tieneAccesoCompleto = perfil?.rol && rolesConAccesoCompleto.includes(perfil.rol);
 
   useEffect(() => {
@@ -86,8 +86,8 @@ function MisNinosPageContent() {
     try {
       console.log('Fetching niños para user:', user?.id, 'rol:', perfil?.rol);
       
-      // Psicopedagogía, coordinador y admin ven TODOS los niños
-      const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'admin'];
+      // Psicopedagogía, coordinador y director ven TODOS los niños
+      const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director'];
       const tieneAccesoTotal = perfil?.rol && rolesConAccesoTotal.includes(perfil.rol);
 
       let ninosData: any[] = [];
