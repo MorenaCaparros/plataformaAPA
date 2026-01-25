@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       .eq('id', user.id)
       .single();
 
-    if (perfil?.rol !== 'psicopedagogia' && perfil?.rol !== 'admin') {
+    if (perfil?.rol !== 'psicopedagogia' && perfil?.rol !== 'director') {
       return NextResponse.json({ 
         error: 'No autorizado - requiere rol psicopedagogia' 
       }, { status: 403 });

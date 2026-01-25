@@ -62,9 +62,9 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    if (perfil.rol !== 'admin') {
+    if (perfil.rol !== 'director') {
       return NextResponse.json({ 
-        error: 'No autorizado - requiere rol admin' 
+        error: 'No autorizado - requiere rol director' 
       }, { status: 403 });
     }
 

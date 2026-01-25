@@ -53,11 +53,10 @@ export default function AdminDashboard() {
         .select('*', { count: 'exact', head: true })
         .gte('fecha', inicioMes.toISOString());
 
-      // Total voluntarios
+      // Total usuarios (todos los perfiles)
       const { count: countVoluntarios } = await supabase
         .from('perfiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('rol', 'voluntario');
+        .select('*', { count: 'exact', head: true });
 
       // Total equipos
       const { count: countEquipos } = await supabase
@@ -129,7 +128,7 @@ export default function AdminDashboard() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Voluntarios</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Usuarios</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {metricas.totalVoluntarios}
               </p>

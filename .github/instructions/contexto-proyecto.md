@@ -96,6 +96,195 @@ La plataforma registra información relevante en cada sesión educativa, permiti
 
 ---
 
+## Sistema de Capacitación y Matching de Voluntarios
+
+### Clasificación de Voluntarios por Habilidades
+
+Los voluntarios son evaluados y capacitados en las **4 áreas principales** que se trabajan con los niños:
+
+1. **Lenguaje y Vocabulario**
+2. **Grafismo y Motricidad Fina**
+3. **Lectura y Escritura**
+4. **Nociones Matemáticas**
+
+### Capacitaciones y Autoevaluaciones
+
+**Quién puede crear capacitaciones:**
+- Administrador/Director
+- Trabajador Social
+- Coordinador
+- Psicopedagogía
+
+**Tipos de evaluación:**
+1. **Capacitaciones formales** (con certificado/registro)
+   - Talleres presenciales
+   - Cursos online
+   - Material de estudio
+   - Evaluación al finalizar
+
+2. **Autoevaluaciones** (autodiagnóstico de habilidades)
+   - Comprensión de conceptos
+   - Capacidad de enseñanza
+   - Experiencia práctica
+   - Confianza en el área
+
+**Estructura de una capacitación:**
+```typescript
+interface Capacitacion {
+  id: string;
+  titulo: string;
+  area: 'lenguaje' | 'grafismo' | 'lectura_escritura' | 'matematicas' | 'general';
+  descripcion: string;
+  tipo: 'presencial' | 'online' | 'autoevaluacion' | 'material';
+  puntaje_otorgado: number; // 1-5 estrellas
+  fecha_creacion: Date;
+  creado_por: string; // ID del admin/TS/coordinador
+  contenido?: string; // Material de estudio
+  evaluacion?: Pregunta[]; // Quiz opcional
+}
+```
+
+### Sistema de Estrellas
+
+**Cómo se obtienen estrellas:**
+- Completar capacitaciones formales: 1-5 estrellas según complejidad
+- Autoevaluaciones aprobadas: 1-3 estrellas
+- Evaluaciones de coordinadores: 0-5 estrellas
+- Experiencia en sesiones: +0.5 estrellas por cada 10 sesiones exitosas
+
+**Visualización para el voluntario:**
+- ⭐⭐⭐⭐⭐ Lenguaje y Vocabulario (5/5)
+- ⭐⭐⭐ Grafismo y Motricidad Fina (3/5)
+- ⭐⭐⭐⭐ Lectura y Escritura (4/5)
+- ⭐⭐ Nociones Matemáticas (2/5)
+
+**Puntaje total:** Promedio de todas las áreas
+
+### Sistema de Matching Automático
+
+**Objetivo:** Asignar el voluntario más adecuado a cada niño según las necesidades identificadas.
+
+**Algoritmo de matching:**
+
+1. **Identificar déficits del niño** (de evaluación psicopedagógica)
+   - Lenguaje: Presenta dificultad
+   - Lectura: En proceso
+   - Matemáticas: Logrado
+   - Grafismo: Presenta dificultad
+
+2. **Identificar fortalezas del voluntario** (de capacitaciones/estrellas)
+   - Lenguaje: ⭐⭐⭐⭐⭐
+   - Lectura: ⭐⭐⭐
+   - Matemáticas: ⭐⭐
+   - Grafismo: ⭐⭐⭐⭐
+
+3. **Calcular score de compatibilidad:**
+   ```
+   Score = Σ (estrellas_voluntario × prioridad_necesidad_niño)
+   
+   Prioridad según evaluación:
+   - "Presenta dificultad" = 5 puntos
+   - "En proceso" = 3 puntos
+   - "Logrado" = 0 puntos
+   ```
+
+4. **Consideraciones adicionales:**
+   - Disponibilidad horaria
+   - Zona/barrio (proximidad)
+   - Carga actual del voluntario (máx. 3 niños simultáneos)
+   - Preferencias declaradas
+
+**Ejemplo de matching:**
+
+**Niño A:**
+- Lenguaje: Presenta dificultad (5)
+- Grafismo: Presenta dificultad (5)
+- Lectura: En proceso (3)
+- Matemáticas: Logrado (0)
+
+**Voluntario 1:**
+- Lenguaje: ⭐⭐⭐⭐⭐ (5)
+- Grafismo: ⭐⭐ (2)
+- Lectura: ⭐⭐⭐ (3)
+- Matemáticas: ⭐⭐ (2)
+
+**Score = (5×5) + (2×5) + (3×3) + (2×0) = 25 + 10 + 9 + 0 = 44 puntos**
+
+**Voluntario 2 (comodín):**
+- Lenguaje: ⭐⭐⭐⭐ (4)
+- Grafismo: ⭐⭐⭐⭐ (4)
+- Lectura: ⭐⭐⭐⭐ (4)
+- Matemáticas: ⭐⭐⭐⭐ (4)
+
+**Score = (4×5) + (4×5) + (4×3) + (4×0) = 20 + 20 + 12 + 0 = 52 puntos**
+
+✅ **Voluntario 2 es mejor match** (habilidades balanceadas)
+
+### Gestión de Capacitaciones
+
+**Estado de capacitaciones del voluntario:**
+- 📝 **Pendientes** - Asignadas pero no iniciadas
+- 🔄 **En curso** - Iniciadas pero no completadas
+- ✅ **Completadas** - Finalizadas con evaluación aprobada
+- ❌ **No aprobadas** - Requieren repetición
+
+**Notificaciones (Plus - Fase 3):**
+- WhatsApp: "Nueva capacitación disponible: Lectura inicial"
+- Email: "Recordatorio: Completá la autoevaluación de matemáticas"
+- In-app: Badge con cantidad de capacitaciones pendientes
+
+### Dashboard del Voluntario
+
+**Vista principal:**
+```
+┌─────────────────────────────────────────┐
+│  Mis Habilidades                        │
+├─────────────────────────────────────────┤
+│  ⭐⭐⭐⭐⭐ Lenguaje (5/5)                │
+│  ⭐⭐⭐⭐ Lectura y Escritura (4/5)       │
+│  ⭐⭐⭐ Grafismo (3/5)                    │
+│  ⭐⭐ Matemáticas (2/5)                   │
+├─────────────────────────────────────────┤
+│  Capacitaciones                         │
+│  ✅ Completadas: 8                      │
+│  🔄 En curso: 2                         │
+│  📝 Pendientes: 3                       │
+├─────────────────────────────────────────┤
+│  Niños asignados: 2/3                   │
+│  - Juan (Lenguaje + Lectura)            │
+│  - María (Grafismo + Matemáticas)       │
+└─────────────────────────────────────────┘
+```
+
+### Dashboard para Coordinadores/Psicopedagogía
+
+**Vista de asignación:**
+```
+┌─────────────────────────────────────────┐
+│  Sugerencias de Matching                │
+├─────────────────────────────────────────┤
+│  Niño: Pedro (7 años)                   │
+│  Necesidades:                           │
+│  🔴 Lenguaje (Presenta dificultad)      │
+│  🟡 Lectura (En proceso)                │
+│                                         │
+│  Voluntarios sugeridos:                 │
+│  1. Ana López (Score: 52) ⭐            │
+│     ⭐⭐⭐⭐⭐ Lenguaje                   │
+│     ⭐⭐⭐⭐ Lectura                      │
+│     Disponible: Lunes y Miércoles       │
+│     [Asignar]                           │
+│                                         │
+│  2. Carlos Gómez (Score: 48)            │
+│     ⭐⭐⭐⭐⭐ Lenguaje                   │
+│     ⭐⭐⭐ Lectura                        │
+│     Disponible: Martes y Jueves         │
+│     [Asignar]                           │
+└─────────────────────────────────────────┘
+```
+
+---
+
 ## Fases del Proyecto
 
 ### 📋 FASE 1 - Diciembre 2025: Diseño Conceptual
@@ -209,8 +398,11 @@ La plataforma registra información relevante en cada sesión educativa, permiti
 
 3. **Asignación de voluntario**
    - Match voluntario-niño según disponibilidad y zona
+   - Sistema de matching automático basado en habilidades
+   - Sugerencias inteligentes: voluntario fuerte en área X → niño con déficit en área X
    - Reasignación cuando sea necesario
    - Registro de capacitaciones del voluntario
+   - Sistema de estrellas por área de dominio
 
 4. **Recursos y materiales**
    - Selección de actividades de la biblioteca

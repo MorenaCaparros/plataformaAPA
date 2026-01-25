@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import VoluntarioDashboard from '@/components/dashboard/VoluntarioDashboard';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
-import PsicopedagogiaDashboard from '@/components/dashboard/PsicopedagogiaDashboard';
+import EquipoProfesionalDashboard from '@/components/dashboard/EquipoProfesionalDashboard';
 
 export default function DashboardPage() {
   const { user, perfil, loading, signOut } = useAuth();
@@ -25,6 +25,15 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  // 🔍 DEBUG: Ver qué datos tenemos
+  console.log('🔍 Dashboard Debug:', {
+    user: user?.id,
+    email: user?.email,
+    perfil: perfil,
+    rol: perfil?.rol,
+    loading
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
@@ -66,7 +75,7 @@ export default function DashboardPage() {
             </div>
             <VoluntarioDashboard userId={user?.id || ''} />
           </>
-        ) : perfil?.rol === 'director' ? (
+        ) : perfil?.rol === 'director' || perfil?.rol === 'admin' ? (
           <>
             <div className="mb-6">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -78,18 +87,14 @@ export default function DashboardPage() {
             </div>
             <AdminDashboard />
           </>
-        ) : perfil?.rol === 'psicopedagogia' ? (
-          <>
-            <div className="mb-6">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                Panel de Psicopedagogía 🎯
-              </h2>
-              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-                Evaluaciones, planes de intervención y análisis con IA
-              </p>
-            </div>
-            <PsicopedagogiaDashboard />
-          </>
+        ) : perfil?.rol === 'psicopedagogia' || perfil?.rol === 'coordinador' || perfil?.rol === 'trabajador_social' ? (
+          <EquipoProfesionalDashboard 
+            title={
+              perfil?.rol === 'psicopedagogia' ? 'Panel de Psicopedagogía 🎯' :
+              perfil?.rol === 'coordinador' ? 'Panel de Coordinación 📊' :
+              'Panel de Trabajo Social 🤝'
+            }
+          />
         ) : (
           <>
             {/* Dashboard original para otros roles */}

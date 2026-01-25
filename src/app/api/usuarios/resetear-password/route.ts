@@ -30,16 +30,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Verificar que sea admin
+    // Verificar que sea director (antes admin)
     const { data: perfil } = await supabaseAdmin
       .from('perfiles')
       .select('rol')
       .eq('id', user.id)
       .single();
 
-    if (perfil?.rol !== 'admin') {
+    if (perfil?.rol !== 'director') {
       return NextResponse.json({ 
-        error: 'No autorizado - requiere rol admin' 
+        error: 'No autorizado - requiere rol director' 
       }, { status: 403 });
     }
 
@@ -119,16 +119,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Verificar que sea admin
+    // Verificar que sea director (antes admin)
     const { data: perfil } = await supabaseAdmin
       .from('perfiles')
       .select('rol')
       .eq('id', user.id)
       .single();
 
-    if (perfil?.rol !== 'admin') {
+    if (perfil?.rol !== 'director') {
       return NextResponse.json({ 
-        error: 'No autorizado - requiere rol admin' 
+        error: 'No autorizado - requiere rol director' 
       }, { status: 403 });
     }
 

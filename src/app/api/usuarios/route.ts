@@ -32,15 +32,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
     }
 
-    // Verificar que sea admin
+    // Verificar que sea director (antes admin)
     const { data: perfil } = await supabaseAdmin
       .from('perfiles')
       .select('rol')
       .eq('id', user.id)
       .single();
 
-    if (perfil?.rol !== 'admin') {
-      return NextResponse.json({ error: 'Requiere rol admin' }, { status: 403 });
+    if (perfil?.rol !== 'director') {
+      return NextResponse.json({ error: 'Requiere rol director' }, { status: 403 });
     }
 
     // Si hay parámetro 'id', devolver solo ese usuario
