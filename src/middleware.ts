@@ -64,6 +64,12 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith(path)
   );
 
+  // 🔥 EXCLUIR RUTAS DE API - manejan su propia autenticación
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
+  if (isApiRoute) {
+    return response; // Dejar pasar sin verificar cookies
+  }
+
   // Si no está autenticado y trata de acceder a ruta protegida
   if (!user && !isPublicPath && request.nextUrl.pathname !== '/') {
     return NextResponse.redirect(new URL('/login', request.url));

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { ArrowLeft, Plus, BookOpen, ClipboardList, Target, Info, ChevronRight } from 'lucide-react';
 
 interface Nino {
   id: string;
@@ -154,9 +155,10 @@ export default function NinoPerfilPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
           <button
             onClick={() => router.back()}
-            className="text-blue-600 hover:text-blue-700 font-medium mb-3 flex items-center gap-1 touch-manipulation min-h-[44px]"
+            className="text-blue-600 hover:text-blue-700 font-medium mb-3 flex items-center gap-2 touch-manipulation min-h-[44px]"
           >
-            ← Volver
+            <ArrowLeft className="w-5 h-5" />
+            Volver
           </button>
 
           <div className="flex items-start justify-between gap-4">
@@ -172,8 +174,9 @@ export default function NinoPerfilPage() {
                   {nino.nivel_alfabetizacion || 'Sin nivel'}
                 </span>
                 {nino.escolarizado && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium">
-                    📚 Escolarizado
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium">
+                    <BookOpen className="w-4 h-4" />
+                    Escolarizado
                   </span>
                 )}
               </div>
@@ -181,9 +184,10 @@ export default function NinoPerfilPage() {
 
             <button
               onClick={() => router.push(`/dashboard/sesiones/nueva/${ninoId}`)}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all touch-manipulation min-h-[44px]"
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all touch-manipulation min-h-[44px] flex items-center gap-2"
             >
-              📝 Nueva Sesión
+              <Plus className="w-5 h-5" />
+              Nueva Sesión
             </button>
           </div>
         </div>
@@ -222,7 +226,10 @@ export default function NinoPerfilPage() {
         {/* Información Adicional (solo para no-voluntarios) */}
         {!isVoluntario && nino.metadata && (
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">📋 Información del Niño</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <ClipboardList className="w-6 h-6" />
+              Información del Niño
+            </h2>
             <div className="space-y-3 text-sm">
               {nino.metadata.dificultades && (
                 <div>
@@ -243,7 +250,10 @@ export default function NinoPerfilPage() {
         {/* Objetivos (visible para todos) */}
         {nino.metadata?.objetivos && (
           <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-md p-4 sm:p-6">
-            <h2 className="text-xl font-bold text-purple-900 mb-4">🎯 Objetivos Asignados</h2>
+            <h2 className="text-xl font-bold text-purple-900 mb-4 flex items-center gap-2">
+              <Target className="w-6 h-6" />
+              Objetivos Asignados
+            </h2>
             <div className="space-y-3">
               {Array.isArray(nino.metadata.objetivos) ? (
                 nino.metadata.objetivos.map((objetivo: string, i: number) => (
@@ -262,8 +272,9 @@ export default function NinoPerfilPage() {
         {/* Historial de Sesiones */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b bg-gray-50">
-            <h2 className="text-xl font-bold text-gray-900">
-              {isVoluntario ? '📝 Mis Sesiones Registradas' : '📝 Historial de Sesiones'}
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <ClipboardList className="w-6 h-6" />
+              {isVoluntario ? 'Mis Sesiones Registradas' : 'Historial de Sesiones'}
             </h2>
             <p className="text-sm text-gray-600 mt-1">
               {isVoluntario
@@ -274,7 +285,7 @@ export default function NinoPerfilPage() {
 
           {sesiones.length === 0 ? (
             <div className="p-8 text-center">
-              <div className="text-6xl mb-3">📚</div>
+              <BookOpen className="w-16 h-16 mx-auto mb-3 text-gray-400" />
               <p className="text-gray-600 mb-2">
                 {isVoluntario
                   ? 'Aún no registraste ninguna sesión con este niño'
@@ -304,7 +315,7 @@ export default function NinoPerfilPage() {
                         Duración: {sesion.duracion_minutos} minutos
                       </p>
                     </div>
-                    <span className="text-2xl">→</span>
+                    <ChevronRight className="w-6 h-6 text-gray-400 flex-shrink-0" />
                   </div>
                   
                   {sesion.observaciones_libres && (
@@ -322,7 +333,7 @@ export default function NinoPerfilPage() {
         {isVoluntario && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div className="flex gap-3">
-              <span className="text-2xl">ℹ️</span>
+              <Info className="w-6 h-6 text-blue-600 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-sm text-blue-900 font-medium mb-1">
                   Vista de Voluntario

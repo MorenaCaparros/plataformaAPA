@@ -97,56 +97,70 @@ export default function AdminDashboard() {
 
   return (
     <div>
+      {/* Header con saludo */}
+      <div className="mb-8">
+        <h1 className="font-quicksand text-3xl font-bold text-neutro-carbon mb-2">
+          Panel de Administración
+        </h1>
+        <p className="font-outfit text-neutro-piedra">
+          Gestión integral del programa APA
+        </p>
+      </div>
+
       {/* Métricas principales */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Niños</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                {metricas.totalNinos}
-              </p>
-            </div>
-            <Baby className="w-10 h-10 text-pink-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+        {/* Tarjeta Niños (Rojo/Impulso) */}
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(230,57,70,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(230,57,70,0.25)] hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-impulso-50 flex items-center justify-center mb-4 text-impulso-500 group-hover:scale-110 transition-transform">
+            <Baby className="w-7 h-7" strokeWidth={2.5} />
           </div>
-          <p className="text-xs text-gray-500 mt-2">{metricas.ninosSinSesiones} sin sesiones</p>
+          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
+            {metricas.totalNinos}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm mb-2">Niños Activos</p>
+          <p className="font-outfit text-xs text-impulso-600">
+            {metricas.ninosSinSesiones} sin sesiones
+          </p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-impulso-400 animate-pulse" />
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Sesiones</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                {metricas.totalSesiones}
-              </p>
-            </div>
-            <FileText className="w-10 h-10 text-orange-600" />
+        {/* Tarjeta Sesiones (Amarillo/Sol) */}
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(242,201,76,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(242,201,76,0.25)] hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
+            <FileText className="w-7 h-7" strokeWidth={2.5} />
           </div>
-          <p className="text-xs text-gray-500 mt-2">{metricas.sesionesEsteMes} este mes</p>
+          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
+            {metricas.totalSesiones}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm mb-2">Sesiones Totales</p>
+          <p className="font-outfit text-xs text-sol-600">
+            {metricas.sesionesEsteMes} este mes
+          </p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-sol-400 animate-pulse" />
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Usuarios</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                {metricas.totalVoluntarios}
-              </p>
-            </div>
-            <UserCheck className="w-10 h-10 text-green-600" />
+        {/* Tarjeta Usuarios (Verde/Crecimiento) */}
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(164,198,57,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(164,198,57,0.25)] hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+            <UserCheck className="w-7 h-7" strokeWidth={2.5} />
           </div>
+          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
+            {metricas.totalVoluntarios}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm">Usuarios Totales</p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-crecimiento-400 animate-pulse" />
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Equipos</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                {metricas.totalEquipos}
-              </p>
-            </div>
-            <Building2 className="w-10 h-10 text-purple-600" />
+        {/* Tarjeta Equipos (Verde/Crecimiento) */}
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(164,198,57,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(164,198,57,0.25)] hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+            <Building2 className="w-7 h-7" strokeWidth={2.5} />
           </div>
+          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
+            {metricas.totalEquipos}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm">Equipos/Zonas</p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-crecimiento-400 animate-pulse" />
         </div>
       </div>
 
@@ -154,78 +168,90 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <Link
           href="/dashboard/ninos"
-          className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(230,57,70,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(230,57,70,0.2)] hover:-translate-y-1"
         >
-          <Baby className="w-12 h-12 mb-3 text-pink-600" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="h-12 w-12 rounded-2xl bg-impulso-50 flex items-center justify-center mb-4 text-impulso-500 group-hover:scale-110 transition-transform">
+            <Baby className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
             Gestionar Niños
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-outfit text-sm text-neutro-piedra">
             Perfiles, evaluaciones y planes de intervención
           </p>
         </Link>
 
         <Link
           href="/dashboard/sesiones"
-          className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(242,201,76,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(242,201,76,0.2)] hover:-translate-y-1"
         >
-          <Users className="w-12 h-12 mb-3 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
+            <FileText className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
             Historial de Sesiones
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-outfit text-sm text-neutro-piedra">
             Ver y analizar todas las sesiones registradas
           </p>
         </Link>
 
         <Link
           href="/dashboard/usuarios"
-          className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(164,198,57,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(164,198,57,0.2)] hover:-translate-y-1"
         >
-          <UserCheck className="w-12 h-12 mb-3 text-green-600" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="h-12 w-12 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+            <UserCheck className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
             Gestión de Usuarios
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-outfit text-sm text-neutro-piedra">
             Crear, editar y asignar roles a usuarios
           </p>
         </Link>
 
         <Link
           href="/dashboard/equipos"
-          className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(164,198,57,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(164,198,57,0.2)] hover:-translate-y-1"
         >
-          <Building2 className="w-12 h-12 mb-3 text-purple-600" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="h-12 w-12 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+            <Building2 className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
             Equipos/Zonas
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-outfit text-sm text-neutro-piedra">
             Gestionar equipos y asignaciones
           </p>
         </Link>
 
         <Link
           href="/dashboard/biblioteca"
-          className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(242,201,76,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(242,201,76,0.2)] hover:-translate-y-1"
         >
-          <BookOpen className="w-12 h-12 mb-3 text-indigo-600" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
+            <BookOpen className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
             Biblioteca
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-outfit text-sm text-neutro-piedra">
             Documentos psicopedagógicos y sistema RAG
           </p>
         </Link>
 
         <Link
           href="/dashboard/configuracion"
-          className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-neutro-piedra/5 hover:shadow-neutro-piedra/10 hover:-translate-y-1"
         >
-          <Settings className="w-12 h-12 mb-3 text-gray-600" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="h-12 w-12 rounded-2xl bg-neutro-piedra/10 flex items-center justify-center mb-4 text-neutro-piedra group-hover:scale-110 transition-transform">
+            <Settings className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
             Configuración
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="font-outfit text-sm text-neutro-piedra">
             Ajustes del sistema y preferencias
           </p>
         </Link>

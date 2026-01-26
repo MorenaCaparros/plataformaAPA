@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { ITEMS_OBSERVACION, CATEGORIAS_LABELS, ESCALA_LIKERT, type Categoria } from '@/lib/constants/items-observacion';
+import { ArrowLeft, Save, FileText, Check, AlertTriangle } from 'lucide-react';
 
 interface Nino {
   id: string;
@@ -197,7 +198,10 @@ export default function NuevaSesionPage() {
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
         <div className="px-4 py-3">
           <div className="flex justify-between items-center mb-2">
-            <button onClick={() => router.back()} className="text-blue-600 min-h-[44px] flex items-center">← Volver</button>
+            <button onClick={() => router.back()} className="text-blue-600 min-h-[44px] flex items-center gap-2">
+              <ArrowLeft className="w-5 h-5" />
+              Volver
+            </button>
             <h1 className="font-bold text-base sm:text-lg">Nueva Sesión</h1>
             <div className="w-16"></div>
           </div>
@@ -209,10 +213,11 @@ export default function NuevaSesionPage() {
             {hasDraft && (
               <button
                 onClick={clearDraft}
-                className="text-amber-600 hover:text-amber-800 font-medium"
+                className="text-amber-600 hover:text-amber-800 font-medium flex items-center gap-1.5"
                 title="Borrar borrador"
               >
-                💾 Borrador
+                <Save className="w-4 h-4" />
+                Borrador
               </button>
             )}
           </div>
@@ -282,7 +287,7 @@ export default function NuevaSesionPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {isComplete && <span className="text-green-600 text-xl font-bold">✓</span>}
+                    {isComplete && <Check className="w-5 h-5 text-green-600 font-bold" />}
                     <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
                   </div>
                 </button>
@@ -300,9 +305,9 @@ export default function NuevaSesionPage() {
                           <div className="mb-3">
                             <div className="flex gap-2 mb-1">
                               {isItemComplete ? (
-                                <span className="text-green-600 text-lg font-bold">✓</span>
+                                <Check className="w-5 h-5 text-green-600 font-bold flex-shrink-0" />
                               ) : (
-                                <span className="text-gray-300 text-lg font-bold">○</span>
+                                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
                               )}
                               <label className={`text-sm font-medium flex-1 ${isItemComplete ? 'text-green-900' : ''}`}>
                                 {item.texto}
@@ -346,7 +351,10 @@ export default function NuevaSesionPage() {
 
         {/* Observaciones */}
         <div className="bg-white rounded-lg shadow p-4 mt-4">
-          <label className="block text-sm font-medium mb-2">📝 Observaciones adicionales</label>
+          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Observaciones adicionales
+          </label>
           <textarea
             value={formData.observaciones_libres}
             onChange={(e) => setFormData(prev => ({ ...prev, observaciones_libres: e.target.value }))}
@@ -361,8 +369,9 @@ export default function NuevaSesionPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg">
         <div className="max-w-md mx-auto">
           {progreso < 100 && (
-            <div className="text-center text-sm text-amber-600 font-medium mb-3">
-              ⚠️ Faltan {totalItems - completedItems} ítems
+            <div className="text-center text-sm text-amber-600 font-medium mb-3 flex items-center justify-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Faltan {totalItems - completedItems} ítems
             </div>
           )}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -378,9 +387,14 @@ export default function NuevaSesionPage() {
               type="button"
               onClick={handleSubmit}
               disabled={submitting || progreso < 100}
-              className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg font-semibold active:scale-95 disabled:opacity-50 flex items-center justify-center"
+              className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg font-semibold active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {submitting ? 'Guardando...' : '✓ Guardar'}
+              {submitting ? 'Guardando...' : (
+                <>
+                  <Check className="w-5 h-5" />
+                  Guardar
+                </>
+              )}
             </button>
           </div>
         </div>

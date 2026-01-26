@@ -63,26 +63,31 @@ export default function NuevoNinoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex justify-between items-center">
-            <Link href="/dashboard/ninos" className="text-blue-600 font-medium text-sm sm:text-base min-h-[44px] flex items-center">
-              ← Volver
-            </Link>
-            <h1 className="text-base sm:text-lg font-bold text-gray-900">Registrar Niño</h1>
-            <div className="w-16"></div>
+    <div className="min-h-screen">
+      {/* Navbar flotante */}
+      <nav className="sticky top-0 z-30 mb-6">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-white/60 backdrop-blur-lg border border-white/60 rounded-3xl shadow-[0_4px_16px_rgba(242,201,76,0.1)] px-6 py-4">
+            <div className="flex justify-between items-center">
+              <Link href="/dashboard/ninos" className="flex items-center gap-2 text-neutro-piedra hover:text-neutro-carbon transition-colors font-outfit font-medium min-h-[44px]">
+                <span className="text-lg">←</span>
+                <span className="hidden sm:inline">Volver</span>
+              </Link>
+              <h1 className="text-xl sm:text-2xl font-bold text-neutro-carbon font-quicksand">
+                Registrar Niño
+              </h1>
+              <div className="w-16 sm:w-24"></div>
+            </div>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-4 py-4 sm:py-6">
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Alias */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
                 Alias / Nombre operativo *
               </label>
               <input
@@ -90,23 +95,23 @@ export default function NuevoNinoPage() {
                 required
                 value={formData.alias}
                 onChange={(e) => setFormData({ ...formData, alias: e.target.value })}
-                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] placeholder:text-neutro-piedra/60 transition-all"
                 placeholder="Ej: Juan, María, Luisito..."
               />
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-2 text-xs text-neutro-piedra font-outfit">
                 No uses el nombre completo por privacidad
               </p>
             </div>
 
             {/* Rango Etario */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
                 Rango de edad *
               </label>
               <select
                 value={formData.rango_etario}
                 onChange={(e) => setFormData({ ...formData, rango_etario: e.target.value })}
-                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
               >
                 <option value="5-7">5 a 7 años</option>
                 <option value="8-10">8 a 10 años</option>
@@ -117,13 +122,13 @@ export default function NuevoNinoPage() {
 
             {/* Nivel de Alfabetización */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
                 Nivel de alfabetización *
               </label>
               <select
                 value={formData.nivel_alfabetizacion}
                 onChange={(e) => setFormData({ ...formData, nivel_alfabetizacion: e.target.value })}
-                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
               >
                 <option value="Pre-silábico">Pre-silábico (no reconoce letras)</option>
                 <option value="Silábico">Silábico (reconoce algunas letras)</option>
@@ -135,7 +140,7 @@ export default function NuevoNinoPage() {
 
             {/* Escolarizado */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-3">
                 ¿Asiste a la escuela? *
               </label>
               <div className="flex gap-6">
@@ -145,9 +150,9 @@ export default function NuevoNinoPage() {
                     name="escolarizado"
                     checked={formData.escolarizado === true}
                     onChange={() => setFormData({ ...formData, escolarizado: true })}
-                    className="w-4 h-4 text-blue-600"
+                    className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
                   />
-                  <span className="text-gray-700">Sí</span>
+                  <span className="text-neutro-carbon font-outfit">Sí</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -155,40 +160,40 @@ export default function NuevoNinoPage() {
                     name="escolarizado"
                     checked={formData.escolarizado === false}
                     onChange={() => setFormData({ ...formData, escolarizado: false })}
-                    className="w-4 h-4 text-blue-600"
+                    className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
                   />
-                  <span className="text-gray-700">No</span>
+                  <span className="text-neutro-carbon font-outfit">No</span>
                 </label>
               </div>
             </div>
 
             {/* Observaciones iniciales */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
                 Observaciones iniciales (opcional)
               </label>
               <textarea
                 value={formData.observaciones_iniciales}
                 onChange={(e) => setFormData({ ...formData, observaciones_iniciales: e.target.value })}
                 rows={4}
-                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] placeholder:text-neutro-piedra/60 transition-all resize-none"
                 placeholder="Contexto, situación familiar, motivo de ingreso, etc."
               />
             </div>
 
             {/* Botones */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="w-full sm:flex-1 px-6 py-3 min-h-[48px] border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium active:scale-95 flex items-center justify-center"
+                className="w-full sm:flex-1 px-6 py-4 min-h-[56px] bg-white/80 backdrop-blur-sm border border-white/60 text-neutro-carbon rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] font-medium font-outfit active:scale-95 transition-all flex items-center justify-center"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 flex items-center justify-center"
+                className="w-full sm:flex-1 px-6 py-4 min-h-[56px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] font-semibold font-outfit disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all flex items-center justify-center shadow-[0_4px_16px_rgba(164,198,57,0.15)]"
               >
                 {loading ? 'Guardando...' : '✓ Registrar Niño'}
               </button>
@@ -197,9 +202,11 @@ export default function NuevoNinoPage() {
         </div>
 
         {/* Info adicional */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-medium text-blue-900 mb-2">ℹ️ Importante</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
+        <div className="mt-6 bg-sol-50/60 backdrop-blur-sm border border-sol-200/40 rounded-3xl p-6 shadow-[0_4px_16px_rgba(242,201,76,0.08)]">
+          <h3 className="font-semibold text-sol-800 mb-3 font-quicksand flex items-center gap-2">
+            <span className="text-xl">ℹ️</span> Importante
+          </h3>
+          <ul className="text-sm text-sol-700 space-y-2 font-outfit">
             <li>• Los datos sensibles (nombre completo, fecha de nacimiento) los cargará psicopedagogía</li>
             <li>• El niño quedará automáticamente asignado a vos</li>
             <li>• Podés empezar a registrar sesiones inmediatamente</li>

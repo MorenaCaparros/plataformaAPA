@@ -82,89 +82,82 @@ export default function PsicopedagogiaDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div>
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Psicopedagogía
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Gestión integral de evaluaciones, planes de intervención y seguimiento educativo
-            </p>
+      <div className="mb-8">
+        <h1 className="font-quicksand text-3xl font-bold text-neutro-carbon mb-2">
+          Psicopedagogía
+        </h1>
+        <p className="font-outfit text-neutro-piedra">
+          Gestión integral de evaluaciones, planes de intervención y seguimiento educativo
+        </p>
+      </div>
+
+      {/* Métricas principales */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-xl shadow-impulso-500/5 hover:shadow-impulso-500/10 hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-impulso-50 flex items-center justify-center mb-4 text-impulso-500 group-hover:scale-110 transition-transform">
+            <Users className="w-7 h-7" strokeWidth={2.5} />
           </div>
+          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
+            {metricas.totalNinos}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm">Total Niños</p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-impulso-400 animate-pulse" />
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Métricas principales */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Total Niños</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {metricas.totalNinos}
-                </p>
-              </div>
-              <Users className="w-10 h-10 text-blue-600" />
-            </div>
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-xl shadow-sol-500/5 hover:shadow-sol-500/10 hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
+            <ClipboardList className="w-7 h-7" strokeWidth={2.5} />
           </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Evaluaciones Pendientes</p>
-                <p className="text-3xl font-bold text-orange-600">
-                  {metricas.evaluacionesPendientes}
-                </p>
-              </div>
-              <ClipboardList className="w-10 h-10 text-orange-600" />
-            </div>
-            <p className="text-xs text-gray-500 mt-2">Últimos 6 meses</p>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Planes Activos</p>
-                <p className="text-3xl font-bold text-green-600">
-                  {metricas.planesActivos}
-                </p>
-              </div>
-              <Target className="w-10 h-10 text-green-600" />
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Sesiones Este Mes</p>
-                <p className="text-3xl font-bold text-purple-600">
-                  {metricas.sesionesEsteMes}
-                </p>
-              </div>
-              <TrendingUp className="w-10 h-10 text-purple-600" />
-            </div>
-          </div>
+          <h3 className="font-quicksand font-bold text-3xl text-sol-600 mb-1">
+            {metricas.evaluacionesPendientes}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm mb-2">Evaluaciones Pendientes</p>
+          <p className="font-outfit text-xs text-sol-600">Últimos 6 meses</p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-sol-400 animate-pulse" />
         </div>
+
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-xl shadow-crecimiento-500/5 hover:shadow-crecimiento-500/10 hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+            <Target className="w-7 h-7" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
+            {metricas.planesActivos}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm">Planes Activos</p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-crecimiento-400 animate-pulse" />
+        </div>
+
+        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-xl shadow-crecimiento-500/5 hover:shadow-crecimiento-500/10 hover:-translate-y-1">
+          <div className="h-14 w-14 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+            <TrendingUp className="w-7 h-7" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
+            {metricas.sesionesEsteMes}
+          </h3>
+          <p className="font-outfit font-medium text-neutro-piedra text-sm">Sesiones Este Mes</p>
+          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-crecimiento-400 animate-pulse" />
+        </div>
+      </div>
 
         {/* Acciones principales */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Evaluaciones */}
           <Link
             href="/dashboard/psicopedagogia/evaluaciones"
-            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-all p-6 group"
+            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-sol-500/5 hover:shadow-sol-500/10 hover:-translate-y-1"
           >
-            <ClipboardList className="w-12 h-12 mb-4 text-blue-600 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
+              <ClipboardList className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
               Evaluaciones
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            <p className="font-outfit text-neutro-piedra text-sm mb-4">
               Crear y gestionar evaluaciones diagnósticas cada 6 meses
             </p>
-            <div className="flex items-center text-blue-600 text-sm font-medium">
+            <div className="flex items-center text-sol-600 text-sm font-medium">
               Ver todas →
             </div>
           </Link>
@@ -172,16 +165,18 @@ export default function PsicopedagogiaDashboard() {
           {/* Planes de Intervención */}
           <Link
             href="/dashboard/psicopedagogia/planes"
-            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-all p-6 group"
+            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-crecimiento-500/5 hover:shadow-crecimiento-500/10 hover:-translate-y-1"
           >
-            <Target className="w-12 h-12 mb-4 text-green-600 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+              <Target className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
               Planes de Intervención
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            <p className="font-outfit text-neutro-piedra text-sm mb-4">
               Diseñar actividades semanales para voluntarios con cada niño
             </p>
-            <div className="flex items-center text-green-600 text-sm font-medium">
+            <div className="flex items-center text-crecimiento-600 text-sm font-medium">
               Gestionar planes →
             </div>
           </Link>
@@ -189,16 +184,18 @@ export default function PsicopedagogiaDashboard() {
           {/* Biblioteca con IA */}
           <Link
             href="/dashboard/biblioteca"
-            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-all p-6 group"
+            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-sol-500/5 hover:shadow-sol-500/10 hover:-translate-y-1"
           >
-            <BookOpen className="w-12 h-12 mb-4 text-indigo-600 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
+              <BookOpen className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
               Biblioteca con IA
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            <p className="font-outfit text-neutro-piedra text-sm mb-4">
               Subir documentos y consultar con sistema RAG inteligente
             </p>
-            <div className="flex items-center text-indigo-600 text-sm font-medium">
+            <div className="flex items-center text-sol-600 text-sm font-medium">
               Acceder →
             </div>
           </Link>
@@ -206,16 +203,18 @@ export default function PsicopedagogiaDashboard() {
           {/* Asignaciones */}
           <Link
             href="/dashboard/psicopedagogia/asignaciones"
-            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-all p-6 group"
+            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-crecimiento-500/5 hover:shadow-crecimiento-500/10 hover:-translate-y-1"
           >
-            <Users className="w-12 h-12 mb-4 text-purple-600 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
+              <Users className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
               Asignaciones
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            <p className="font-outfit text-neutro-piedra text-sm mb-4">
               Asignar voluntarios a niños según necesidades y disponibilidad
             </p>
-            <div className="flex items-center text-purple-600 text-sm font-medium">
+            <div className="flex items-center text-crecimiento-600 text-sm font-medium">
               Gestionar asignaciones →
             </div>
           </Link>
@@ -223,16 +222,18 @@ export default function PsicopedagogiaDashboard() {
           {/* Análisis y Reportes */}
           <Link
             href="/dashboard/psicopedagogia/analisis"
-            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-all p-6 group"
+            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-sol-500/5 hover:shadow-sol-500/10 hover:-translate-y-1"
           >
-            <TrendingUp className="w-12 h-12 mb-4 text-orange-600 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
+              <TrendingUp className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
               Análisis con IA
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            <p className="font-outfit text-neutro-piedra text-sm mb-4">
               Análisis de progreso y generación automática de informes
             </p>
-            <div className="flex items-center text-orange-600 text-sm font-medium">
+            <div className="flex items-center text-sol-600 text-sm font-medium">
               Ver análisis →
             </div>
           </Link>
@@ -240,61 +241,23 @@ export default function PsicopedagogiaDashboard() {
           {/* Niños */}
           <Link
             href="/dashboard/ninos"
-            className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-all p-6 group"
+            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-impulso-500/5 hover:shadow-impulso-500/10 hover:-translate-y-1"
           >
-            <FileText className="w-12 h-12 mb-4 text-pink-600 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <div className="h-12 w-12 rounded-2xl bg-impulso-50 flex items-center justify-center mb-4 text-impulso-500 group-hover:scale-110 transition-transform">
+              <FileText className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
               Perfiles de Niños
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            <p className="font-outfit text-neutro-piedra text-sm mb-4">
               Ver y editar información completa de cada niño
             </p>
-            <div className="flex items-center text-pink-600 text-sm font-medium">
+            <div className="flex items-center text-impulso-600 text-sm font-medium">
               Ver todos →
             </div>
           </Link>
         </div>
-
-        {/* Sección de acceso rápido */}
-        <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            Acceso Rápido
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link
-              href="/dashboard/psicopedagogia/evaluaciones/nueva"
-              className="bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow text-center"
-            >
-              <ClipboardList className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Nueva Evaluación</p>
-            </Link>
-
-            <Link
-              href="/dashboard/psicopedagogia/planes/nuevo"
-              className="bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow text-center"
-            >
-              <Target className="w-8 h-8 mx-auto mb-2 text-green-600" />
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Nuevo Plan</p>
-            </Link>
-
-            <Link
-              href="/dashboard/biblioteca/subir"
-              className="bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow text-center"
-            >
-              <Upload className="w-8 h-8 mx-auto mb-2 text-indigo-600" />
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Subir Documento</p>
-            </Link>
-
-            <Link
-              href="/dashboard/ninos"
-              className="bg-white dark:bg-gray-800 rounded-lg p-4 hover:shadow-md transition-shadow text-center"
-            >
-              <Users className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Ver Niños</p>
-            </Link>
-          </div>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }

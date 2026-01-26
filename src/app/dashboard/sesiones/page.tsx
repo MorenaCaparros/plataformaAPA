@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { ArrowLeft, FileText, Calendar, Clock } from 'lucide-react';
 
 interface Sesion {
   id: string;
@@ -170,36 +171,41 @@ export default function HistorialPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando historial...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-8 shadow-[0_8px_32px_rgba(242,201,76,0.15)] text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sol-200 border-t-sol-400 mx-auto mb-4"></div>
+          <p className="text-neutro-piedra font-outfit">Cargando historial...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <nav className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex justify-between items-center">
-            <Link href="/dashboard" className="text-blue-600 font-medium text-sm sm:text-base min-h-[44px] flex items-center">
-              ← Volver
-            </Link>
-            <h1 className="text-base sm:text-lg font-bold text-gray-900">Historial</h1>
-            <div className="w-16"></div>
+    <div className="min-h-screen">
+      {/* Navbar flotante */}
+      <nav className="sticky top-0 z-30 mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-white/60 backdrop-blur-lg border border-white/60 rounded-3xl shadow-[0_4px_16px_rgba(242,201,76,0.1)] px-6 py-4">
+            <div className="flex justify-between items-center">
+              <Link href="/dashboard" className="flex items-center gap-2 text-neutro-piedra hover:text-neutro-carbon transition-colors font-outfit font-medium min-h-[44px]">
+                <span className="text-lg">←</span>
+                <span className="hidden sm:inline">Volver</span>
+              </Link>
+              <h1 className="text-xl sm:text-2xl font-bold text-neutro-carbon font-quicksand">
+                Historial
+              </h1>
+              <div className="w-16 sm:w-24"></div>
+            </div>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-4 sm:py-6">
-        {/* Filtros */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-4 space-y-4">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {/* Filtros flotantes */}
+        <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_4px_16px_rgba(242,201,76,0.1)] p-6 mb-6 space-y-5">
           {/* Búsqueda por nombre/apellido */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
               Buscar por nombre o apellido
             </label>
             <input
@@ -207,19 +213,19 @@ export default function HistorialPage() {
               placeholder="Ej: Lucas, González, etc."
               value={filtroBusqueda}
               onChange={(e) => setFiltroBusqueda(e.target.value)}
-              className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] placeholder:text-neutro-piedra/60 transition-all"
             />
           </div>
 
           {/* Filtro por niño */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
               Filtrar por niño
             </label>
             <select
               value={filtroNino}
               onChange={(e) => setFiltroNino(e.target.value)}
-              className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
             >
               <option value="todos">Todos los niños ({sesiones.length})</option>
               {ninos.map(nino => (
@@ -232,67 +238,74 @@ export default function HistorialPage() {
 
           {/* Contador de resultados */}
           {(filtroNino !== 'todos' || filtroBusqueda) && (
-            <div className="text-sm text-gray-600">
-              Mostrando {sesionesFiltradas.length} de {sesiones.length} sesiones
+            <div className="px-4 py-2 bg-sol-50/50 backdrop-blur-sm border border-sol-200/30 rounded-2xl inline-block">
+              <span className="text-sm text-neutro-piedra font-outfit">
+                Mostrando <span className="font-semibold text-neutro-carbon">{sesionesFiltradas.length}</span> de <span className="font-semibold text-neutro-carbon">{sesiones.length}</span> sesiones
+              </span>
             </div>
           )}
         </div>
 
         {/* Lista de sesiones */}
         {sesionesFiltradas.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <p className="text-gray-600">No hay sesiones registradas todavía.</p>
-            <Link
-              href="/dashboard/ninos"
-              className="inline-block mt-4 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95"
-            >
-              Registrar primera sesión
-            </Link>
+          <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-8 sm:p-12 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-sol-400/20 to-crecimiento-400/20 flex items-center justify-center">
+                <FileText className="w-12 h-12 text-sol-600" />
+              </div>
+              <p className="text-neutro-carbon font-outfit text-lg mb-6">No hay sesiones registradas todavía.</p>
+              <Link
+                href="/dashboard/ninos"
+                className="inline-flex items-center justify-center gap-2 px-6 py-4 min-h-[56px] bg-gradient-to-r from-sol-400 to-sol-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(242,201,76,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(242,201,76,0.15)] active:scale-95"
+              >
+                Registrar primera sesión
+              </Link>
+            </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {sesionesFiltradas.map((sesion) => (
-              <div key={sesion.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow active:scale-[0.99]">
-                <Link href={`/dashboard/sesiones/${sesion.id}`} className="block p-4 sm:p-5">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="text-base sm:text-lg font-bold text-gray-900">{sesion.ninos.alias}</h3>
-                      <p className="text-sm text-gray-500">{sesion.ninos.rango_etario} años</p>
+              <div key={sesion.id} className="group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 transition-all duration-300 shadow-[0_4px_16px_rgba(242,201,76,0.1)] hover:shadow-[0_8px_32px_rgba(242,201,76,0.15)] hover:-translate-y-0.5 active:scale-[0.99]">
+                <Link href={`/dashboard/sesiones/${sesion.id}`} className="block p-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-neutro-carbon font-quicksand mb-1">{sesion.ninos.alias}</h3>
+                      <p className="text-sm text-neutro-piedra font-outfit">{sesion.ninos.rango_etario} años</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">{formatFecha(sesion.fecha)}</p>
-                      <p className="text-xs text-gray-500">{sesion.duracion_minutos} min</p>
+                    <div className="flex flex-col sm:items-end gap-1">
+                      <p className="text-sm font-medium text-neutro-carbon font-outfit">{formatFecha(sesion.fecha)}</p>
+                      <span className="px-3 py-1 bg-sol-50 text-sol-700 text-xs font-semibold font-outfit rounded-2xl border border-sol-200/30">
+                        {sesion.duracion_minutos} min
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex gap-4 mb-3">
-                    <div className="flex-1">
-                      <div className="text-xs text-gray-500 mb-1">Promedio general</div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${(parseFloat(String(calcularPromedio(sesion.items))) / 5) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-bold text-gray-900">
-                          {calcularPromedio(sesion.items)}/5
-                        </span>
+                  <div className="mb-4">
+                    <div className="text-xs text-neutro-piedra mb-2 font-outfit">Promedio general</div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 bg-neutro-lienzo rounded-full h-3 overflow-hidden border border-sol-200/30">
+                        <div 
+                          className="bg-gradient-to-r from-sol-400 to-crecimiento-400 h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(242,201,76,0.4)]"
+                          style={{ width: `${(parseFloat(String(calcularPromedio(sesion.items))) / 5) * 100}%` }}
+                        />
                       </div>
+                      <span className="text-base font-bold text-neutro-carbon font-quicksand min-w-[3rem] text-right">
+                        {calcularPromedio(sesion.items)}/5
+                      </span>
                     </div>
                   </div>
 
                   {sesion.observaciones_libres && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs text-gray-500 mb-1">Observaciones:</p>
-                      <p className="text-sm text-gray-700 line-clamp-2">
+                    <div className="mt-4 pt-4 border-t border-white/60">
+                      <p className="text-xs text-neutro-piedra mb-2 font-outfit font-medium">Observaciones:</p>
+                      <p className="text-sm text-neutro-carbon font-outfit line-clamp-2">
                         {sesion.observaciones_libres}
                       </p>
                     </div>
                   )}
 
-                  <div className="mt-3 text-right">
-                    <span className="text-sm text-blue-600 font-medium">
+                  <div className="mt-4 text-right">
+                    <span className="text-sm text-sol-600 font-medium font-outfit group-hover:text-crecimiento-600 transition-colors">
                       Ver detalle →
                     </span>
                   </div>
