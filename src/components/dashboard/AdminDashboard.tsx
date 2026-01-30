@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Users, FileText, UserCheck, Building2, BookOpen, Settings, Baby } from 'lucide-react';
+import { Users, FileText, UserCheck, Building2, BookOpen, Settings, Baby, BarChart3 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const { user, perfil } = useAuth();
@@ -253,6 +253,21 @@ export default function AdminDashboard() {
           </h3>
           <p className="font-outfit text-sm text-neutro-piedra">
             Ajustes del sistema y preferencias
+          </p>
+        </Link>
+
+        <Link
+          href="/dashboard/metricas"
+          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(20,184,166,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(20,184,166,0.2)] hover:-translate-y-1"
+        >
+          <div className="h-12 w-12 rounded-2xl bg-teal-50 flex items-center justify-center mb-4 text-teal-500 group-hover:scale-110 transition-transform">
+            <BarChart3 className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
+            Métricas Generales
+          </h3>
+          <p className="font-outfit text-sm text-neutro-piedra">
+            Estadísticas globales de toda la plataforma
           </p>
         </Link>
       </div>

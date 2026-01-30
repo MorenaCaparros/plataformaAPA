@@ -289,20 +289,27 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
         <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3">
           Acciones Rápidas
         </h3>
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             onClick={() => router.push('/dashboard/sesiones')}
-            className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
+            className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
             style={{ minHeight: '44px' }}
           >
-            📋 Ver Todas Mis Sesiones
+            📋 Ver Mis Sesiones
           </button>
           <button
             onClick={() => router.push('/dashboard/ninos')}
-            className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
+            className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
             style={{ minHeight: '44px' }}
           >
             👦 Ver Todos los Niños
+          </button>
+          <button
+            onClick={() => router.push('/dashboard/metricas')}
+            className="px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base shadow-md"
+            style={{ minHeight: '44px' }}
+          >
+            📊 Mis Métricas
           </button>
         </div>
       </div>

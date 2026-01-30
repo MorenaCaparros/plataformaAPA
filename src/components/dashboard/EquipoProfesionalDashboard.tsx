@@ -62,8 +62,9 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
       let evaluacionesPendientes = 0;
       const hoy = new Date();
       
-      ninos?.forEach(nino => {
-        const evaluaciones = (nino as any).evaluaciones || [];
+      type NinoConEvaluaciones = { id: string; evaluaciones?: { fecha: string; tipo: string }[] };
+      (ninos as NinoConEvaluaciones[] | null)?.forEach((nino) => {
+        const evaluaciones = nino.evaluaciones || [];
         if (evaluaciones.length === 0) {
           evaluacionesPendientes++;
         } else {
@@ -261,15 +262,18 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
 
         {/* Asignaciones */}
         <Link
-          href="/dashboard/psicopedagogia/asignaciones"
+          href="/dashboard/asignaciones"
           className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-indigo-500 min-h-[200px] flex flex-col"
         >
           <div className="flex items-start justify-between mb-4">
             <UserCog className="w-8 h-8 text-indigo-600" />
+            <span className="bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+              Matching
+            </span>
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">Asignaciones</h3>
           <p className="text-sm text-gray-600 flex-grow">
-            Gestionar asignación de voluntarios a niños. Ver disponibilidad y zonas.
+            Sistema de matching automático voluntario-niño. Ver disponibilidad y zonas.
           </p>
           <div className="mt-4 text-indigo-600 font-medium text-sm">
             Ver asignaciones →
@@ -310,6 +314,26 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
           </p>
           <div className="mt-4 text-orange-600 font-medium text-sm">
             Ver perfiles →
+          </div>
+        </Link>
+
+        {/* Métricas */}
+        <Link
+          href="/dashboard/metricas"
+          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-teal-500 min-h-[200px] flex flex-col"
+        >
+          <div className="flex items-start justify-between mb-4">
+            <TrendingUp className="w-8 h-8 text-teal-600" />
+            <span className="bg-teal-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+              Datos
+            </span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Métricas</h3>
+          <p className="text-sm text-gray-600 flex-grow">
+            Estadísticas de tu zona: niños atendidos, voluntarios activos, cobertura.
+          </p>
+          <div className="mt-4 text-teal-600 font-medium text-sm">
+            Ver métricas →
           </div>
         </Link>
       </div>

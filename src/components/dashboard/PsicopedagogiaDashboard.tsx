@@ -13,7 +13,10 @@ import {
   TrendingUp, 
   Calendar,
   Upload,
-  ClipboardList
+  ClipboardList,
+  Brain,
+  Sparkles,
+  BarChart3
 } from 'lucide-react';
 
 export default function PsicopedagogiaDashboard() {
@@ -77,7 +80,7 @@ export default function PsicopedagogiaDashboard() {
       });
 
     } catch (error) {
-      console.error('Error cargando métricas:', error);
+      console.error('Error cargando metricas:', error);
     }
   };
 
@@ -202,7 +205,7 @@ export default function PsicopedagogiaDashboard() {
 
           {/* Asignaciones */}
           <Link
-            href="/dashboard/psicopedagogia/asignaciones"
+            href="/dashboard/asignaciones"
             className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-crecimiento-500/5 hover:shadow-crecimiento-500/10 hover:-translate-y-1"
           >
             <div className="h-12 w-12 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
@@ -222,18 +225,22 @@ export default function PsicopedagogiaDashboard() {
           {/* Análisis y Reportes */}
           <Link
             href="/dashboard/psicopedagogia/analisis"
-            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-sol-500/5 hover:shadow-sol-500/10 hover:-translate-y-1"
+            className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-purple-500/5 hover:shadow-purple-500/10 hover:-translate-y-1"
           >
-            <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
-              <TrendingUp className="w-6 h-6" strokeWidth={2.5} />
+            <span className="absolute top-4 right-4 px-2 py-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs rounded-full font-medium flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              IA
+            </span>
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center mb-4 text-purple-600 group-hover:scale-110 transition-transform">
+              <Brain className="w-6 h-6" strokeWidth={2.5} />
             </div>
             <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
               Análisis con IA
             </h3>
             <p className="font-outfit text-neutro-piedra text-sm mb-4">
-              Análisis de progreso y generación automática de informes
+              Patrones, tendencias y recomendaciones inteligentes
             </p>
-            <div className="flex items-center text-sol-600 text-sm font-medium">
+            <div className="flex items-center text-purple-600 text-sm font-medium">
               Ver análisis →
             </div>
           </Link>
@@ -256,8 +263,26 @@ export default function PsicopedagogiaDashboard() {
               Ver todos →
             </div>
           </Link>
+
+          {/* Métricas */}
+          <Link
+            href="/dashboard/metricas"
+            className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-teal-500/5 hover:shadow-teal-500/10 hover:-translate-y-1"
+          >
+            <div className="h-12 w-12 rounded-2xl bg-teal-50 flex items-center justify-center mb-4 text-teal-500 group-hover:scale-110 transition-transform">
+              <BarChart3 className="w-6 h-6" strokeWidth={2.5} />
+            </div>
+            <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
+              Métricas
+            </h3>
+            <p className="font-outfit text-neutro-piedra text-sm mb-4">
+              Estadísticas de la zona: niños, voluntarios y sesiones
+            </p>
+            <div className="flex items-center text-teal-600 text-sm font-medium">
+              Ver métricas →
+            </div>
+          </Link>
         </div>
-      </div>
     </div>
   );
 }

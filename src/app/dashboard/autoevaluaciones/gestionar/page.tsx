@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface Plantilla {
@@ -17,7 +17,7 @@ interface Plantilla {
   created_at: string;
 }
 
-export default function GestionarPlantillasPage() {
+function GestionarPlantillasContent() {
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -230,5 +230,24 @@ export default function GestionarPlantillasPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primario-azul mx-auto mb-4" />
+        <p className="text-neutro-piedra">Cargando plantillas...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function GestionarPlantillasPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <GestionarPlantillasContent />
+    </Suspense>
   );
 }
