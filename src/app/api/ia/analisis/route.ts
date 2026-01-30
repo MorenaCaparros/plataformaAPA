@@ -7,7 +7,16 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+// Lazy initialization para evitar errores durante el build
+let genAI: GoogleGenerativeAI | null = null;
+function getGenAI(): GoogleGenerativeAI {
+  if (!genAI) {
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) throw new Error('GOOGLE_AI_API_KEY no está configurada');
+    genAI = new GoogleGenerativeAI(apiKey);
+  }
+  return genAI;
+}
 
 export async function POST(request: Request) {
   try {
@@ -172,7 +181,7 @@ export async function POST(request: Request) {
     // Generar análisis con Gemini
     const prompt = generarPromptAnalisis(tipo_analisis, datosContexto);
     
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = result.response;
     let text = response.text();

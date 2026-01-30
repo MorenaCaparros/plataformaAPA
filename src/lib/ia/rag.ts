@@ -1,6 +1,6 @@
 // Sistema RAG para búsqueda semántica en documentos
 
-import { embeddingModel } from './gemini';
+import { getEmbeddingModel } from './gemini';
 import { supabase } from '../supabase/client';
 
 /**
@@ -8,7 +8,7 @@ import { supabase } from '../supabase/client';
  */
 export async function generateEmbedding(texto: string): Promise<number[]> {
   try {
-    const result = await embeddingModel.embedContent(texto);
+    const result = await getEmbeddingModel().embedContent(texto);
     return result.embedding.values;
   } catch (error) {
     console.error('Error generando embedding:', error);

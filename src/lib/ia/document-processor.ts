@@ -1,7 +1,7 @@
 // Utilidades para procesamiento de documentos
 
 import mammoth from 'mammoth';
-import { model } from './gemini';
+import { getModel } from './gemini';
 
 export interface DocumentChunk {
   texto: string;
@@ -44,7 +44,7 @@ Texto del documento:
 ${textoInicial}`;
 
     console.log('Llamando a Gemini para extraer metadata...');
-    const result = await model.generateContent(prompt);
+    const result = await getModel().generateContent(prompt);
     const response = result.response.text();
     console.log('Respuesta de Gemini:', response);
     

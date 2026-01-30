@@ -3,7 +3,16 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+// Lazy initialization para evitar errores durante el build
+let genAI: GoogleGenerativeAI | null = null;
+function getGenAI(): GoogleGenerativeAI {
+  if (!genAI) {
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) throw new Error('GOOGLE_AI_API_KEY no está configurada');
+    genAI = new GoogleGenerativeAI(apiKey);
+  }
+  return genAI;
+}
 
 export async function POST(request: Request) {
   try {
@@ -58,7 +67,7 @@ ${comentario}
 Resumen breve (2-3 párrafos) que integre análisis cuantitativo y cualitativo, con tono profesional pero cercano.`;
 
     // Llamar a Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getGenAI().getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const analisis = response.text();

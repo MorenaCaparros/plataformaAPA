@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { model } from '@/lib/ia/gemini';
+import { getModel } from '@/lib/ia/gemini';
 import { generateEmbedding } from '@/lib/ia/rag';
 import { PROMPT_CHAT_BIBLIOTECA, PROMPT_ANALISIS_SESION } from '@/lib/ia/prompts';
 
@@ -137,7 +137,7 @@ INSTRUCCIONES:
 - Sé preciso y pedagógico en tus respuestas`;
 
       // Generar respuesta
-      const result = await model.generateContent(promptEnriquecido);
+      const result = await getModel().generateContent(promptEnriquecido);
       const respuesta = result.response.text();
 
       return NextResponse.json({
@@ -211,7 +211,7 @@ INSTRUCCIONES:
         .replace('{pregunta_especifica}', pregunta);
 
       // Generar respuesta
-      const result = await model.generateContent(prompt);
+      const result = await getModel().generateContent(prompt);
       const respuesta = result.response.text();
 
       return NextResponse.json({
