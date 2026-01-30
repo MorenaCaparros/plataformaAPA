@@ -124,6 +124,12 @@ export default function BibliotecaPage() {
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <Link
+              href="/dashboard/biblioteca/drive"
+              className="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(59,130,246,0.25)] transition-all font-outfit font-semibold text-center min-h-[56px] flex items-center justify-center active:scale-95 shadow-[0_4px_16px_rgba(59,130,246,0.15)]"
+            >
+              <span className="mr-2">📁</span> Google Drive
+            </Link>
+            <Link
               href="/dashboard/biblioteca/chat"
               className="px-6 py-4 bg-gradient-to-r from-sol-400 to-sol-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(242,201,76,0.25)] transition-all font-outfit font-semibold text-center min-h-[56px] flex items-center justify-center active:scale-95 shadow-[0_4px_16px_rgba(242,201,76,0.15)]"
             >
