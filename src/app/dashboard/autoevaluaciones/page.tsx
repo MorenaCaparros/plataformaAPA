@@ -26,7 +26,6 @@ export default function AutoevaluacionesPage() {
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [respuestas, setRespuestas] = useState<RespuestaResumen[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlantilla, setSelectedPlantilla] = useState<Plantilla | null>(null);
   const router = useRouter();
   const { perfil } = useAuth();
 
@@ -104,20 +103,6 @@ export default function AutoevaluacionesPage() {
           <p className="text-neutro-piedra font-outfit">Cargando autoevaluaciones...</p>
         </div>
       </div>
-    );
-  }
-
-  if (selectedPlantilla) {
-    return (
-      <FormularioAutoevaluacion
-        plantilla={selectedPlantilla}
-        onBack={() => setSelectedPlantilla(null)}
-        onSuccess={() => {
-          setSelectedPlantilla(null);
-          fetchData(); // Recargar datos
-          router.push('/dashboard/autoevaluaciones/mis-respuestas');
-        }}
-      />
     );
   }
 
@@ -226,15 +211,15 @@ export default function AutoevaluacionesPage() {
                       Ver plantillas →
                     </Link>
                   ) : (
-                    <button
-                      onClick={() => setSelectedPlantilla(plantilla)}
+                    <Link
+                      href={`/dashboard/autoevaluaciones/mis-respuestas/completar/${plantilla.id}`}
                       className="w-full flex items-center justify-between text-sm px-4 py-3 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold active:scale-95"
                     >
                       <span>{plantilla.preguntas?.length || 0} preguntas</span>
                       <span>
                         {stats ? 'Hacer nuevamente →' : 'Comenzar →'}
                       </span>
-                    </button>
+                    </Link>
                   )}
                 </div>
               );
@@ -246,219 +231,3 @@ export default function AutoevaluacionesPage() {
   );
 }
 
-// ========================================
-// Componente: Formulario de Autoevaluación
-// ========================================
-
-interface FormularioProps {
-  plantilla: Plantilla;
-  onBack: () => void;
-  onSuccess: () => void;
-}
-
-function FormularioAutoevaluacion({ plantilla, onBack, onSuccess }: FormularioProps) {
-  const [respuestas, setRespuestas] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleRespuesta = (preguntaId: string, valor: string) => {
-    setRespuestas((prev) => ({
-      ...prev,
-      [preguntaId]: valor
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    // Validar que todas las preguntas estén respondidas
-    const preguntasRequeridas = plantilla.preguntas.filter(
-      (p) => p.tipo !== 'texto_abierto' || p.min_caracteres
-    );
-
-    for (const pregunta of preguntasRequeridas) {
-      if (!respuestas[pregunta.id] || respuestas[pregunta.id].trim() === '') {
-        setError('Por favor, respondé todas las preguntas obligatorias.');
-        return;
-      }
-
-      // Validar texto abierto si tiene mínimo
-      if (pregunta.tipo === 'texto_abierto' && pregunta.min_caracteres) {
-        if (respuestas[pregunta.id].length < pregunta.min_caracteres) {
-          setError(
-            `La pregunta "${pregunta.pregunta}" requiere al menos ${pregunta.min_caracteres} caracteres.`
-          );
-          return;
-        }
-      }
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/respuestas-autoevaluacion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plantilla_id: plantilla.id,
-          respuestas: Object.entries(respuestas).map(([pregunta_id, respuesta]) => ({
-            pregunta_id,
-            respuesta
-          }))
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al guardar respuestas');
-      }
-
-      // Éxito
-      onSuccess();
-    } catch (err: any) {
-      console.error('Error al enviar autoevaluación:', err);
-      setError(err.message || 'Error al guardar. Intentá de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const areaLabels: Record<string, string> = {
-    lenguaje: 'Lenguaje y Vocabulario',
-    grafismo: 'Grafismo y Motricidad Fina',
-    lectura_escritura: 'Lectura y Escritura',
-    matematicas: 'Nociones Matemáticas'
-  };
-
-  return (
-    <div className="container mx-auto px-4 py-6 max-w-3xl">
-      {/* Header */}
-      <button
-        onClick={onBack}
-        className="flex items-center text-gray-600 hover:text-gray-900 mb-6"
-      >
-        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Volver
-      </button>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium mb-3">
-          {areaLabels[plantilla.area] || plantilla.area}
-        </span>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">{plantilla.titulo}</h1>
-        <p className="text-gray-600">{plantilla.descripcion}</p>
-      </div>
-
-      {/* Formulario */}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {plantilla.preguntas.map((pregunta, index) => (
-          <div key={pregunta.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5">
-            <label className="block mb-4">
-              <span className="text-sm font-medium text-gray-700 mb-2 block">
-                {index + 1}. {pregunta.pregunta}
-                {pregunta.tipo === 'texto_abierto' && pregunta.min_caracteres && (
-                  <span className="text-xs text-gray-500 ml-2">
-                    (mínimo {pregunta.min_caracteres} caracteres)
-                  </span>
-                )}
-              </span>
-
-              {/* Tipo: Escala */}
-              {pregunta.tipo === 'escala' && (
-                <div className="space-y-3">
-                  <input
-                    type="range"
-                    min={pregunta.escala_min || 1}
-                    max={pregunta.escala_max || 10}
-                    value={respuestas[pregunta.id] || pregunta.escala_min || 1}
-                    onChange={(e) => handleRespuesta(pregunta.id, e.target.value)}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-sm text-gray-600">
-                    <span>{pregunta.escala_min || 1}</span>
-                    <span className="text-2xl font-bold text-blue-600">
-                      {respuestas[pregunta.id] || pregunta.escala_min || 1}
-                    </span>
-                    <span>{pregunta.escala_max || 10}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Tipo: Multiple Choice */}
-              {pregunta.tipo === 'multiple_choice' && (
-                <div className="space-y-2">
-                  {pregunta.opciones.map((opcion: string, idx: number) => (
-                    <label
-                      key={idx}
-                      className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
-                        respuestas[pregunta.id] === opcion
-                          ? 'bg-blue-50 border-blue-500'
-                          : 'bg-white border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name={pregunta.id}
-                        value={opcion}
-                        checked={respuestas[pregunta.id] === opcion}
-                        onChange={(e) => handleRespuesta(pregunta.id, e.target.value)}
-                        className="mr-3 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-gray-700">{opcion}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              {/* Tipo: Texto Abierto */}
-              {pregunta.tipo === 'texto_abierto' && (
-                <div>
-                  <textarea
-                    value={respuestas[pregunta.id] || ''}
-                    onChange={(e) => handleRespuesta(pregunta.id, e.target.value)}
-                    rows={4}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    placeholder="Escribí tu respuesta aquí..."
-                  />
-                  {pregunta.min_caracteres && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {respuestas[pregunta.id]?.length || 0} / {pregunta.min_caracteres} caracteres
-                    </p>
-                  )}
-                </div>
-              )}
-            </label>
-          </div>
-        ))}
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Botones */}
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Guardando...' : 'Enviar Autoevaluación'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}

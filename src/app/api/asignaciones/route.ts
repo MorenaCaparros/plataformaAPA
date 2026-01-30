@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { voluntario_id, nino_id, areas_foco, notas } = body;
+    const { voluntario_id, nino_id, score_matching, areas_foco, notas } = body;
 
     if (!voluntario_id || !nino_id) {
       return NextResponse.json(
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar que no exista asignación activa
+    // Verificar que no exista asignación activa entre el mismo par voluntario-niño
     const { data: existente } = await supabaseAdmin
       .from('asignaciones_voluntarios')
       .select('id')
@@ -146,14 +146,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calcular score de matching
-    const { data: scoreData } = await supabaseAdmin
-      .rpc('calcular_score_matching', {
-        p_voluntario_id: voluntario_id,
-        p_nino_id: nino_id
-      });
+    // Desactivar todas las asignaciones activas anteriores del niño
+    // (un niño solo puede tener UN voluntario activo a la vez)
+    const { data: asignacionesAnteriores, error: errorDesactivar } = await supabaseAdmin
+      .from('asignaciones_voluntarios')
+      .update({ 
+        activo: false, 
+        fecha_finalizacion: new Date().toISOString()
+      })
+      .eq('nino_id', nino_id)
+      .eq('activo', true)
+      .select('id, voluntario_id');
 
-    const score = scoreData || 0;
+    if (errorDesactivar) {
+      console.error('Error al desactivar asignaciones anteriores:', errorDesactivar);
+      // Continuamos aunque haya error, no es crítico
+    }
+
+    const asignacionesDesactivadas = asignacionesAnteriores?.length || 0;
+
+    // Usar el score_matching proporcionado (ya calculado por /api/matching/sugerencias)
+    // Si no se proporciona, usar 0
+    const score = score_matching ?? 0;
 
     // Crear asignación
     const { data, error } = await supabaseAdmin
@@ -185,7 +199,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       mensaje: 'Asignación creada exitosamente',
-      asignacion: data
+      asignacion: data,
+      asignaciones_desactivadas: asignacionesDesactivadas
     }, { status: 201 });
 
   } catch (error: any) {

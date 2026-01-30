@@ -57,6 +57,8 @@ applyTo: '**'
 [ ] ¿Encripté datos identificables de menores?
 [ ] ¿Los logs NO contienen información personal?
 [ ] ¿Documenté nuevos secretos en .env.example?
+[ ] ¿Tengo el OK del usuario para hacer push? (NO pushear sin aprobación)
+[ ] ¿Probé la funcionalidad completamente antes de solicitar aprobación?
 ```
 
 #### 4. EN CASO DE EXPOSICIÓN ACCIDENTAL
@@ -67,6 +69,75 @@ applyTo: '**'
 4. Limpiar historial de Git si es necesario (git filter-branch)
 5. Notificar al equipo
 6. Actualizar todas las instancias con la nueva clave
+
+---
+
+## 🚨 REGLAS DE WORKFLOW CRÍTICAS
+
+### 1. NO CREAR DOCUMENTACIÓN INNECESARIA
+❌ **PROHIBIDO crear archivos de documentación sin solicitarlo explícitamente:**
+- NO crear archivos RESUMEN-*.md, INSTRUCCIONES-*.md, ESTADO-*.md automáticamente
+- NO crear archivos de documentación "para referencia futura"
+- NO crear múltiples versiones de la misma documentación
+- Solo crear documentación cuando el usuario lo solicite específicamente
+
+✅ **PERMITIDO:**
+- Comentarios en el código (cuando son necesarios)
+- README.md del proyecto (actualizar si ya existe)
+- Documentación de API inline (JSDoc, docstrings)
+- CHANGELOG.md para cambios importantes (si ya existe)
+
+**Razón:** Evitar saturación de archivos innecesarios en el repositorio.
+
+### 2. WORKFLOW DE APROBACIÓN OBLIGATORIO
+
+🔴 **NUNCA hacer commit/push sin aprobación explícita del usuario**
+
+**Proceso correcto:**
+
+1. **Desarrollo incremental:**
+   - Implementar UNA funcionalidad a la vez
+   - No mezclar múltiples features en un mismo desarrollo
+   - Usar herramientas de edición de archivos, NO mostrar código completo
+
+2. **Testing funcionalidad por funcionalidad:**
+   ```
+   a) Implementar feature completa (código + tests si aplica)
+   b) Probar localmente (usar run_in_terminal si es necesario)
+   c) Validar que funciona correctamente
+   d) Informar al usuario: "✅ Funcionalidad X completada y probada"
+   e) ESPERAR aprobación del usuario
+   f) NO continuar con siguiente feature sin OK
+   ```
+
+3. **Solicitar aprobación:**
+   ```
+   "He completado la funcionalidad X:
+   - [Detalle de lo implementado]
+   - [Archivos modificados]
+   - [Testing realizado]
+   
+   ¿Tengo tu OK para hacer commit y push?"
+   ```
+
+4. **Solo después del OK explícito:**
+   ```bash
+   git add .
+   git commit -m "feat: descripción clara de la funcionalidad"
+   git push origin [branch]
+   ```
+
+**PROHIBIDO:**
+- ❌ Implementar múltiples features y pushear todo junto
+- ❌ Hacer push "preventivo" o "para guardar progreso"
+- ❌ Asumir que el usuario aprueba implícitamente
+- ❌ Saltarse el testing antes de pedir aprobación
+
+**Ventajas de este workflow:**
+- ✅ Control total del usuario sobre qué va al repositorio
+- ✅ Posibilidad de ajustar cada feature antes de commitear
+- ✅ Historial de commits limpio y organizado
+- ✅ Rollback fácil si algo no funciona como se esperaba
 
 ---
 
