@@ -68,3 +68,14 @@ Thumbs.db
 # Archivos SQL (no subir migraciones sensibles)
 *.sql
 supabase/migrations/*.sql
+
+# ==================================
+# 📝 Documentación interna (no subir)
+# ==================================
+# Archivos de tracking y notas de trabajo
+TAREAS-PENDIENTES.md
+PROXIMOS-PASOS.md
+NOTAS-*.md
+RESUMEN-*.md
+INSTRUCCIONES-*.md
+ESTADO-*.md
