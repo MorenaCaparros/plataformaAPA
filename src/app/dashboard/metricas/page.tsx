@@ -378,7 +378,7 @@ function MetricasVoluntarioView({
 }
 
 // ==========================================
-// VISTA COORDINADOR/PSICOPEDAGOGÍA/TRABAJO SOCIAL
+// VISTA COORDINADOR/PROFESIONAL/TRABAJO SOCIAL
 // ==========================================
 function MetricasEquipoView({ 
   metricas, 
@@ -391,7 +391,7 @@ function MetricasEquipoView({
 }) {
   const rolLabel = {
     coordinador: 'Coordinador',
-    psicopedagogia: 'Psicopedagogía',
+    psicopedagogia: 'Profesional',
     trabajo_social: 'Trabajo Social'
   }[rol] || rol;
 
@@ -623,7 +623,7 @@ function MetricasAdminView({
     'admin': 'Administradores',
     'director': 'Directores',
     'coordinador': 'Coordinadores',
-    'psicopedagogia': 'Psicopedagogía',
+    'psicopedagogia': 'Profesional',
     'trabajo_social': 'Trabajo Social',
     'voluntario': 'Voluntarios'
   };

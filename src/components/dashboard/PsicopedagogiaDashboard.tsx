@@ -101,7 +101,7 @@ export default function PsicopedagogiaDashboard() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-quicksand text-3xl font-bold text-neutro-carbon mb-2">
-          Psicopedagogía
+          Panel de Profesionales
         </h1>
         <p className="font-outfit text-neutro-piedra">
           Gestión integral de evaluaciones, planes de intervención y seguimiento educativo

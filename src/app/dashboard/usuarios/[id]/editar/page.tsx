@@ -206,7 +206,7 @@ export default function EditarUsuarioPage() {
             >
               <option value="voluntario">Voluntario</option>
               <option value="coordinador">Coordinador</option>
-              <option value="psicopedagogia">Psicopedagogía</option>
+              <option value="psicopedagogia">Profesional</option>
               <option value="trabajador_social">Trabajador Social</option>
               <option value="director">Director</option>
             </select>

@@ -43,7 +43,7 @@ export default function Sidebar() {
   const rolesLabels: Record<string, string> = {
     voluntario: 'Voluntario',
     coordinador: 'Coordinador',
-    psicopedagogia: 'Psicopedagogía',
+    psicopedagogia: 'Profesional',
     director: 'Director',
     trabajador_social: 'Trabajador Social'
   };

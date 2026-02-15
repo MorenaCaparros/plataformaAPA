@@ -342,7 +342,7 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
           Equipo Profesional
         </h3>
         <p className="text-sm text-sol-700 mb-3">
-          Como parte del equipo profesional (psicopedagogía, coordinador, trabajadora social), 
+          Como parte del equipo profesional (coordinación, trabajo social, psicopedagogía), 
           tenés acceso completo a todas las funcionalidades de la plataforma.
         </p>
         <ul className="text-sm text-sol-700 space-y-1 list-disc list-inside">

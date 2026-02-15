@@ -1,4 +1,4 @@
-// Tipos para Psicopedagogía
+// Tipos para Panel de Profesionales (Psicopedagogía / Trabajo Social)
 
 export interface EvaluacionInicial {
   id: string;

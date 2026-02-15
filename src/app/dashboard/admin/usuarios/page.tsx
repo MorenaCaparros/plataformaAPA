@@ -83,7 +83,7 @@ export default function UsuariosPage() {
     const labels: Record<string, string> = {
       voluntario: '🙋 Voluntario',
       coordinador: '👔 Coordinador',
-      psicopedagogia: '🎓 Psicopedagogía',
+      psicopedagogia: '🎓 Profesional',
       trabajador_social: '🏥 Trabajador Social',
       director: '⭐ Director',
     };
@@ -177,7 +177,7 @@ export default function UsuariosPage() {
                 <option value="todos">Todos los roles</option>
                 <option value="voluntario">Voluntarios</option>
                 <option value="coordinador">Coordinadores</option>
-                <option value="psicopedagogia">Psicopedagogía</option>
+                <option value="psicopedagogia">Profesionales</option>
                 <option value="trabajador_social">Trabajadores Sociales</option>
                 <option value="director">Directores</option>
               </select>
@@ -242,7 +242,7 @@ export default function UsuariosPage() {
                           >
                             <option value="voluntario">Voluntario</option>
                             <option value="coordinador">Coordinador</option>
-                            <option value="psicopedagogia">Psicopedagogía</option>
+                            <option value="psicopedagogia">Profesional</option>
                             <option value="trabajador_social">Trabajador Social</option>
                             <option value="director">Director</option>
                           </select>
@@ -312,7 +312,7 @@ export default function UsuariosPage() {
               <div className="text-sm text-sol-700 mt-2 space-y-1">
                 <p><strong>Voluntario:</strong> Registra sesiones, ve solo sus niños asignados</p>
                 <p><strong>Coordinador:</strong> Gestiona su equipo/barrio, asigna voluntarios</p>
-                <p><strong>Psicopedagogía:</strong> Acceso completo a evaluaciones, planificación, IA</p>
+                <p><strong>Profesional:</strong> Acceso completo a evaluaciones, planificación, IA</p>
                 <p><strong>Trabajador Social:</strong> Entrevistas familiares, intervenciones sociales</p>
                 <p><strong>Director:</strong> Acceso total, gestión del sistema, reportes institucionales</p>
               </div>

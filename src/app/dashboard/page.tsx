@@ -80,7 +80,7 @@ export default function DashboardPage() {
         ) : perfil?.rol === 'psicopedagogia' || perfil?.rol === 'coordinador' || perfil?.rol === 'trabajador_social' ? (
           <EquipoProfesionalDashboard 
             title={
-              perfil?.rol === 'psicopedagogia' ? 'Panel de Psicopedagogía 🎯' :
+              perfil?.rol === 'psicopedagogia' ? 'Panel de Profesionales 🎯' :
               perfil?.rol === 'coordinador' ? 'Panel de Coordinación 📊' :
               'Panel de Trabajo Social 🤝'
             }
@@ -152,7 +152,7 @@ export default function DashboardPage() {
                 </p>
               </a>
 
-              {/* Biblioteca - Solo psicopedagogía y director */}
+              {/* Biblioteca - Solo profesionales y director */}
               {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director') && (
                 <a
                   href="/dashboard/biblioteca"

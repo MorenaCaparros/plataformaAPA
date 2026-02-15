@@ -295,7 +295,7 @@ export default function NuevoNinoPage() {
             <span className="text-xl">ℹ️</span> Importante
           </h3>
           <ul className="text-sm text-sol-700 space-y-2 font-outfit">
-            <li>• Los datos sensibles (nombre completo, DNI, fecha de nacimiento) los cargará psicopedagogía</li>
+            <li>• Los datos sensibles (nombre completo, DNI, fecha de nacimiento) los cargará el equipo profesional</li>
             <li>• El niño quedará automáticamente asignado a vos</li>
             <li>• Se generará un número de legajo automáticamente</li>
             <li>• Podés empezar a registrar sesiones inmediatamente</li>

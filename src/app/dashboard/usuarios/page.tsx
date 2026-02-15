@@ -33,7 +33,7 @@ function UsuariosPageContent() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      // Solo director y psicopedagogía pueden acceder
+      // Solo director y profesionales pueden acceder
       if (perfil?.rol !== 'director' && perfil?.rol !== 'psicopedagogia') {
         router.push('/dashboard');
         return;
@@ -203,7 +203,7 @@ function UsuariosPageContent() {
       case 'director':
         return 'Director';
       case 'psicopedagogia':
-        return 'Psicopedagogía';
+        return 'Profesional';
       case 'coordinador':
         return 'Coordinador';
       case 'voluntario':
@@ -274,7 +274,7 @@ function UsuariosPageContent() {
             >
               <option value="todos">Todos los roles</option>
               <option value="director">Directores</option>
-              <option value="psicopedagogia">Psicopedagogía</option>
+              <option value="psicopedagogia">Profesionales</option>
               <option value="coordinador">Coordinadores</option>
               <option value="voluntario">Voluntarios</option>
               <option value="trabajador_social">Trabajadores Sociales</option>

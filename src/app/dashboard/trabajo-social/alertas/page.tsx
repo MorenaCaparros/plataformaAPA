@@ -73,10 +73,10 @@ export default function AlertasPage() {
           fecha_creacion: '2026-01-04',
           fecha_deteccion: '2025-12-28',
           estado: 'en_proceso',
-          acciones_tomadas: 'Visita domiciliaria realizada. Coordinación con psicopedagogía para apoyo emocional.',
+          acciones_tomadas: 'Visita domiciliaria realizada. Coordinación con equipo profesional para apoyo emocional.',
           responsable: 'TS María García',
           requiere_derivacion: true,
-          derivado_a: 'Equipo de Psicopedagogía'
+          derivado_a: 'Equipo de Profesionales'
         },
         {
           id: '3',
@@ -402,7 +402,7 @@ export default function AlertasPage() {
                 Notificaciones automáticas
               </p>
               <p className="text-sm text-sol-700 mt-1">
-                Coordinadores y Psicopedagogía reciben notificación de alertas de prioridad alta y crítica automáticamente.
+                Coordinadores y el equipo profesional reciben notificación de alertas de prioridad alta y crítica automáticamente.
               </p>
             </div>
           </div>

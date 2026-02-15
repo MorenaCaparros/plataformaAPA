@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       userId = user.id;
     }
 
-    // Verificar permisos (solo coordinador, psicopedagogía, director)
+    // Verificar permisos (solo coordinador, profesional, director)
     const { data: perfil, error: perfilError } = await supabase
       .from('perfiles')
       .select('id, rol')
