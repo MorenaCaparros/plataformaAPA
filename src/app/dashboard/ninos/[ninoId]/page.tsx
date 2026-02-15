@@ -8,7 +8,8 @@ import { calcularEdad, formatearEdad } from '@/lib/utils/date-helpers';
 import {
   ArrowLeft, Plus, BookOpen, ClipboardList, Target, Info, ChevronRight,
   UserCheck, Camera, Heart, GraduationCap, Phone, StickyNote, Calendar,
-  Users, CheckCircle, XCircle, Upload, Trash2, Save, Stethoscope
+  Users, CheckCircle, XCircle, Upload, Trash2, Save, Stethoscope,
+  Mic, Volume2, FileText, ChevronDown, ChevronUp
 } from 'lucide-react';
 import type { Nino, NinoSensible, Zona, Escuela, Perfil, FamiliarApoyo } from '@/types/database';
 
@@ -42,6 +43,16 @@ interface NotaBitacora {
   autor_nombre: string;
 }
 
+interface GrabacionReunion {
+  id: string;
+  storage_path: string;
+  transcripcion: string | null;
+  duracion_segundos: number | null;
+  fecha_grabacion: string;
+  entrevista_conclusiones: string | null;
+  autor_nombre: string;
+}
+
 const TIPOS_TERAPIA = [
   { value: 'psicologica', label: 'Psicológica' },
   { value: 'fonoaudiologica', label: 'Fonoaudiológica' },
@@ -65,6 +76,7 @@ export default function NinoPerfilPage() {
   const [asignacionActiva, setAsignacionActiva] = useState<AsignacionActiva | null>(null);
   const [familiares, setFamiliares] = useState<FamiliarApoyo[]>([]);
   const [notas, setNotas] = useState<NotaBitacora[]>([]);
+  const [grabaciones, setGrabaciones] = useState<GrabacionReunion[]>([]);
   const [nuevaNota, setNuevaNota] = useState('');
   const [asistenciaPorcentaje, setAsistenciaPorcentaje] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,7 +96,7 @@ export default function NinoPerfilPage() {
   const [editTerapia, setEditTerapia] = useState<string[]>([]);
 
   const isVoluntario = perfil?.rol === 'voluntario';
-  const tieneAccesoCompleto = perfil?.rol && ['psicopedagogia', 'director', 'admin', 'coordinador'].includes(perfil.rol);
+  const tieneAccesoCompleto = perfil?.rol && ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajadora_social'].includes(perfil.rol);
 
   useEffect(() => {
     if (user) fetchDatos();
@@ -224,6 +236,30 @@ export default function NinoPerfilPage() {
               fecha: n.fecha,
               autor_nombre: n.perfiles
                 ? `${n.perfiles.nombre} ${n.perfiles.apellido}`
+                : 'Desconocido',
+            }))
+          );
+        }
+
+        // 8. Grabaciones de reuniones
+        const { data: grabacionesData } = await supabase
+          .from('grabaciones_voz')
+          .select('id, storage_path, transcripcion, duracion_segundos, fecha_grabacion, entrevista_id, perfiles:usuario_id(nombre, apellido), entrevistas:entrevista_id(conclusiones)')
+          .eq('nino_id', ninoId)
+          .order('fecha_grabacion', { ascending: false })
+          .limit(20);
+
+        if (grabacionesData) {
+          setGrabaciones(
+            grabacionesData.map((g: any) => ({
+              id: g.id,
+              storage_path: g.storage_path,
+              transcripcion: g.transcripcion,
+              duracion_segundos: g.duracion_segundos,
+              fecha_grabacion: g.fecha_grabacion,
+              entrevista_conclusiones: g.entrevistas?.conclusiones || null,
+              autor_nombre: g.perfiles
+                ? `${g.perfiles.nombre} ${g.perfiles.apellido}`
                 : 'Desconocido',
             }))
           );
@@ -439,8 +475,15 @@ export default function NinoPerfilPage() {
             {/* Info principal */}
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 truncate">
-                {nino.alias}
+                {tieneAccesoCompleto && nino.ninos_sensibles?.nombre_completo_encrypted
+                  ? `${nino.ninos_sensibles.nombre_completo_encrypted} ${nino.ninos_sensibles.apellido_encrypted || ''}`.trim()
+                  : nino.alias}
               </h1>
+              {tieneAccesoCompleto && nino.ninos_sensibles?.nombre_completo_encrypted && (
+                <p className="text-sm text-gray-500 mb-1">
+                  Alias: <span className="font-medium">{nino.alias}</span>
+                </p>
+              )}
               {nino.legajo && (
                 <p className="text-sm text-gray-500 font-mono mb-2">Legajo: {nino.legajo}</p>
               )}
@@ -851,6 +894,27 @@ export default function NinoPerfilPage() {
           </div>
         )}
 
+        {/* ═══ Grabaciones de Reuniones (solo full access) ═══ */}
+        {tieneAccesoCompleto && grabaciones.length > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Mic className="w-5 h-5 text-impulso-500" />
+              Grabaciones de Reuniones
+            </h2>
+
+            <div className="space-y-4">
+              {grabaciones.map((grabacion) => (
+                <GrabacionCard
+                  key={grabacion.id}
+                  grabacion={grabacion}
+                  ninoId={ninoId}
+                  formatearFecha={formatearFecha}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ═══ Historial de Sesiones ═══ */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b bg-gray-50">
@@ -974,6 +1038,131 @@ function FamiliarCard({
           <p className="text-xs text-gray-500 mt-1 italic">{familiar.notas}</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Grabacion Card ──────────────────────────────────────────
+
+function GrabacionCard({
+  grabacion,
+  ninoId,
+  formatearFecha,
+}: {
+  grabacion: GrabacionReunion;
+  ninoId: string;
+  formatearFecha: (fecha: string) => string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+
+  const formatDuracion = (seg: number | null) => {
+    if (!seg) return '';
+    const min = Math.floor(seg / 60);
+    const s = seg % 60;
+    return `${min}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const handlePlayAudio = async () => {
+    if (audioUrl) return;
+    setLoadingAudio(true);
+    try {
+      const { data } = await supabase.storage
+        .from('grabaciones-reuniones')
+        .createSignedUrl(grabacion.storage_path, 3600);
+
+      if (data?.signedUrl) {
+        setAudioUrl(data.signedUrl);
+      }
+    } catch (err) {
+      console.error('Error getting audio URL:', err);
+    } finally {
+      setLoadingAudio(false);
+    }
+  };
+
+  const resumenIA = grabacion.entrevista_conclusiones?.includes('--- Resumen generado por IA ---')
+    ? grabacion.entrevista_conclusiones.split('--- Resumen generado por IA ---')[1]?.split('---')[0]?.trim()
+    : grabacion.entrevista_conclusiones;
+
+  return (
+    <div className="border border-impulso-100 rounded-xl overflow-hidden bg-impulso-50/30">
+      <button
+        type="button"
+        onClick={() => {
+          setExpanded(!expanded);
+          if (!expanded) handlePlayAudio();
+        }}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-impulso-50/60 transition-colors text-left"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-impulso-100 rounded-lg">
+            <Mic className="w-4 h-4 text-impulso-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-900">
+              Reunión de ingreso
+              {grabacion.duracion_segundos && (
+                <span className="text-gray-500 font-normal ml-2">
+                  ({formatDuracion(grabacion.duracion_segundos)})
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-gray-500">
+              {formatearFecha(grabacion.fecha_grabacion.split('T')[0])} · {grabacion.autor_nombre}
+            </p>
+          </div>
+        </div>
+        {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-impulso-100">
+          <div className="pt-3">
+            {loadingAudio ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-impulso-400 border-t-transparent" />
+                Cargando audio...
+              </div>
+            ) : audioUrl ? (
+              <div className="flex items-center gap-2 bg-white rounded-lg p-2">
+                <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
+                <audio src={audioUrl} controls className="w-full" style={{ maxHeight: '40px' }} />
+              </div>
+            ) : (
+              <button
+                onClick={handlePlayAudio}
+                className="flex items-center gap-2 text-sm text-impulso-600 hover:text-impulso-700 font-medium"
+              >
+                <Volume2 className="w-4 h-4" /> Cargar audio
+              </button>
+            )}
+          </div>
+
+          {resumenIA && (
+            <div className="bg-sol-50 rounded-lg p-3 border border-sol-100">
+              <p className="text-xs font-semibold text-sol-700 mb-1 flex items-center gap-1">
+                ✨ Resumen de la reunión
+              </p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{resumenIA}</p>
+            </div>
+          )}
+
+          {grabacion.transcripcion && (
+            <div>
+              <p className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
+                <FileText className="w-3 h-3" /> Transcripción
+              </p>
+              <div className="bg-white rounded-lg p-3 border border-gray-100 max-h-60 overflow-y-auto">
+                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {grabacion.transcripcion}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
