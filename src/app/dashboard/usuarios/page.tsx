@@ -14,6 +14,8 @@ interface Usuario {
   zona_id: string | null;
   zona_nombre: string | null;
   created_at: string;
+  nombre: string;
+  apellido: string;
   metadata: any;
 }
 
@@ -186,7 +188,7 @@ function UsuariosPageContent() {
       case 'psicopedagogia':
         return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
       case 'coordinador':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+        return 'bg-sol-100 text-sol-700 dark:bg-sol-900 dark:text-sol-200';
       case 'voluntario':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       case 'trabajador_social':
@@ -215,9 +217,9 @@ function UsuariosPageContent() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sol-50 to-crecimiento-50 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Cargando usuarios...</p>
         </div>
       </div>
@@ -225,11 +227,11 @@ function UsuariosPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-sol-50 to-crecimiento-50 dark:from-gray-900 dark:to-gray-800">
       <nav className="bg-white dark:bg-gray-800 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/dashboard" className="text-base sm:text-xl font-bold text-gray-900 dark:text-white hover:text-blue-600 transition min-h-[44px] flex items-center">
+            <Link href="/dashboard" className="text-base sm:text-xl font-bold text-gray-900 dark:text-white hover:text-crecimiento-600 transition min-h-[44px] flex items-center">
               ← Volver
             </Link>
             <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">
@@ -246,7 +248,7 @@ function UsuariosPageContent() {
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
               href="/dashboard/usuarios/importar"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm active:scale-95"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 transition font-medium shadow-sm active:scale-95"
             >
               <Upload className="w-5 h-5" />
               Importar desde CSV
@@ -268,7 +270,7 @@ function UsuariosPageContent() {
             <select
               value={filtroRol}
               onChange={(e) => setFiltroRol(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[48px]"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[48px]"
             >
               <option value="todos">Todos los roles</option>
               <option value="director">Directores</option>
@@ -282,7 +284,7 @@ function UsuariosPageContent() {
             <select
               value={filtroZona}
               onChange={(e) => setFiltroZona(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[48px]"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white min-h-[48px]"
             >
               <option value="todas">Todos los equipos</option>
               {[...new Set(usuarios.map(u => u.zona_nombre).filter(Boolean))].map((zona) => (
@@ -332,7 +334,7 @@ function UsuariosPageContent() {
                   <tr key={usuario.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {usuario.metadata?.nombre || 'Sin nombre'} {usuario.metadata?.apellido || ''}
+                        {usuario.nombre || 'Sin nombre'} {usuario.apellido || ''}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -355,7 +357,7 @@ function UsuariosPageContent() {
                       <div className="flex items-center gap-3">
                         <Link
                           href={`/dashboard/usuarios/${usuario.id}/editar`}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                          className="text-crecimiento-600 hover:text-crecimiento-700 dark:text-crecimiento-400 dark:hover:text-crecimiento-300 font-medium"
                         >
                           Editar
                         </Link>
@@ -389,9 +391,9 @@ function UsuariosPageContent() {
 export default function UsuariosPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sol-50 to-crecimiento-50 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Cargando...</p>
         </div>
       </div>

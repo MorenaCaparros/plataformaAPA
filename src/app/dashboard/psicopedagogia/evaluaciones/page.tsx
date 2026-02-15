@@ -9,20 +9,16 @@ interface Evaluacion {
   id: string;
   nino_id: string;
   fecha: string;
-  tipo: 'inicial' | 'seguimiento' | 'egreso';
-  proxima_evaluacion: string | null;
+  tipo: 'inicial' | 'seguimiento' | 'familiar' | 'escolar' | 'cierre';
   observaciones: string;
-  resultados: any;
+  conclusiones: string;
   nino: {
-    nombre_completo: string;
     alias: string;
     fecha_nacimiento: string;
   };
-  psicopedagogo: {
-    metadata: {
-      nombre: string;
-      apellido: string;
-    };
+  entrevistador: {
+    nombre: string;
+    apellido: string;
   };
 }
 
@@ -52,11 +48,11 @@ export default function EvaluacionesPage() {
       setLoading(true);
 
       const { data, error } = await supabase
-        .from('evaluaciones')
+        .from('entrevistas')
         .select(`
           *,
-          nino:ninos(nombre_completo, alias, fecha_nacimiento),
-          psicopedagogo:perfiles!psicopedagogo_id(metadata)
+          nino:ninos(alias, fecha_nacimiento),
+          entrevistador:perfiles(nombre, apellido)
         `)
         .order('fecha', { ascending: false })
         .limit(50);
@@ -75,13 +71,13 @@ export default function EvaluacionesPage() {
     try {
       setLoading(true);
 
-      // Obtener todos los niños con su última evaluación
+      // Obtener todos los niños con su última entrevista
       const { data: ninos, error } = await supabase
         .from('ninos')
         .select(`
           id,
           alias,
-          evaluaciones(fecha)
+          entrevistas(fecha)
         `)
         .order('alias', { ascending: true });
 
@@ -92,10 +88,10 @@ export default function EvaluacionesPage() {
       const hoy = new Date();
 
       for (const nino of ninos || []) {
-        const evaluaciones = (nino as any).evaluaciones || [];
+        const entrevistas = (nino as any).entrevistas || [];
         
-        if (evaluaciones.length === 0) {
-          // Sin evaluaciones - prioridad alta
+        if (entrevistas.length === 0) {
+          // Sin entrevistas - prioridad alta
           pendientes.push({
             id: nino.id,
             alias: nino.alias,
@@ -104,7 +100,7 @@ export default function EvaluacionesPage() {
           });
         } else {
           // Ordenar por fecha descendente
-          const ordenadas = evaluaciones.sort((a: any, b: any) => 
+          const ordenadas = entrevistas.sort((a: any, b: any) => 
             new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
           );
           const ultimaEval = new Date(ordenadas[0].fecha);
@@ -133,7 +129,7 @@ export default function EvaluacionesPage() {
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
       case 'inicial':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400';
+        return 'bg-sol-100 text-sol-700 dark:bg-sol-900/20 dark:text-sol-400';
       case 'seguimiento':
         return 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400';
       case 'egreso':
@@ -157,12 +153,12 @@ export default function EvaluacionesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-sol-50 via-neutro-lienzo to-crecimiento-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-3 rounded-xl shadow-lg">
+            <div className="bg-crecimiento-500 p-3 rounded-xl shadow-lg">
               <ClipboardList className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -177,7 +173,7 @@ export default function EvaluacionesPage() {
           
           <Link
             href="/dashboard/psicopedagogia/evaluaciones/nueva"
-            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-200 hover:scale-105"
+            className="flex items-center justify-center gap-2 bg-crecimiento-500 hover:bg-crecimiento-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-200 hover:scale-105"
           >
             <Plus className="w-5 h-5" />
             Nueva Evaluación
@@ -193,7 +189,7 @@ export default function EvaluacionesPage() {
               onClick={() => setTab('evaluaciones')}
               className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors ${
                 tab === 'evaluaciones'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-crecimiento-500 text-white'
                   : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
@@ -206,7 +202,7 @@ export default function EvaluacionesPage() {
               onClick={() => setTab('pendientes')}
               className={`flex-1 px-4 py-2.5 rounded-lg font-medium transition-colors relative ${
                 tab === 'pendientes'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-crecimiento-500 text-white'
                   : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
@@ -226,7 +222,7 @@ export default function EvaluacionesPage() {
         {/* Contenido según tab */}
         {loading ? (
           <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500"></div>
           </div>
         ) : tab === 'evaluaciones' ? (
           // Lista de evaluaciones
@@ -241,7 +237,7 @@ export default function EvaluacionesPage() {
               </p>
               <Link
                 href="/dashboard/psicopedagogia/evaluaciones/nueva"
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
+                className="inline-flex items-center gap-2 bg-crecimiento-500 hover:bg-crecimiento-600 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
               >
                 <Plus className="w-5 h-5" />
                 Crear Primera Evaluación
@@ -259,8 +255,8 @@ export default function EvaluacionesPage() {
                     {/* Información principal */}
                     <div className="flex-1">
                       <div className="flex items-start gap-3 mb-3">
-                        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-                          <ClipboardList className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <div className="bg-crecimiento-100 dark:bg-crecimiento-900/30 p-2 rounded-lg">
+                          <ClipboardList className="w-5 h-5 text-crecimiento-600 dark:text-crecimiento-400" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
@@ -292,20 +288,20 @@ export default function EvaluacionesPage() {
                           </span>
                         </div>
                         
-                        {evaluacion.psicopedagogo && (
+                        {evaluacion.entrevistador && (
                           <div className="flex items-center gap-2">
                             <User className="w-4 h-4 text-gray-400" />
                             <span className="text-gray-700 dark:text-gray-300">
-                              {evaluacion.psicopedagogo.metadata?.nombre} {evaluacion.psicopedagogo.metadata?.apellido}
+                              {evaluacion.entrevistador.nombre} {evaluacion.entrevistador.apellido}
                             </span>
                           </div>
                         )}
 
-                        {evaluacion.proxima_evaluacion && (
+                        {evaluacion.conclusiones && (
                           <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
                             <AlertCircle className="w-4 h-4" />
                             <span className="font-medium">
-                              Próxima: {new Date(evaluacion.proxima_evaluacion).toLocaleDateString('es-AR')}
+                              {evaluacion.conclusiones.substring(0, 80)}...
                             </span>
                           </div>
                         )}

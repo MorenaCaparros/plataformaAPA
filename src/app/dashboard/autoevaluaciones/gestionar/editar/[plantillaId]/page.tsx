@@ -42,18 +42,29 @@ export default function EditarPlantillaPage() {
   async function fetchPlantilla() {
     try {
       const { data, error } = await supabase
-        .from('plantillas_autoevaluacion')
-        .select('*')
+        .from('capacitaciones')
+        .select(`
+          *,
+          preguntas_db:preguntas_capacitacion(id, orden, pregunta, tipo_pregunta, puntaje)
+        `)
         .eq('id', plantillaId)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        setTitulo(data.titulo);
+        setTitulo(data.nombre);
         setArea(data.area);
-        setDescripcion(data.descripcion);
-        setPreguntas(data.preguntas || []);
+        setDescripcion(data.descripcion || '');
+        // Map preguntas from DB format
+        const mappedPreguntas = (data.preguntas_db || [])
+          .sort((a: any, b: any) => a.orden - b.orden)
+          .map((p: any) => ({
+            id: p.id,
+            texto: p.pregunta,
+            tipo: p.tipo_pregunta === 'verdadero_falso' ? 'si_no' : p.tipo_pregunta === 'texto_libre' ? 'texto_abierto' : 'escala' as TipoPregunta,
+          }));
+        setPreguntas(mappedPreguntas);
       }
     } catch (error) {
       console.error('Error al cargar plantilla:', error);
@@ -99,17 +110,46 @@ export default function EditarPlantillaPage() {
     setGuardando(true);
 
     try {
-      const { error } = await supabase
-        .from('plantillas_autoevaluacion')
+      // 1. Update capacitacion
+      const { error: capError } = await supabase
+        .from('capacitaciones')
         .update({
-          titulo,
+          nombre: titulo,
           area,
-          descripcion,
-          preguntas
+          descripcion
         })
         .eq('id', plantillaId);
 
-      if (error) throw error;
+      if (capError) throw capError;
+
+      // 2. Delete old preguntas and recreate
+      const { error: delError } = await supabase
+        .from('preguntas_capacitacion')
+        .delete()
+        .eq('capacitacion_id', plantillaId);
+
+      if (delError) throw delError;
+
+      // 3. Insert updated preguntas
+      for (let i = 0; i < preguntas.length; i++) {
+        const p = preguntas[i];
+        const tipoDB = p.tipo === 'si_no' ? 'verdadero_falso' : p.tipo === 'texto_abierto' ? 'texto_libre' : 'escala';
+        
+        const { error: pregError } = await supabase
+          .from('preguntas_capacitacion')
+          .insert({
+            capacitacion_id: plantillaId,
+            orden: i + 1,
+            pregunta: p.texto,
+            tipo_pregunta: tipoDB,
+            respuesta_correcta: '',
+            puntaje: 10,
+          });
+
+        if (pregError) {
+          console.error(`Error al crear pregunta ${i}:`, pregError);
+        }
+      }
 
       alert('Plantilla actualizada correctamente');
       router.push('/dashboard/autoevaluaciones/gestionar');

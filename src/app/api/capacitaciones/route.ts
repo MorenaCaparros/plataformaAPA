@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('capacitaciones')
       .select('*')
-      .eq('activo', true)
-      .order('fecha_creacion', { ascending: false });
+      .eq('activa', true)
+      .order('created_at', { ascending: false });
 
     if (area) {
       query = query.eq('area', area);
@@ -113,20 +113,18 @@ export async function POST(request: NextRequest) {
       area,
       tipo,
       puntaje_otorgado,
-      contenido,
-      evaluacion,
       duracion_estimada
     } = body;
 
     // Validaciones
-    if (!titulo || !area || !tipo || !puntaje_otorgado) {
+    if (!titulo || !area || !tipo) {
       return NextResponse.json(
-        { error: 'Faltan campos obligatorios: titulo, area, tipo, puntaje_otorgado' },
+        { error: 'Faltan campos obligatorios: titulo, area, tipo' },
         { status: 400 }
       );
     }
 
-    const areasValidas = ['lenguaje', 'grafismo', 'lectura_escritura', 'matematicas', 'general'];
+    const areasValidas = ['lenguaje', 'grafismo', 'lectura_escritura', 'matematicas', 'general', 'lenguaje_vocabulario', 'grafismo_motricidad', 'nociones_matematicas'];
     if (!areasValidas.includes(area)) {
       return NextResponse.json(
         { error: `Área inválida. Debe ser: ${areasValidas.join(', ')}` },
@@ -134,7 +132,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const tiposValidos = ['presencial', 'online', 'autoevaluacion', 'material'];
+    const tiposValidos = ['capacitacion', 'autoevaluacion'];
     if (!tiposValidos.includes(tipo)) {
       return NextResponse.json(
         { error: `Tipo inválido. Debe ser: ${tiposValidos.join(', ')}` },
@@ -142,27 +140,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (puntaje_otorgado < 1 || puntaje_otorgado > 5) {
-      return NextResponse.json(
-        { error: 'Puntaje debe estar entre 1 y 5' },
-        { status: 400 }
-      );
-    }
-
-    // Crear capacitación
+    // Crear capacitación (new schema fields)
     const { data, error } = await supabaseAdmin
       .from('capacitaciones')
       .insert({
-        titulo,
+        nombre: titulo,
         descripcion,
         area,
         tipo,
-        puntaje_otorgado,
-        contenido,
-        evaluacion,
-        duracion_estimada,
+        es_obligatoria: true,
+        puntaje_minimo_aprobacion: puntaje_otorgado ? puntaje_otorgado * 20 : 70,
+        duracion_estimada_minutos: duracion_estimada || null,
         creado_por: user.id,
-        activo: true
+        activa: true
       })
       .select()
       .single();
@@ -268,7 +258,7 @@ export async function DELETE(request: NextRequest) {
     // Desactivar en lugar de eliminar
     const { error } = await supabaseAdmin
       .from('capacitaciones')
-      .update({ activo: false })
+      .update({ activa: false })
       .eq('id', id);
 
     if (error) throw error;

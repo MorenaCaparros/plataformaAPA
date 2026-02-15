@@ -180,7 +180,7 @@ export default function MetricasPage() {
       <div className="p-4 sm:p-6 lg:p-8 min-h-screen">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
             <p className="text-gray-600 dark:text-gray-400">Cargando métricas...</p>
           </div>
         </div>
@@ -197,7 +197,7 @@ export default function MetricasPage() {
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
             onClick={cargarMetricas}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-4 py-2 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600"
           >
             Reintentar
           </button>
@@ -264,7 +264,7 @@ function MetricasVoluntarioView({
 
       {/* Tarjetas principales */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-2xl p-4 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Baby className="w-5 h-5 opacity-80" />
             <span className="text-xs font-medium opacity-80">Niños Asignados</span>
@@ -280,7 +280,7 @@ function MetricasVoluntarioView({
           <p className="text-3xl font-bold">{metricas.resumen.sesiones_este_mes}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-impulso-400 to-impulso-500 rounded-2xl p-4 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Clock className="w-5 h-5 opacity-80" />
             <span className="text-xs font-medium opacity-80">Horas (Mes)</span>
@@ -302,7 +302,7 @@ function MetricasVoluntarioView({
         {/* Resumen del mes */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-500" />
+            <BarChart3 className="w-5 h-5 text-crecimiento-500" />
             Resumen del Mes
           </h2>
           
@@ -363,7 +363,7 @@ function MetricasVoluntarioView({
                 </>
               ) : (
                 <>
-                  <Target className="w-5 h-5 text-blue-500" />
+                  <Target className="w-5 h-5 text-crecimiento-500" />
                   <span className="text-gray-600 dark:text-gray-400">
                     Faltan {12 - metricas.resumen.sesiones_este_mes} sesiones
                   </span>
@@ -432,7 +432,7 @@ function MetricasEquipoView({
 
       {/* Tarjetas principales */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-2xl p-4 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Baby className="w-5 h-5 opacity-80" />
             <span className="text-xs font-medium opacity-80">Niños</span>
@@ -448,7 +448,7 @@ function MetricasEquipoView({
           <p className="text-3xl font-bold">{metricas.resumen.total_voluntarios}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-impulso-400 to-impulso-500 rounded-2xl p-4 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Calendar className="w-5 h-5 opacity-80" />
             <span className="text-xs font-medium opacity-80">Sesiones (Mes)</span>
@@ -511,7 +511,7 @@ function MetricasEquipoView({
         {/* Atención a niños */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Baby className="w-5 h-5 text-blue-500" />
+            <Baby className="w-5 h-5 text-crecimiento-500" />
             Atención
           </h2>
           
@@ -654,7 +654,7 @@ function MetricasAdminView({
 
       {/* Tarjetas principales */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-2xl p-4 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Baby className="w-5 h-5 opacity-80" />
             <span className="text-xs font-medium opacity-80">Niños</span>
@@ -670,7 +670,7 @@ function MetricasAdminView({
           <p className="text-3xl font-bold">{metricas.resumen.total_voluntarios}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-impulso-400 to-impulso-500 rounded-2xl p-4 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-2">
             <Users className="w-5 h-5 opacity-80" />
             <span className="text-xs font-medium opacity-80">Usuarios</span>
@@ -698,7 +698,7 @@ function MetricasAdminView({
       {/* Este mes */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-blue-500" />
+          <BarChart3 className="w-5 h-5 text-crecimiento-500" />
           Este Mes
           {metricas.tendencias.sesiones_vs_mes_anterior !== 0 && (
             <span className={`text-sm font-normal px-2 py-0.5 rounded-full ${
@@ -749,7 +749,7 @@ function MetricasAdminView({
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div 
-                  className="bg-blue-500 h-2 rounded-full"
+                  className="bg-crecimiento-500 h-2 rounded-full"
                   style={{ width: `${metricas.cobertura.ninos_atendidos_porcentaje}%` }}
                 />
               </div>

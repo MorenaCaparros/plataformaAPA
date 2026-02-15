@@ -58,7 +58,7 @@ export default function EquiposPage() {
           // Buscar coordinador
           const { data: coordinadores } = await supabase
             .from('perfiles')
-            .select('metadata')
+            .select('nombre, apellido')
             .eq('zona_id', zona.id)
             .eq('rol', 'coordinador')
             .limit(1);
@@ -69,7 +69,7 @@ export default function EquiposPage() {
             descripcion: zona.descripcion,
             total_ninos: countNinos || 0,
             total_voluntarios: countVoluntarios || 0,
-            coordinador: coordinadores?.[0]?.metadata?.nombre || null
+            coordinador: coordinadores?.[0] ? [coordinadores[0].nombre, coordinadores[0].apellido].filter(Boolean).join(' ') : null
           };
         })
       );
@@ -84,9 +84,9 @@ export default function EquiposPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sol-50 to-crecimiento-50 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Cargando equipos...</p>
         </div>
       </div>
@@ -94,11 +94,11 @@ export default function EquiposPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-sol-50 to-crecimiento-50 dark:from-gray-900 dark:to-gray-800">
       <nav className="bg-white dark:bg-gray-800 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/dashboard" className="text-base sm:text-xl font-bold text-gray-900 dark:text-white hover:text-blue-600 transition min-h-[44px] flex items-center">
+            <Link href="/dashboard" className="text-base sm:text-xl font-bold text-gray-900 dark:text-white hover:text-crecimiento-600 transition min-h-[44px] flex items-center">
               ← Volver
             </Link>
             <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">
@@ -149,7 +149,7 @@ export default function EquiposPage() {
                 {equipo.coordinador && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600 dark:text-gray-400">Coordinador:</span>
-                    <span className="font-semibold text-blue-600 dark:text-blue-400">{equipo.coordinador}</span>
+                    <span className="font-semibold text-crecimiento-600 dark:text-crecimiento-400">{equipo.coordinador}</span>
                   </div>
                 )}
               </div>
@@ -158,7 +158,7 @@ export default function EquiposPage() {
               <div className="flex gap-3">
                 <Link
                   href={`/dashboard/ninos?zona=${equipo.id}`}
-                  className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                  className="flex-1 text-center px-4 py-2 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 transition text-sm font-medium"
                 >
                   Ver Niños
                 </Link>

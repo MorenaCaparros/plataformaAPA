@@ -46,20 +46,32 @@ export default function PsicopedagogiaDashboard() {
         .from('ninos')
         .select('*', { count: 'exact', head: true });
 
-      // Evaluaciones pendientes (niños sin evaluación en últimos 6 meses)
+      // Evaluaciones pendientes (niños sin entrevista en últimos 6 meses)
+      // Query ninos and their entrevistas to find pending ones
+      const { data: ninosConEval } = await supabase
+        .from('ninos')
+        .select('id, entrevistas(fecha)')
+        .order('alias', { ascending: true });
+      
+      let evaluacionesPendientes = 0;
       const seisMesesAtras = new Date();
       seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
       
-      const { count: evaluacionesPendientes } = await supabase
-        .from('ninos')
-        .select('*', { count: 'exact', head: true })
-        .or(`ultima_evaluacion.is.null,ultima_evaluacion.lt.${seisMesesAtras.toISOString()}`);
+      (ninosConEval || []).forEach((nino: any) => {
+        const evals = nino.entrevistas || [];
+        if (evals.length === 0) {
+          evaluacionesPendientes++;
+        } else {
+          const fechas = evals.map((e: any) => new Date(e.fecha).getTime());
+          const ultimaFecha = new Date(Math.max(...fechas));
+          if (ultimaFecha < seisMesesAtras) {
+            evaluacionesPendientes++;
+          }
+        }
+      });
 
-      // Planes activos
-      const { count: planesActivos } = await supabase
-        .from('planes_intervencion')
-        .select('*', { count: 'exact', head: true })
-        .eq('activo', true);
+      // Planes activos (planes_intervencion no longer exists in new schema)
+      const planesActivos = 0;
 
       // Sesiones este mes
       const inicioMes = new Date();
@@ -227,11 +239,11 @@ export default function PsicopedagogiaDashboard() {
             href="/dashboard/psicopedagogia/analisis"
             className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-purple-500/5 hover:shadow-purple-500/10 hover:-translate-y-1"
           >
-            <span className="absolute top-4 right-4 px-2 py-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs rounded-full font-medium flex items-center gap-1">
+            <span className="absolute top-4 right-4 px-2 py-0.5 bg-gradient-to-r from-impulso-400 to-impulso-500 text-white text-xs rounded-full font-medium flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               IA
             </span>
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center mb-4 text-purple-600 group-hover:scale-110 transition-transform">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-impulso-100 to-impulso-200 flex items-center justify-center mb-4 text-impulso-500 group-hover:scale-110 transition-transform">
               <Brain className="w-6 h-6" strokeWidth={2.5} />
             </div>
             <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2">
@@ -240,7 +252,7 @@ export default function PsicopedagogiaDashboard() {
             <p className="font-outfit text-neutro-piedra text-sm mb-4">
               Patrones, tendencias y recomendaciones inteligentes
             </p>
-            <div className="flex items-center text-purple-600 text-sm font-medium">
+            <div className="flex items-center text-impulso-500 text-sm font-medium">
               Ver análisis →
             </div>
           </Link>

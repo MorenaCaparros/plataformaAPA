@@ -272,3 +272,29 @@ export const ESCALA_LIKERT = [
   { valor: 4, label: '4', descripcion: 'Alto' },
   { valor: 5, label: '5', descripcion: 'Muy alto' }
 ];
+
+// Valor especial para "No completó el campo" — se excluye del cálculo de promedios
+export const VALOR_NO_COMPLETADO = 0;
+export const LABEL_NO_COMPLETADO = 'N/C';
+
+/**
+ * Calcula el promedio excluyendo ítems marcados como "No completó" (valor 0).
+ * Si no hay ítems válidos, retorna 0.
+ */
+export function calcularPromedioItems(items: Array<{ valor: number }>): number {
+  if (!items || items.length === 0) return 0;
+  const itemsValidos = items.filter(item => item.valor !== VALOR_NO_COMPLETADO && item.valor != null);
+  if (itemsValidos.length === 0) return 0;
+  const sum = itemsValidos.reduce((acc, item) => acc + item.valor, 0);
+  return parseFloat((sum / itemsValidos.length).toFixed(1));
+}
+
+/**
+ * Cuenta cuántos ítems fueron efectivamente completados (excluye N/C).
+ */
+export function contarItemsCompletados(items: Array<{ valor: number }>): { completados: number; noCompletados: number; total: number } {
+  if (!items || items.length === 0) return { completados: 0, noCompletados: 0, total: 0 };
+  const completados = items.filter(item => item.valor !== VALOR_NO_COMPLETADO && item.valor != null).length;
+  const noCompletados = items.filter(item => item.valor === VALOR_NO_COMPLETADO).length;
+  return { completados, noCompletados, total: items.length };
+}

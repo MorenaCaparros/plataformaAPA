@@ -89,7 +89,7 @@ export default function MisRespuestasPage() {
   const estadoColors = {
     completada: 'bg-green-100 text-green-800',
     en_revision: 'bg-yellow-100 text-yellow-800',
-    evaluada: 'bg-blue-100 text-blue-800'
+    evaluada: 'bg-sol-100 text-sol-700'
   };
 
   const areaLabels: Record<string, string> = {
@@ -103,7 +103,7 @@ export default function MisRespuestasPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando respuestas...</p>
         </div>
       </div>
@@ -134,13 +134,13 @@ export default function MisRespuestasPage() {
 
       {/* Lista de respuestas agrupadas */}
       {respuestasAgrupadas.length === 0 ? (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-          <p className="text-blue-800 mb-4">
+        <div className="bg-sol-50 border border-sol-200 rounded-lg p-6 text-center">
+          <p className="text-sol-800 mb-4">
             Todavía no completaste ninguna autoevaluación.
           </p>
           <Link
             href="/dashboard/autoevaluaciones"
-            className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+            className="inline-block px-6 py-2 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 font-medium"
           >
             Comenzar Ahora
           </Link>
@@ -169,7 +169,7 @@ export default function MisRespuestasPage() {
                       <p className="text-sm text-gray-500">
                         {areaLabels[grupo.plantilla.area] || grupo.plantilla.area}
                       </p>
-                      <p className="text-xs text-blue-600 mt-1">
+                      <p className="text-xs text-crecimiento-600 mt-1">
                         Completada {veces} {veces === 1 ? 'vez' : 'veces'}
                       </p>
                     </div>
@@ -186,7 +186,7 @@ export default function MisRespuestasPage() {
                       {/* Último puntaje */}
                       <div className="text-center">
                         <p className="text-xs text-gray-500 mb-1">Último</p>
-                        <div className="text-2xl font-bold text-blue-600">
+                        <div className="text-2xl font-bold text-crecimiento-600">
                           {grupo.ultimoPuntaje.toFixed(1)}
                         </div>
                       </div>
@@ -243,11 +243,11 @@ export default function MisRespuestasPage() {
                             </div>
 
                             {respuesta.comentarios_evaluador && (
-                              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mt-2">
-                                <p className="text-xs font-medium text-blue-900 mb-1">
+                              <div className="bg-sol-50 border border-sol-100 rounded-lg p-3 mt-2">
+                                <p className="text-xs font-medium text-sol-900 mb-1">
                                   Comentario:
                                 </p>
-                                <p className="text-sm text-blue-800">{respuesta.comentarios_evaluador}</p>
+                                <p className="text-sm text-sol-700">{respuesta.comentarios_evaluador}</p>
                               </div>
                             )}
                           </div>

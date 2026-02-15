@@ -295,7 +295,7 @@ export default function AnalisisIAPage() {
       case 'media':
         return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
       default:
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+        return 'bg-sol-100 text-sol-700 dark:bg-sol-900/30 dark:text-sol-400';
     }
   };
 
@@ -330,12 +330,12 @@ export default function AnalisisIAPage() {
     : ninos;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-crecimiento-50 via-neutro-lienzo to-sol-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-purple-600 to-indigo-600 p-3 rounded-xl shadow-lg">
+            <div className="bg-gradient-to-br from-crecimiento-600 to-crecimiento-700 p-3 rounded-xl shadow-lg">
               <Brain className="w-8 h-8 text-white" />
             </div>
             <div>
@@ -374,7 +374,7 @@ export default function AnalisisIAPage() {
               <select
                 value={tipoAnalisis}
                 onChange={(e) => setTipoAnalisis(e.target.value as any)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-impulso-300"
               >
                 <option value="general">📊 Análisis General</option>
                 <option value="zona">📍 Por Zona</option>
@@ -394,7 +394,7 @@ export default function AnalisisIAPage() {
                     setZonaSeleccionada(e.target.value);
                     setNinoSeleccionado('');
                   }}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-impulso-300"
                 >
                   <option value="">Todas las zonas</option>
                   {zonas.map(zona => (
@@ -413,7 +413,7 @@ export default function AnalisisIAPage() {
                 <select
                   value={ninoSeleccionado}
                   onChange={(e) => setNinoSeleccionado(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-impulso-300"
                 >
                   <option value="">Seleccionar niño</option>
                   {ninosFiltrados.map(nino => (
@@ -428,7 +428,7 @@ export default function AnalisisIAPage() {
               <button
                 onClick={generarAnalisis}
                 disabled={loading || (tipoAnalisis === 'zona' && !zonaSeleccionada) || (tipoAnalisis === 'nino' && !ninoSeleccionado)}
-                className="w-full px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full px-6 py-2.5 bg-gradient-to-r from-crecimiento-500 to-crecimiento-700 hover:from-crecimiento-600 hover:to-crecimiento-800 text-white rounded-xl font-medium transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -471,7 +471,7 @@ export default function AnalisisIAPage() {
         {/* Estado vacío */}
         {!analisis && !loading && (
           <div className="text-center py-16">
-            <div className="bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="bg-gradient-to-br from-crecimiento-100 to-sol-100 dark:from-crecimiento-900/30 dark:to-sol-900/30 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
               <Brain className="w-12 h-12 text-purple-600 dark:text-purple-400" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
@@ -506,7 +506,7 @@ function AnalisisGeneralView({ analisis }: { analisis: AnalisisGeneral }) {
   return (
     <div className="space-y-6">
       {/* Resumen Ejecutivo */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-crecimiento-600 to-crecimiento-700 rounded-2xl shadow-xl p-6 text-white">
         <div className="flex items-start gap-4">
           <div className="bg-white/20 p-3 rounded-xl">
             <Brain className="w-6 h-6" />
@@ -522,8 +522,8 @@ function AnalisisGeneralView({ analisis }: { analisis: AnalisisGeneral }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg">
           <div className="flex items-center gap-3 mb-3">
-            <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="bg-crecimiento-100 dark:bg-crecimiento-900/30 p-2 rounded-lg">
+              <Users className="w-5 h-5 text-crecimiento-600 dark:text-crecimiento-400" />
             </div>
             <span className="text-sm text-gray-500 dark:text-gray-400">Niños Atendidos</span>
           </div>
@@ -590,7 +590,7 @@ function AnalisisGeneralView({ analisis }: { analisis: AnalisisGeneral }) {
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                   alerta.urgencia === 'alta' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
                   alerta.urgencia === 'media' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  'bg-sol-100 text-sol-700 dark:bg-sol-900/30 dark:text-sol-400'
                 }`}>
                   {alerta.urgencia}
                 </span>
@@ -612,7 +612,7 @@ function AnalisisGeneralView({ analisis }: { analisis: AnalisisGeneral }) {
         {analisis.patrones_identificados && analisis.patrones_identificados.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-500" />
+              <BarChart3 className="w-5 h-5 text-crecimiento-500" />
               Patrones Identificados
             </h3>
             <div className="space-y-3">
@@ -707,7 +707,7 @@ function AnalisisGeneralView({ analisis }: { analisis: AnalisisGeneral }) {
 
       {/* Insights de IA */}
       {analisis.insights_ia && analisis.insights_ia.length > 0 && (
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-xl p-6 text-white">
+        <div className="bg-gradient-to-r from-crecimiento-600 to-crecimiento-700 rounded-2xl shadow-xl p-6 text-white">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Sparkles className="w-5 h-5" />
             Insights de IA
@@ -731,7 +731,7 @@ function AnalisisNinoView({ analisis, ninoAlias }: { analisis: AnalisisNino; nin
   return (
     <div className="space-y-6">
       {/* Perfil de Aprendizaje */}
-      <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl shadow-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-crecimiento-500 to-crecimiento-600 rounded-2xl shadow-xl p-6 text-white">
         <div className="flex items-start gap-4">
           <div className="bg-white/20 p-3 rounded-xl">
             <User className="w-6 h-6" />
@@ -771,7 +771,7 @@ function AnalisisNinoView({ analisis, ninoAlias }: { analisis: AnalisisNino; nin
       {/* Progreso por Área */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-blue-500" />
+          <BarChart3 className="w-5 h-5 text-crecimiento-500" />
           Progreso por Área
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -779,7 +779,7 @@ function AnalisisNinoView({ analisis, ninoAlias }: { analisis: AnalisisNino; nin
             <div key={area} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  {area === 'lectura' && <BookOpen className="w-5 h-5 text-blue-500" />}
+                  {area === 'lectura' && <BookOpen className="w-5 h-5 text-crecimiento-500" />}
                   {area === 'escritura' && <FileText className="w-5 h-5 text-green-500" />}
                   {area === 'matematicas' && <Calculator className="w-5 h-5 text-purple-500" />}
                   {area === 'lenguaje' && <MessageCircle className="w-5 h-5 text-orange-500" />}
@@ -809,7 +809,7 @@ function AnalisisNinoView({ analisis, ninoAlias }: { analisis: AnalisisNino; nin
                   <div 
                     className={`h-full rounded-full ${
                       datos.nivel_actual >= 4 ? 'bg-green-500' :
-                      datos.nivel_actual >= 3 ? 'bg-blue-500' :
+                      datos.nivel_actual >= 3 ? 'bg-crecimiento-500' :
                       datos.nivel_actual >= 2 ? 'bg-yellow-500' :
                       'bg-red-500'
                     }`}
@@ -838,13 +838,13 @@ function AnalisisNinoView({ analisis, ninoAlias }: { analisis: AnalisisNino; nin
               <div key={i} className={`p-4 rounded-xl border ${
                 alerta.urgencia === 'alta' ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20' :
                 alerta.urgencia === 'media' ? 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20' :
-                'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20'
+                'border-sol-200 bg-sol-50 dark:border-sol-800 dark:bg-sol-900/20'
               }`}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                     alerta.urgencia === 'alta' ? 'bg-red-200 text-red-700' :
                     alerta.urgencia === 'media' ? 'bg-yellow-200 text-yellow-700' :
-                    'bg-blue-200 text-blue-700'
+                    'bg-sol-200 text-sol-700'
                   }`}>
                     {alerta.urgencia}
                   </span>
@@ -888,13 +888,13 @@ function AnalisisNinoView({ analisis, ninoAlias }: { analisis: AnalisisNino; nin
         {/* Próximos Pasos */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <ChevronRight className="w-5 h-5 text-blue-500" />
+            <ChevronRight className="w-5 h-5 text-crecimiento-500" />
             Próximos Pasos
           </h3>
           <ol className="space-y-3">
             {analisis.proximos_pasos.map((paso, i) => (
               <li key={i} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-medium">
+                <span className="flex-shrink-0 w-6 h-6 bg-crecimiento-100 dark:bg-crecimiento-900/30 text-crecimiento-600 dark:text-crecimiento-400 rounded-full flex items-center justify-center text-sm font-medium">
                   {i + 1}
                 </span>
                 <p className="text-gray-700 dark:text-gray-300">{paso}</p>
@@ -970,7 +970,7 @@ function AnalisisZonaView({ analisis }: { analisis: any }) {
       {analisis.comparacion_promedio && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-500" />
+            <BarChart3 className="w-5 h-5 text-crecimiento-500" />
             Comparación con el Promedio
           </h3>
           <p className="text-gray-700 dark:text-gray-300">{analisis.comparacion_promedio}</p>
@@ -1027,7 +1027,7 @@ function AnalisisZonaView({ analisis }: { analisis: any }) {
                 <span className={`text-xs px-2 py-1 rounded-full ${
                   rec.plazo === 'Inmediato' ? 'bg-red-100 text-red-700' :
                   rec.plazo === 'Corto plazo' ? 'bg-yellow-100 text-yellow-700' :
-                  'bg-blue-100 text-blue-700'
+                  'bg-sol-100 text-sol-700'
                 }`}>
                   {rec.plazo}
                 </span>

@@ -238,12 +238,17 @@ export default function IngresoCompletoPage() {
     
     const hoy = new Date();
     const nacimiento = new Date(fechaNacimiento);
-    const edad = hoy.getFullYear() - nacimiento.getFullYear();
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const m = hoy.getMonth() - nacimiento.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
+      edad--;
+    }
     
     if (edad >= 5 && edad <= 7) return '5-7';
     if (edad >= 8 && edad <= 10) return '8-10';
     if (edad >= 11 && edad <= 13) return '11-13';
-    return '14+';
+    if (edad >= 14 && edad <= 16) return '14-16';
+    return '17+';
   };
   
   const handleFechaNacimientoChange = (fecha: string) => {
@@ -270,48 +275,132 @@ export default function IngresoCompletoPage() {
         return;
       }
       
-      // TODO: Encriptar nombre_completo y fecha_nacimiento antes de guardar
-      // Por ahora, guardamos sin encriptar (implementar crypto después)
-      
+      // 1. Crear el niño en la tabla principal (datos NO sensibles)
       const { data: nino, error: ninoError } = await supabase
         .from('ninos')
         .insert({
           alias: formData.alias,
-          nombre_completo: formData.nombre_completo, // TODO: Encriptar
-          fecha_nacimiento: formData.fecha_nacimiento, // TODO: Encriptar
+          fecha_nacimiento: formData.fecha_nacimiento,
           rango_etario: formData.rango_etario,
           nivel_alfabetizacion: formData.nivel_alfabetizacion,
           escolarizado: formData.escolaridad.asiste,
-          
-          // Datos completos de entrevista
-          contexto_familiar: formData.contexto_familiar,
-          alimentacion: formData.alimentacion,
-          escolaridad: formData.escolaridad,
-          salud: formData.salud,
-          
-          // Metadata
-          pronostico_inicial: formData.pronostico_inicial,
-          ingresado_por: user?.id,
+          grado_escolar: formData.escolaridad.grado || null,
+          turno_escolar: formData.escolaridad.turno === 'doble' ? null : (formData.escolaridad.turno || null),
           fecha_ingreso: new Date().toISOString().split('T')[0],
-          
-          // Entrevista inicial (transcripciones + OCR)
-          entrevista_inicial: {
-            transcripciones: formData.transcripciones,
-            documentos_ocr: formData.documentos_ocr,
-            observaciones_generales: formData.observaciones_generales
-          },
-          
-          metadata: {
-            ingreso_completo: true,
-            creado_por: user?.id
-          }
         })
         .select()
         .single();
 
       if (ninoError) throw ninoError;
 
-      alert(`✅ Niño ingresado exitosamente\nLegajo asignado: ${nino.legajo}`);
+      const ninoId = nino.id;
+
+      // 2. Guardar datos sensibles en ninos_sensibles
+      // TODO: Implementar encriptación real con pgcrypto
+      const nombrePartes = formData.nombre_completo.trim().split(' ');
+      const apellido = nombrePartes.length > 1 ? nombrePartes.slice(-1).join(' ') : '';
+      const nombreSinApellido = nombrePartes.length > 1 ? nombrePartes.slice(0, -1).join(' ') : formData.nombre_completo;
+
+      const { error: sensiblesError } = await supabase
+        .from('ninos_sensibles')
+        .insert({
+          nino_id: ninoId,
+          nombre_completo_encrypted: nombreSinApellido, // TODO: Encriptar
+          apellido_encrypted: apellido, // TODO: Encriptar
+          fecha_nacimiento_encrypted: formData.fecha_nacimiento, // TODO: Encriptar
+        });
+
+      if (sensiblesError) console.error('Error guardando datos sensibles:', sensiblesError);
+
+      // 3. Guardar info de alimentación en tabla relacional
+      if (formData.alimentacion.actual || formData.alimentacion.dificultades) {
+        const { error: alimentacionError } = await supabase
+          .from('alimentacion_ninos')
+          .insert({
+            nino_id: ninoId,
+            observaciones: [
+              formData.alimentacion.embarazo ? `Embarazo: ${formData.alimentacion.embarazo}` : '',
+              formData.alimentacion.actual ? `Actual: ${formData.alimentacion.actual}` : '',
+              formData.alimentacion.dificultades ? `Dificultades: ${formData.alimentacion.dificultades}` : '',
+            ].filter(Boolean).join('\n'),
+          });
+
+        if (alimentacionError) console.error('Error guardando alimentación:', alimentacionError);
+      }
+
+      // 4. Guardar escolaridad en tabla relacional
+      if (formData.escolaridad.asiste) {
+        const { error: escolaridadError } = await supabase
+          .from('escolaridad_ninos')
+          .insert({
+            nino_id: ninoId,
+            ciclo_lectivo: new Date().getFullYear(),
+            grado: formData.escolaridad.grado || null,
+            turno: formData.escolaridad.turno === 'doble' ? null : (formData.escolaridad.turno || null),
+            asistencia_regular: !formData.escolaridad.ausentismo,
+            motivo_inasistencias: formData.escolaridad.ausentismo || null,
+            observaciones: formData.escolaridad.dificultades || null,
+          });
+
+        if (escolaridadError) console.error('Error guardando escolaridad:', escolaridadError);
+      }
+
+      // 5. Guardar salud en tabla relacional
+      if (formData.salud.antecedentes || formData.salud.medicacion) {
+        const { error: saludError } = await supabase
+          .from('salud_ninos')
+          .insert({
+            nino_id: ninoId,
+            medicacion_habitual: formData.salud.medicacion || null,
+            condiciones_preexistentes: formData.salud.antecedentes || null,
+            observaciones: [
+              formData.salud.controles ? `Controles: ${formData.salud.controles}` : '',
+              formData.salud.vacunacion ? `Vacunación: ${formData.salud.vacunacion}` : '',
+            ].filter(Boolean).join('\n') || null,
+          });
+
+        if (saludError) console.error('Error guardando salud:', saludError);
+      }
+
+      // 6. Guardar familiares como filas en familiares_apoyo
+      if (formData.contexto_familiar.adultos_cargo) {
+        const { error: familiarError } = await supabase
+          .from('familiares_apoyo')
+          .insert({
+            nino_id: ninoId,
+            tipo: 'tutor',
+            nombre: formData.contexto_familiar.adultos_cargo,
+            vive_con_nino: true,
+            es_contacto_principal: true,
+            notas: [
+              `Estructura: ${formData.contexto_familiar.estructura}`,
+              `Hermanos: ${formData.contexto_familiar.hermanos}`,
+              formData.contexto_familiar.vivienda ? `Vivienda: ${formData.contexto_familiar.vivienda}` : '',
+              formData.contexto_familiar.observaciones || '',
+            ].filter(Boolean).join('\n'),
+          });
+
+        if (familiarError) console.error('Error guardando familiar:', familiarError);
+      }
+
+      // 7. Crear entrevista inicial en tabla relacional
+      const { error: entrevistaError } = await supabase
+        .from('entrevistas')
+        .insert({
+          nino_id: ninoId,
+          entrevistador_id: user?.id,
+          tipo: 'inicial',
+          fecha: new Date().toISOString().split('T')[0],
+          observaciones: formData.observaciones_generales || null,
+          conclusiones: formData.pronostico_inicial || null,
+          participantes: formData.transcripciones.length > 0
+            ? ['Transcripción de voz disponible']
+            : null,
+        });
+
+      if (entrevistaError) console.error('Error guardando entrevista:', entrevistaError);
+
+      alert(`✅ Niño ingresado exitosamente\nLegajo: ${nino.legajo || '(pendiente)'}`);
       router.push('/dashboard/ninos');
     } catch (error: any) {
       console.error('Error:', error);
@@ -331,7 +420,7 @@ export default function IngresoCompletoPage() {
       <nav className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
-            <Link href="/dashboard/ninos" className="text-blue-600 font-medium text-sm sm:text-base min-h-[44px] flex items-center">
+            <Link href="/dashboard/ninos" className="text-crecimiento-600 font-medium text-sm sm:text-base min-h-[44px] flex items-center">
               ← Volver
             </Link>
             <h1 className="text-base sm:text-lg font-bold text-gray-900">Ingreso Completo del Niño</h1>
@@ -353,10 +442,10 @@ export default function IngresoCompletoPage() {
               <div key={s.num} className="flex items-center flex-1">
                 <div className={`flex items-center ${idx > 0 ? 'w-full' : ''}`}>
                   {idx > 0 && (
-                    <div className={`flex-1 h-1 ${step > s.num - 1 ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                    <div className={`flex-1 h-1 ${step > s.num - 1 ? 'bg-crecimiento-500' : 'bg-gray-200'}`} />
                   )}
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                    step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                    step >= s.num ? 'bg-crecimiento-500 text-white' : 'bg-gray-200 text-gray-600'
                   }`}>
                     {s.num}
                   </div>
@@ -383,7 +472,7 @@ export default function IngresoCompletoPage() {
                     required
                     value={formData.alias}
                     onChange={(e) => setFormData({ ...formData, alias: e.target.value })}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                     placeholder="Ej: Juan, María..."
                   />
                   <p className="mt-1 text-xs text-gray-500">
@@ -400,7 +489,7 @@ export default function IngresoCompletoPage() {
                     required
                     value={formData.nombre_completo}
                     onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                     placeholder="Nombre y apellido completo"
                   />
                   <p className="mt-1 text-xs text-gray-500">
@@ -417,7 +506,7 @@ export default function IngresoCompletoPage() {
                     required
                     value={formData.fecha_nacimiento}
                     onChange={(e) => handleFechaNacimientoChange(e.target.value)}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                   />
                 </div>
 
@@ -440,7 +529,7 @@ export default function IngresoCompletoPage() {
                   <select
                     value={formData.nivel_alfabetizacion}
                     onChange={(e) => setFormData({ ...formData, nivel_alfabetizacion: e.target.value })}
-                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                   >
                     <option value="Pre-silábico">Pre-silábico (no reconoce letras)</option>
                     <option value="Silábico">Silábico (reconoce algunas letras)</option>
@@ -455,7 +544,7 @@ export default function IngresoCompletoPage() {
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  className="px-6 py-3 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 font-medium"
                 >
                   Siguiente →
                 </button>
@@ -654,7 +743,7 @@ export default function IngresoCompletoPage() {
                 <button
                   type="button"
                   onClick={() => setStep(3)}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  className="px-6 py-3 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 font-medium"
                 >
                   Siguiente →
                 </button>
@@ -756,7 +845,7 @@ export default function IngresoCompletoPage() {
                             ...formData,
                             escolaridad: { ...formData.escolaridad, asiste: true }
                           })}
-                          className="w-4 h-4 text-blue-600"
+                          className="w-4 h-4 text-crecimiento-600"
                         />
                         <span className="text-gray-700">Sí</span>
                       </label>
@@ -768,7 +857,7 @@ export default function IngresoCompletoPage() {
                             ...formData,
                             escolaridad: { ...formData.escolaridad, asiste: false }
                           })}
-                          className="w-4 h-4 text-blue-600"
+                          className="w-4 h-4 text-crecimiento-600"
                         />
                         <span className="text-gray-700">No</span>
                       </label>
@@ -876,7 +965,7 @@ export default function IngresoCompletoPage() {
                 <button
                   type="button"
                   onClick={() => setStep(4)}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  className="px-6 py-3 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 font-medium"
                 >
                   Siguiente →
                 </button>
@@ -923,7 +1012,7 @@ export default function IngresoCompletoPage() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isProcessingOCR}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-impulso-400 text-white rounded-lg hover:bg-impulso-500 font-medium disabled:opacity-50"
                   >
                     {isProcessingOCR ? (
                       <>
@@ -964,7 +1053,7 @@ export default function IngresoCompletoPage() {
               {/* Resumen */}
               <div className="border-t pt-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">📋 Resumen del Ingreso</h3>
-                <div className="bg-blue-50 p-4 rounded-lg space-y-2 text-sm">
+                <div className="bg-sol-50 p-4 rounded-lg space-y-2 text-sm">
                   <p><strong>Alias:</strong> {formData.alias || '(sin completar)'}</p>
                   <p><strong>Nombre Completo:</strong> {formData.nombre_completo || '(sin completar)'}</p>
                   <p><strong>Fecha de Nacimiento:</strong> {formData.fecha_nacimiento || '(sin completar)'}</p>
@@ -1005,9 +1094,9 @@ export default function IngresoCompletoPage() {
         </form>
 
         {/* Info */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-medium text-blue-900 mb-2">ℹ️ Información</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
+        <div className="mt-6 bg-sol-50 border border-sol-200 rounded-lg p-4">
+          <h3 className="font-medium text-sol-900 mb-2">ℹ️ Información</h3>
+          <ul className="text-sm text-sol-800 space-y-1">
             <li>• El legajo se asignará automáticamente al guardar (formato: APA-0001)</li>
             <li>• Los datos sensibles estarán protegidos y solo visibles para el equipo profesional</li>
             <li>• Las transcripciones de voz se guardan automáticamente cuando detenés la grabación</li>

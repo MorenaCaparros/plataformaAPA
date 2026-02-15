@@ -38,7 +38,7 @@ export default function RecuperarContrasenaPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sol-50 to-crecimiento-50 dark:from-gray-900 dark:to-gray-800 px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-2">
@@ -66,15 +66,15 @@ export default function RecuperarContrasenaPage() {
                 Te enviamos un correo a <strong>{email}</strong> con las instrucciones para restablecer tu contraseña.
               </p>
               
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <p className="text-sm text-blue-800 dark:text-blue-300">
+              <div className="bg-sol-50 dark:bg-sol-900/20 border border-sol-200 dark:border-sol-800 rounded-lg p-4">
+                <p className="text-sm text-sol-700 dark:text-sol-300">
                   💡 Si no ves el correo, revisá tu carpeta de spam
                 </p>
               </div>
 
               <Link
                 href="/login"
-                className="inline-block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                className="inline-block w-full bg-crecimiento-500 hover:bg-crecimiento-600 text-white font-semibold py-3 px-4 rounded-lg transition"
               >
                 Volver al inicio de sesión
               </Link>
@@ -102,7 +102,7 @@ export default function RecuperarContrasenaPage() {
                   required
                   autoComplete="email"
                   inputMode="email"
-                  className="w-full px-4 py-3 text-base rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  className="w-full px-4 py-3 text-base rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent transition"
                   placeholder="tu@email.com"
                 />
               </div>
@@ -110,7 +110,7 @@ export default function RecuperarContrasenaPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 min-h-[48px] rounded-lg transition duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-95"
+                className="w-full bg-crecimiento-500 hover:bg-crecimiento-600 disabled:bg-gray-400 text-white font-semibold py-3 px-4 min-h-[48px] rounded-lg transition duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-95"
               >
                 {loading ? 'Enviando...' : 'Enviar correo de recuperación'}
               </button>

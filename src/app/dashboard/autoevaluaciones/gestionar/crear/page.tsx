@@ -57,17 +57,43 @@ export default function CrearPlantillaPage() {
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from('plantillas_autoevaluacion')
+      // 1. Create capacitacion
+      const { data: capacitacion, error: capError } = await supabase
+        .from('capacitaciones')
         .insert({
-          titulo,
+          nombre: titulo,
+          tipo: 'autoevaluacion',
           area,
           descripcion,
-          preguntas: preguntas.map(({ id, ...rest }) => rest), // Remover ID temporal
-          activo: true
-        });
+          es_obligatoria: true,
+          puntaje_minimo_aprobacion: 70,
+          activa: true
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (capError) throw capError;
+
+      // 2. Create preguntas
+      for (let i = 0; i < preguntas.length; i++) {
+        const p = preguntas[i];
+        const tipoDB = p.tipo === 'si_no' ? 'verdadero_falso' : p.tipo === 'texto_abierto' ? 'texto_libre' : 'escala';
+        
+        const { error: pregError } = await supabase
+          .from('preguntas_capacitacion')
+          .insert({
+            capacitacion_id: capacitacion.id,
+            orden: i + 1,
+            pregunta: p.texto,
+            tipo_pregunta: tipoDB,
+            respuesta_correcta: '',
+            puntaje: 10,
+          });
+
+        if (pregError) {
+          console.error(`Error al crear pregunta ${i}:`, pregError);
+        }
+      }
 
       alert('Plantilla creada correctamente');
       router.push('/dashboard/autoevaluaciones/gestionar');

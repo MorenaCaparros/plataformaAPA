@@ -31,21 +31,21 @@ export async function GET(request: Request) {
     const ninoId = searchParams.get('nino_id');
 
     let query = supabase
-      .from('entrevistas_familiares')
+      .from('entrevistas')
       .select(`
         *,
-        nino:ninos!entrevistas_familiares_nino_id_fkey(
+        nino:ninos(
           id,
-          nombre,
-          apellido,
+          alias,
           rango_etario
         ),
-        trabajadora_social:perfiles!entrevistas_familiares_trabajadora_social_id_fkey(
+        entrevistador:perfiles(
           id,
-          nombre_completo
+          nombre,
+          apellido
         )
       `)
-      .order('fecha_entrevista', { ascending: false });
+      .order('fecha', { ascending: false });
 
     if (ninoId) {
       query = query.eq('nino_id', ninoId);
@@ -170,99 +170,25 @@ export async function POST(request: Request) {
       );
     }
 
-    // Construir objeto de composición familiar
-    const composicion_familiar = {
-      adultos_responsables: adultos_responsables || 0,
-      hermanos: hermanos || 0,
-      otros_convivientes: otros_convivientes || 0,
-      descripcion: composicion_familiar_descripcion || '',
-    };
-
-    // Construir objeto de vivienda
-    const vivienda = {
-      tipo: tipo_vivienda || 'casa',
-      propia: vivienda_propia || false,
-      ambientes: ambientes || 1,
-      servicios_basicos: {
-        agua: agua !== undefined ? agua : true,
-        luz: luz !== undefined ? luz : true,
-        gas: gas !== undefined ? gas : false,
-        cloacas: cloacas !== undefined ? cloacas : false,
-      },
-      condiciones: condiciones_vivienda || 'regulares',
-      observaciones: observaciones_vivienda || '',
-    };
-
-    // Construir objeto de situación económica
-    const situacion_economica = {
-      trabajo_padre: trabajo_padre || '',
-      trabajo_madre: trabajo_madre || '',
-      ingresos_aproximados: ingresos_aproximados || 'bajos',
-      recibe_ayuda_social: recibe_ayuda_social || false,
-      tipo_ayuda: tipo_ayuda ? tipo_ayuda.split(',').map((a: string) => a.trim()) : [],
-      observaciones: observaciones_economicas || '',
-    };
-
-    // Insertar entrevista
+    // Insertar entrevista en la tabla relacional `entrevistas`
     const { data: entrevista, error: insertError } = await supabase
-      .from('entrevistas_familiares')
+      .from('entrevistas')
       .insert({
         nino_id,
-        trabajadora_social_id: session.user.id,
-        fecha_entrevista: new Date().toISOString(),
-        tipo_entrevista: tipo_entrevista || 'inicial',
-        lugar_entrevista,
-        personas_presentes: personas_presentes || [],
-        // Embarazo
-        alimentacion_embarazo,
-        controles_prenatales: controles_prenatales !== undefined ? controles_prenatales : true,
-        complicaciones_embarazo,
-        // Alimentación
-        alimentacion_actual,
-        comidas_diarias: comidas_diarias || 3,
-        calidad_alimentacion: calidad_alimentacion || 'regular',
-        notas_alimentacion,
-        // Escolaridad
-        asiste_escuela: asiste_escuela !== undefined ? asiste_escuela : true,
-        nombre_escuela,
-        grado_actual,
-        asistencia_regular: asistencia_regular !== undefined ? asistencia_regular : true,
-        dificultades_escolares,
-        // Contexto familiar
-        composicion_familiar,
-        vivienda,
-        situacion_economica,
-        // Salud
-        obra_social: obra_social || false,
-        cual_obra_social,
-        controles_salud_regulares: controles_salud_regulares || false,
-        medicacion_actual,
-        diagnosticos_previos: diagnosticos_previos
-          ? diagnosticos_previos.split(',').map((d: string) => d.trim())
-          : [],
-        // Dinámicas familiares
-        relacion_padres,
-        relacion_hermanos,
-        red_apoyo_familiar,
-        participacion_comunitaria,
-        // Observaciones
-        observaciones_trabajadora_social,
-        situacion_riesgo: situacion_riesgo || false,
-        tipo_riesgo: tipo_riesgo ? tipo_riesgo.split(',').map((r: string) => r.trim()) : [],
-        derivaciones_sugeridas: derivaciones_sugeridas
-          ? derivaciones_sugeridas.split(',').map((d: string) => d.trim())
-          : [],
-        prioridad_atencion: prioridad_atencion || 'media',
-        // Seguimiento
-        proxima_visita: proxima_visita || null,
-        acciones_pendientes: acciones_pendientes
-          ? acciones_pendientes.split('\n').filter((a: string) => a.trim())
-          : [],
-        // Audio
-        audio_entrevista_url: audio_url || null,
-        // Offline
-        created_offline: created_offline || false,
-        sincronizado_at: created_offline ? null : new Date().toISOString(),
+        entrevistador_id: session.user.id,
+        tipo: tipo_entrevista || 'inicial',
+        fecha: new Date().toISOString().split('T')[0],
+        participantes: personas_presentes?.map((p: any) => `${p.nombre} (${p.relacion})`) || [],
+        observaciones: observaciones_trabajadora_social || null,
+        conclusiones: [
+          situacion_riesgo ? `Situación de riesgo: ${tipo_riesgo}` : null,
+          derivaciones_sugeridas ? `Derivaciones: ${derivaciones_sugeridas}` : null,
+          `Prioridad: ${prioridad_atencion || 'media'}`,
+        ].filter(Boolean).join('\n'),
+        acciones_sugeridas: acciones_pendientes
+          ? acciones_pendientes.split('\n').filter((a: string) => a.trim()).join('; ')
+          : null,
+        grabacion_url: audio_url || null,
       })
       .select()
       .single();
@@ -272,18 +198,73 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    // Si hay situación de riesgo alta o crítica, crear alerta automática
-    if (situacion_riesgo && ['alta', 'urgente'].includes(prioridad_atencion)) {
-      await supabase.from('alertas_sociales').insert({
+    // Guardar datos de alimentación en tabla relacional
+    if (alimentacion_actual || comidas_diarias || calidad_alimentacion) {
+      await supabase.from('alimentacion_ninos').insert({
         nino_id,
-        trabajadora_social_id: session.user.id,
-        tipo_alerta: 'situacion_riesgo',
-        gravedad: prioridad_atencion === 'urgente' ? 'critica' : 'alta',
-        descripcion: `Situación de riesgo detectada en entrevista familiar: ${tipo_riesgo}`,
-        estado: 'activa',
-        fecha_alerta: new Date().toISOString(),
+        comidas_por_dia: comidas_diarias || 3,
+        calidad: calidad_alimentacion || 'regular',
+        descripcion: alimentacion_actual || null,
+        alimentos_disponibles: notas_alimentacion || null,
+        alimentacion_embarazo: alimentacion_embarazo || null,
       });
     }
+
+    // Guardar datos de escolaridad en tabla relacional
+    if (asiste_escuela !== undefined) {
+      await supabase.from('escolaridad_ninos').insert({
+        nino_id,
+        asiste: asiste_escuela,
+        nombre_escuela: nombre_escuela || null,
+        grado: grado_actual || null,
+        turno: null,
+        asistencia_regular: asistencia_regular || true,
+        observaciones: dificultades_escolares || null,
+      });
+    }
+
+    // Guardar datos de salud en tabla relacional
+    if (obra_social !== undefined || medicacion_actual || diagnosticos_previos) {
+      await supabase.from('salud_ninos').insert({
+        nino_id,
+        obra_social: obra_social || false,
+        cual_obra_social: cual_obra_social || null,
+        controles_regulares: controles_salud_regulares || false,
+        medicacion: medicacion_actual || null,
+        diagnosticos: diagnosticos_previos || null,
+        controles_prenatales: controles_prenatales !== undefined ? controles_prenatales : null,
+        complicaciones_embarazo: complicaciones_embarazo || null,
+      });
+    }
+
+    // Guardar familiares de apoyo
+    if (adultos_responsables || composicion_familiar_descripcion) {
+      await supabase.from('familiares_apoyo').insert({
+        nino_id,
+        tipo: 'tutor',
+        nombre: composicion_familiar_descripcion || 'Referente familiar',
+        vive_con_nino: true,
+        es_contacto_principal: true,
+        notas: [
+          adultos_responsables ? `Adultos responsables: ${adultos_responsables}` : '',
+          hermanos ? `Hermanos: ${hermanos}` : '',
+          otros_convivientes ? `Otros convivientes: ${otros_convivientes}` : '',
+          relacion_padres ? `Relación padres: ${relacion_padres}` : '',
+          relacion_hermanos ? `Relación hermanos: ${relacion_hermanos}` : '',
+          red_apoyo_familiar ? `Red de apoyo: ${red_apoyo_familiar}` : '',
+          participacion_comunitaria ? `Participación comunitaria: ${participacion_comunitaria}` : '',
+          tipo_vivienda ? `Vivienda: ${tipo_vivienda}, ${condiciones_vivienda || ''}, ${ambientes || ''} amb.` : '',
+          `Servicios: agua=${agua}, luz=${luz}, gas=${gas}, cloacas=${cloacas}`,
+          trabajo_padre ? `Trabajo padre: ${trabajo_padre}` : '',
+          trabajo_madre ? `Trabajo madre: ${trabajo_madre}` : '',
+          ingresos_aproximados ? `Ingresos: ${ingresos_aproximados}` : '',
+          recibe_ayuda_social ? `Ayuda social: ${tipo_ayuda}` : '',
+        ].filter(Boolean).join('\n'),
+      });
+    }
+
+    // Note: alertas_sociales table was removed in the new schema.
+    // Risk situations are now tracked in the entrevista conclusiones field.
 
     return NextResponse.json({
       success: true,

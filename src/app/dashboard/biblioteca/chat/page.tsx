@@ -97,7 +97,7 @@ export default function ChatBibliotecaPage() {
       <nav className="bg-white shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
-            <Link href="/dashboard/biblioteca" className="text-blue-600 font-medium">
+            <Link href="/dashboard/biblioteca" className="text-crecimiento-600 font-medium">
               ← Volver a Biblioteca
             </Link>
             <h1 className="text-lg font-bold text-gray-900">💬 Chat con Documentos</h1>
@@ -117,14 +117,14 @@ export default function ChatBibliotecaPage() {
               <div
                 className={`max-w-[90%] sm:max-w-3xl rounded-lg px-3 sm:px-4 py-3 ${
                   message.role === 'user'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-crecimiento-500 text-white'
                     : 'bg-white shadow-sm border border-gray-200'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0">
                     {message.role === 'user' ? (
-                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                      <div className="w-8 h-8 rounded-full bg-crecimiento-500 flex items-center justify-center text-white font-bold">
                         U
                       </div>
                     ) : (
@@ -164,7 +164,7 @@ export default function ChatBibliotecaPage() {
                     )}
 
                     <p className={`text-xs mt-2 ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                      message.role === 'user' ? 'text-crecimiento-100' : 'text-gray-400'
                     }`}>
                       {message.timestamp.toLocaleTimeString('es-AR', {
                         hour: '2-digit',
@@ -213,7 +213,7 @@ export default function ChatBibliotecaPage() {
                   <button
                     key={pregunta}
                     onClick={() => setInput(pregunta)}
-                    className="text-left px-3 py-2 text-xs sm:text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition border border-blue-200"
+                    className="text-left px-3 py-2 text-xs sm:text-sm bg-sol-50 text-sol-700 rounded-lg hover:bg-sol-100 transition border border-sol-200"
                   >
                     {pregunta}
                   </button>
@@ -228,13 +228,13 @@ export default function ChatBibliotecaPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Preguntá sobre los documentos..."
-              className="flex-1 px-3 sm:px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 sm:px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
               disabled={loading}
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="px-4 sm:px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 whitespace-nowrap"
+              className="px-4 sm:px-6 py-3 min-h-[48px] bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 whitespace-nowrap"
             >
               {loading ? '...' : 'Enviar'}
             </button>

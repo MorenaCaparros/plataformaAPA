@@ -66,7 +66,7 @@ export default function ReportesPage() {
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-red-600 font-semibold mb-4">⚠️ Acceso denegado</p>
           <p className="text-gray-600 mb-4">Solo directores pueden acceder a esta página.</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+          <Link href="/dashboard" className="text-crecimiento-600 hover:underline">
             ← Volver al inicio
           </Link>
         </div>
@@ -104,7 +104,7 @@ export default function ReportesPage() {
                 onClick={() => setTipoReporte('general')}
                 className={`p-4 border-2 rounded-lg text-left transition ${
                   tipoReporte === 'general'
-                    ? 'border-blue-600 bg-blue-50'
+                    ? 'border-crecimiento-500 bg-crecimiento-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -130,7 +130,7 @@ export default function ReportesPage() {
                 onClick={() => setTipoReporte('ninos')}
                 className={`p-4 border-2 rounded-lg text-left transition ${
                   tipoReporte === 'ninos'
-                    ? 'border-purple-600 bg-purple-50'
+                    ? 'border-impulso-400 bg-impulso-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -143,7 +143,7 @@ export default function ReportesPage() {
                 onClick={() => setTipoReporte('voluntarios')}
                 className={`p-4 border-2 rounded-lg text-left transition ${
                   tipoReporte === 'voluntarios'
-                    ? 'border-yellow-600 bg-yellow-50'
+                    ? 'border-sol-600 bg-sol-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -179,7 +179,7 @@ export default function ReportesPage() {
                   type="date"
                   value={fechaDesde}
                   onChange={(e) => setFechaDesde(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -188,7 +188,7 @@ export default function ReportesPage() {
                   type="date"
                   value={fechaHasta}
                   onChange={(e) => setFechaHasta(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                 />
               </div>
             </div>
@@ -203,7 +203,7 @@ export default function ReportesPage() {
               <select
                 value={barrioSeleccionado}
                 onChange={(e) => setBarrioSeleccionado(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
               >
                 <option value="todos">Todos los barrios</option>
                 <option value="la-herradura">La Herradura</option>
@@ -244,7 +244,7 @@ export default function ReportesPage() {
                 onClick={() => setFormato('csv')}
                 className={`flex-1 p-3 border-2 rounded-lg font-medium transition ${
                   formato === 'csv'
-                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    ? 'border-crecimiento-500 bg-crecimiento-50 text-crecimiento-700'
                     : 'border-gray-200 text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -257,7 +257,7 @@ export default function ReportesPage() {
           <button
             onClick={handleGenerar}
             disabled={generando}
-            className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-lg"
+            className="w-full bg-crecimiento-500 text-white py-3 px-6 rounded-lg hover:bg-crecimiento-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-lg"
           >
             {generando ? '⏳ Generando reporte...' : '📥 Generar y Descargar'}
           </button>
@@ -279,16 +279,16 @@ export default function ReportesPage() {
         </div>
 
         {/* Ayuda */}
-        <div className="mt-6 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+        <div className="mt-6 bg-sol-50 border-l-4 border-sol-400 p-4 rounded">
           <div className="flex">
             <div className="flex-shrink-0">
               <span className="text-2xl">💡</span>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">
+              <h3 className="text-sm font-medium text-sol-800">
                 Nota sobre Privacidad
               </h3>
-              <p className="text-sm text-yellow-700 mt-1">
+              <p className="text-sm text-sol-700 mt-1">
                 Los reportes generados contienen datos sensibles. Utilízalos solo para fines institucionales
                 autorizados (informes anuales, rendición a financiadores, análisis interno). No compartas con
                 terceros sin anonimizar primero.

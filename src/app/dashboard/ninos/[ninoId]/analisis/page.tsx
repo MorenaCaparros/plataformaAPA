@@ -272,7 +272,7 @@ export default function AnalisisNinoPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto"></div>
           <p className="mt-4 text-gray-600">Cargando...</p>
         </div>
       </div>
@@ -285,11 +285,11 @@ export default function AnalisisNinoPage() {
       <nav className="bg-white shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
-            <Link href="/dashboard/ninos" className="text-blue-600 font-medium min-h-[44px] flex items-center">
+            <Link href="/dashboard/ninos" className="text-crecimiento-600 font-medium min-h-[44px] flex items-center">
               ← Volver a Niños
             </Link>
             <div className="text-center flex items-center gap-2 justify-center">
-              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-crecimiento-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
               <div>
@@ -315,18 +315,18 @@ export default function AnalisisNinoPage() {
               <div
                 className={`max-w-[90%] sm:max-w-3xl rounded-lg px-3 sm:px-4 py-3 ${
                   message.role === 'user'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-crecimiento-500 text-white'
                     : 'bg-white shadow-sm border border-gray-200'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0">
                     {message.role === 'user' ? (
-                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+                      <div className="w-8 h-8 rounded-full bg-crecimiento-500 flex items-center justify-center text-white font-bold">
                         U
                       </div>
                     ) : (
-                      <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-8 h-8 text-crecimiento-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
                     )}
@@ -342,7 +342,7 @@ export default function AnalisisNinoPage() {
                       </div>
                     )}
                     <p className={`text-xs mt-2 ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                      message.role === 'user' ? 'text-crecimiento-100' : 'text-gray-400'
                     }`}>
                       {message.timestamp.toLocaleTimeString('es-AR', {
                         hour: '2-digit',
@@ -359,7 +359,7 @@ export default function AnalisisNinoPage() {
             <div className="flex justify-start">
               <div className="bg-white shadow-sm border border-gray-200 rounded-lg px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <svg className="w-6 h-6 text-indigo-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-crecimiento-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                   <div className="flex gap-1">
@@ -375,14 +375,14 @@ export default function AnalisisNinoPage() {
           {/* Selector de tipos de artefactos */}
           {mostrarSelector && messages.length === 1 && (
             <div className="space-y-4">
-              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
-                <h3 className="font-semibold text-indigo-900 mb-2 flex items-center gap-2">
+              <div className="bg-gradient-to-r from-sol-50 to-crecimiento-50 border border-sol-200 rounded-lg p-4">
+                <h3 className="font-semibold text-sol-900 mb-2 flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                   Tipos de Análisis Disponibles
                 </h3>
-                <p className="text-sm text-indigo-700 mb-4">
+                <p className="text-sm text-sol-700 mb-4">
                   Seleccioná el tipo de análisis que querés generar:
                 </p>
                 
@@ -414,8 +414,8 @@ export default function AnalisisNinoPage() {
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+              <div className="bg-sol-50 border border-sol-200 rounded-lg p-4">
+                <h3 className="font-semibold text-sol-900 mb-2 flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -426,7 +426,7 @@ export default function AnalisisNinoPage() {
                     <button
                       key={index}
                       onClick={() => setInput(pregunta)}
-                      className="block w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-blue-100 transition text-sm text-gray-700"
+                      className="block w-full text-left px-3 py-2 bg-white rounded-lg hover:bg-sol-100 transition text-sm text-gray-700"
                     >
                       {pregunta}
                     </button>
@@ -464,13 +464,13 @@ export default function AnalisisNinoPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Preguntá sobre el progreso del niño..."
-              className="flex-1 px-3 sm:px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 sm:px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
               disabled={loading}
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="px-4 sm:px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 whitespace-nowrap"
+              className="px-4 sm:px-6 py-3 min-h-[48px] bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 whitespace-nowrap"
             >
               {loading ? '...' : 'Enviar'}
             </button>

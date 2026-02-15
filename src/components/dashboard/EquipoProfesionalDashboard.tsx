@@ -47,24 +47,24 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         .from('ninos')
         .select('*', { count: 'exact', head: true });
 
-      // Evaluaciones pendientes (>180 días o sin evaluación inicial)
+      // Evaluaciones pendientes (>180 días o sin entrevista inicial)
       const { data: ninos } = await supabase
         .from('ninos')
         .select(`
           id,
-          evaluaciones (
+          entrevistas (
             fecha,
             tipo
           )
         `)
-        .order('evaluaciones.fecha', { ascending: false });
+        .order('entrevistas.fecha', { ascending: false });
 
       let evaluacionesPendientes = 0;
       const hoy = new Date();
       
-      type NinoConEvaluaciones = { id: string; evaluaciones?: { fecha: string; tipo: string }[] };
+      type NinoConEvaluaciones = { id: string; entrevistas?: { fecha: string; tipo: string }[] };
       (ninos as NinoConEvaluaciones[] | null)?.forEach((nino) => {
-        const evaluaciones = nino.evaluaciones || [];
+        const evaluaciones = nino.entrevistas || [];
         if (evaluaciones.length === 0) {
           evaluacionesPendientes++;
         } else {
@@ -76,11 +76,8 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         }
       });
 
-      // Planes activos
-      const { count: planesCount } = await supabase
-        .from('planes_intervencion')
-        .select('*', { count: 'exact', head: true })
-        .eq('activo', true);
+      // Planes activos (planes_intervencion no longer exists in new schema)
+      const planesCount = 0;
 
       // Sesiones este mes
       const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
@@ -132,7 +129,7 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-xl shadow-lg p-6 text-white">
             <Users className="w-8 h-8 mb-3 opacity-80" />
             <p className="text-sm font-medium opacity-90">Total de Niños</p>
             <p className="text-3xl font-bold mt-1">{metrics.totalNinos}</p>
@@ -150,7 +147,7 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
             <p className="text-3xl font-bold mt-1">{metrics.planesActivos}</p>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="bg-gradient-to-br from-impulso-400 to-impulso-500 rounded-xl shadow-lg p-6 text-white">
             <TrendingUp className="w-8 h-8 mb-3 opacity-80" />
             <p className="text-sm font-medium opacity-90">Sesiones este Mes</p>
             <p className="text-3xl font-bold mt-1">{metrics.sesionesEsteMes}</p>
@@ -164,9 +161,9 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Link
             href="/dashboard/psicopedagogia/evaluaciones/nueva"
-            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition min-h-[64px]"
+            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-crecimiento-400 hover:bg-crecimiento-50 transition min-h-[64px]"
           >
-            <FileEdit className="w-5 h-5 text-blue-600 flex-shrink-0" />
+            <FileEdit className="w-5 h-5 text-crecimiento-600 flex-shrink-0" />
             <span className="text-sm font-medium text-gray-700">Nueva Evaluación</span>
           </Link>
 
@@ -180,7 +177,7 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
 
           <Link
             href="/dashboard/biblioteca/subir"
-            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition min-h-[64px]"
+            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-impulso-400 hover:bg-impulso-50 transition min-h-[64px]"
           >
             <Upload className="w-5 h-5 text-purple-600 flex-shrink-0" />
             <span className="text-sm font-medium text-gray-700">Subir Documento</span>
@@ -201,10 +198,10 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         {/* Evaluaciones */}
         <Link
           href="/dashboard/psicopedagogia/evaluaciones"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-blue-500 min-h-[200px] flex flex-col"
+          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-crecimiento-400 min-h-[200px] flex flex-col"
         >
           <div className="flex items-start justify-between mb-4">
-            <ClipboardList className="w-8 h-8 text-blue-600" />
+            <ClipboardList className="w-8 h-8 text-crecimiento-600" />
             {metrics.evaluacionesPendientes > 0 && (
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                 {metrics.evaluacionesPendientes}
@@ -215,7 +212,7 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
           <p className="text-sm text-gray-600 flex-grow">
             Evaluaciones diagnósticas, seguimiento y egresos. Historial completo por niño.
           </p>
-          <div className="mt-4 text-blue-600 font-medium text-sm">
+          <div className="mt-4 text-crecimiento-600 font-medium text-sm">
             Ver evaluaciones →
           </div>
         </Link>
@@ -243,11 +240,11 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         {/* Biblioteca Psicopedagógica */}
         <Link
           href="/dashboard/biblioteca"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-purple-500 min-h-[200px] flex flex-col"
+          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-impulso-400 min-h-[200px] flex flex-col"
         >
           <div className="flex items-start justify-between mb-4">
             <BookOpen className="w-8 h-8 text-purple-600" />
-            <span className="bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+            <span className="bg-impulso-400 text-white text-xs font-bold px-2 py-1 rounded-full">
               RAG
             </span>
           </div>
@@ -263,11 +260,11 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         {/* Asignaciones */}
         <Link
           href="/dashboard/asignaciones"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-indigo-500 min-h-[200px] flex flex-col"
+          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-crecimiento-400 min-h-[200px] flex flex-col"
         >
           <div className="flex items-start justify-between mb-4">
-            <UserCog className="w-8 h-8 text-indigo-600" />
-            <span className="bg-indigo-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+            <UserCog className="w-8 h-8 text-crecimiento-600" />
+            <span className="bg-crecimiento-500 text-white text-xs font-bold px-2 py-1 rounded-full">
               Matching
             </span>
           </div>
@@ -275,7 +272,7 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
           <p className="text-sm text-gray-600 flex-grow">
             Sistema de matching automático voluntario-niño. Ver disponibilidad y zonas.
           </p>
-          <div className="mt-4 text-indigo-600 font-medium text-sm">
+          <div className="mt-4 text-crecimiento-600 font-medium text-sm">
             Ver asignaciones →
           </div>
         </Link>
@@ -339,16 +336,16 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
       </div>
 
       {/* Info */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6">
-        <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+      <div className="bg-gradient-to-r from-sol-50 to-crecimiento-50 border border-sol-200 rounded-xl p-6">
+        <h3 className="font-bold text-sol-900 mb-3 flex items-center gap-2">
           <span className="text-xl">👥</span>
           Equipo Profesional
         </h3>
-        <p className="text-sm text-blue-800 mb-3">
+        <p className="text-sm text-sol-700 mb-3">
           Como parte del equipo profesional (psicopedagogía, coordinador, trabajadora social), 
           tenés acceso completo a todas las funcionalidades de la plataforma.
         </p>
-        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+        <ul className="text-sm text-sol-700 space-y-1 list-disc list-inside">
           <li>Acceso a datos completos de todos los niños (incluyendo datos sensibles)</li>
           <li>Gestión de evaluaciones, planes de intervención y asignaciones</li>
           <li>Herramientas de IA para análisis y generación de contenido</li>

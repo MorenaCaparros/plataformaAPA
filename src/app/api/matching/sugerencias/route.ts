@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     // 1. Obtener información del niño y sus déficits
     const { data: nino, error: ninoError } = await supabase
       .from('ninos')
-      .select('id, alias, zona_id, metadata')
+      .select('id, alias, zona_id')
       .eq('id', ninoId)
       .single();
 
@@ -113,9 +113,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Extraer déficits del metadata
-    const metadata = nino.metadata as any;
-    const deficits: DeficitNino[] = metadata?.deficits || [];
+    // Obtener déficits del niño desde historico_deficits
+    const { data: deficitsData } = await supabase
+      .from('historico_deficits')
+      .select('area, nivel_gravedad, descripcion')
+      .eq('nino_id', ninoId)
+      .is('resuelto_en', null)
+      .order('detectado_en', { ascending: false });
+
+    const deficits: DeficitNino[] = (deficitsData || []).map((d: any) => ({
+      area: d.area,
+      nivel_gravedad: d.nivel_gravedad || 3,
+      descripcion: d.descripcion || '',
+    }));
 
     if (deficits.length === 0) {
       return NextResponse.json({
@@ -138,7 +148,7 @@ export async function GET(request: NextRequest) {
 
     const { data: voluntarios, error: voluntariosError } = await supabaseAdmin
       .from('perfiles')
-      .select('*')
+      .select('id, nombre, apellido, zona_id')
       .eq('rol', 'voluntario');
 
     if (voluntariosError) {
@@ -152,29 +162,40 @@ export async function GET(request: NextRequest) {
     const sugerencias: SugerenciaMatching[] = [];
 
     for (const voluntario of voluntarios || []) {
-      // Obtener última autoevaluación completada (estado = 'evaluada')
-      const { data: respuesta, error: respuestaError } = await supabase
-        .from('respuestas_autoevaluacion')
-        .select('puntaje_automatico, respuestas, fecha_completada')
-        .eq('voluntario_id', voluntario.id)
-        .eq('estado', 'evaluada')
-        .order('fecha_completada', { ascending: false })
-        .limit(1)
-        .single();
+      // Obtener scores por área del voluntario (replaces respuestas_autoevaluacion)
+      const { data: scores, error: scoresError } = await supabase
+        .from('scores_voluntarios_por_area')
+        .select('area, score_final')
+        .eq('voluntario_id', voluntario.id);
 
-      if (respuestaError || !respuesta) {
-        continue; // Voluntario sin autoevaluaciones, skip
+      if (scoresError || !scores || scores.length === 0) {
+        continue; // Voluntario sin evaluaciones, skip
       }
 
-      // Calcular habilidades por área (promedio de respuestas por área)
-      const habilidades = calcularHabilidadesPorArea(respuesta.respuestas);
+      // Build habilidades from scores (map area names to HabilidadesVoluntario keys)
+      const areaMapping: Record<string, keyof HabilidadesVoluntario> = {
+        'lenguaje_vocabulario': 'lenguaje',
+        'lenguaje': 'lenguaje',
+        'grafismo_motricidad': 'grafismo',
+        'grafismo': 'grafismo',
+        'lectura_escritura': 'lectura_escritura',
+        'nociones_matematicas': 'matematicas',
+        'matematicas': 'matematicas',
+      };
+      const habilidades: HabilidadesVoluntario = { lenguaje: 0, grafismo: 0, lectura_escritura: 0, matematicas: 0 };
+      for (const s of scores) {
+        const key = areaMapping[s.area];
+        if (key) {
+          habilidades[key] = (s.score_final || 0) / 20; // 0-100 → 0-5
+        }
+      }
 
       // Obtener asignaciones actuales del voluntario
       const { data: asignaciones, error: asignacionesError } = await supabase
         .from('asignaciones')
         .select('id')
         .eq('voluntario_id', voluntario.id)
-        .eq('activo', true);
+        .eq('activa', true);
 
       const numAsignaciones = asignaciones?.length || 0;
 
@@ -192,11 +213,11 @@ export async function GET(request: NextRequest) {
       if (numAsignaciones >= 3) disponibilidad = 'baja';
       else if (numAsignaciones >= 2) disponibilidad = 'media';
 
-      const voluntarioMetadata = voluntario.metadata as any;
+      const voluntarioNombre = [voluntario.nombre, voluntario.apellido].filter(Boolean).join(' ') || 'Voluntario sin nombre';
 
       sugerencias.push({
         voluntario_id: voluntario.id,
-        voluntario_nombre: voluntarioMetadata?.nombre_completo || 'Voluntario sin nombre',
+        voluntario_nombre: voluntarioNombre,
         score: Math.round(score.total),
         habilidades,
         asignaciones_actuales: numAsignaciones,

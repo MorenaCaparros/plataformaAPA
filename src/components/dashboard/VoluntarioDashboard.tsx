@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { formatearEdad } from '@/lib/utils/date-helpers';
 
 interface NinoAsignado {
   id: string;
   alias: string;
   rango_etario: string;
+  fecha_nacimiento: string | null;
   nivel_alfabetizacion: string;
   total_sesiones: number;
   ultima_sesion: string | null;
@@ -54,7 +56,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
       // Obtener niños asignados a este voluntario (que tienen al menos una sesión con él)
       const { data: sesionesData, error: sesionesError } = await supabase
         .from('sesiones')
-        .select('nino_id, ninos!inner(id, alias, rango_etario, nivel_alfabetizacion)')
+        .select('nino_id, ninos!inner(id, alias, rango_etario, fecha_nacimiento, nivel_alfabetizacion)')
         .eq('voluntario_id', userId);
 
       if (sesionesError) throw sesionesError;
@@ -157,7 +159,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Cargando tus datos...</p>
         </div>
       </div>
@@ -168,7 +170,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
     <div className="space-y-4 sm:space-y-6">
       {/* Estadísticas Rápidas - Mobile First */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-xl p-4 text-white shadow-lg">
           <p className="text-xs sm:text-sm font-medium opacity-90 mb-1">Niños Asignados</p>
           <p className="text-3xl sm:text-4xl font-bold">{estadisticas.total_ninos}</p>
         </div>
@@ -178,7 +180,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
           <p className="text-3xl sm:text-4xl font-bold">{estadisticas.sesiones_este_mes}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-impulso-400 to-impulso-500 rounded-xl p-4 text-white shadow-lg">
           <p className="text-xs sm:text-sm font-medium opacity-90 mb-1">Horas (Mes)</p>
           <p className="text-3xl sm:text-4xl font-bold">{estadisticas.horas_este_mes}</p>
         </div>
@@ -230,8 +232,8 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                     
                     {/* Info secundaria */}
                     <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-medium">
-                        {nino.rango_etario} años
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-sol-100 dark:bg-sol-900 text-sol-700 dark:text-sol-200 font-medium">
+                        {formatearEdad(nino.fecha_nacimiento, nino.rango_etario)}
                       </span>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                         {nino.nivel_alfabetizacion || 'Sin nivel'}
@@ -264,7 +266,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                   <div className="flex flex-col gap-2 shrink-0">
                     <button
                       onClick={() => router.push(`/dashboard/sesiones/nueva/${nino.id}`)}
-                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg font-medium shadow-md hover:shadow-lg transition-all touch-manipulation min-w-[120px] text-sm sm:text-base"
+                      className="px-4 py-2.5 bg-crecimiento-500 hover:bg-crecimiento-600 active:bg-crecimiento-700 text-white rounded-lg font-medium shadow-md hover:shadow-lg transition-all touch-manipulation min-w-[120px] text-sm sm:text-base"
                       style={{ minHeight: '44px' }} // iOS touch target
                     >
                       📝 Nueva Sesión
@@ -306,7 +308,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
           </button>
           <button
             onClick={() => router.push('/dashboard/metricas')}
-            className="px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base shadow-md"
+            className="px-4 py-3 bg-gradient-to-r from-impulso-400 to-impulso-500 hover:from-impulso-500 hover:to-impulso-600 text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base shadow-md"
             style={{ minHeight: '44px' }}
           >
             📊 Mis Métricas

@@ -55,37 +55,69 @@ export default function CompletarAutoevaluacionPage() {
 
   async function fetchData() {
     try {
-      // Obtener plantilla
-      const { data: plantillaData, error: plantillaError } = await supabase
-        .from('plantillas_autoevaluacion')
-        .select('*')
+      // Obtener capacitacion (replaces plantillas_autoevaluacion)
+      const { data: capData, error: capError } = await supabase
+        .from('capacitaciones')
+        .select(`
+          *,
+          preguntas_db:preguntas_capacitacion(id, orden, pregunta, tipo_pregunta, puntaje)
+        `)
         .eq('id', plantillaId)
         .single();
 
-      if (plantillaError) throw plantillaError;
-      setPlantilla(plantillaData);
+      if (capError) throw capError;
+      
+      // Map to plantilla shape
+      const mappedPlantilla: Plantilla = {
+        id: capData.id,
+        titulo: capData.nombre,
+        area: capData.area,
+        descripcion: capData.descripcion || '',
+        preguntas: (capData.preguntas_db || [])
+          .sort((a: any, b: any) => a.orden - b.orden)
+          .map((p: any) => ({
+            id: p.id,
+            texto: p.pregunta,
+            tipo: p.tipo_pregunta === 'verdadero_falso' ? 'si_no' : p.tipo_pregunta === 'texto_libre' ? 'texto_abierto' : 'escala_1_5' as any,
+            categoria: '',
+          })),
+      };
+      setPlantilla(mappedPlantilla);
 
-      // Buscar respuesta existente (no completada)
-      const { data: respuestaData, error: respuestaError } = await supabase
-        .from('respuestas_autoevaluacion')
+      // Buscar respuesta existente (voluntarios_capacitaciones, not completed)
+      const { data: volCapData, error: volCapError } = await supabase
+        .from('voluntarios_capacitaciones')
         .select('*')
-        .eq('plantilla_id', plantillaId)
-        .eq('completada', false)
-        .order('fecha_inicio', { ascending: false })
+        .eq('capacitacion_id', plantillaId)
+        .eq('estado', 'en_progreso')
+        .order('created_at', { ascending: false })
         .limit(1);
 
-      if (respuestaError) throw respuestaError;
+      if (volCapError) throw volCapError;
 
-      if (respuestaData && respuestaData.length > 0) {
-        const respuesta = respuestaData[0];
-        setRespuestaExistente(respuesta);
-        
-        // Cargar respuestas guardadas
-        const respuestasMap: Record<string, any> = {};
-        (respuesta.respuestas || []).forEach((r: Respuesta) => {
-          respuestasMap[r.pregunta_id] = r.respuesta;
+      if (volCapData && volCapData.length > 0) {
+        const volCap = volCapData[0];
+        setRespuestaExistente({
+          id: volCap.id,
+          respuestas: [],
+          completada: false,
         });
-        setRespuestas(respuestasMap);
+        
+        // Load individual responses
+        const { data: respuestasInd } = await supabase
+          .from('respuestas_capacitaciones')
+          .select('pregunta_id, respuesta')
+          .eq('voluntario_capacitacion_id', volCap.id);
+
+        if (respuestasInd) {
+          const respuestasMap: Record<string, any> = {};
+          respuestasInd.forEach((r: any) => {
+            // Try to parse numeric values
+            const val = parseFloat(r.respuesta);
+            respuestasMap[r.pregunta_id] = isNaN(val) ? r.respuesta : val;
+          });
+          setRespuestas(respuestasMap);
+        }
       }
     } catch (error) {
       console.error('Error al cargar datos:', error);
@@ -108,38 +140,54 @@ export default function CompletarAutoevaluacionPage() {
 
     setGuardando(true);
     try {
-      const respuestasArray: Respuesta[] = Object.keys(respuestas).map(preguntaId => ({
-        pregunta_id: preguntaId,
-        respuesta: respuestas[preguntaId]
-      }));
-
       if (respuestaExistente) {
-        // Actualizar respuesta existente
-        const { error } = await supabase
-          .from('respuestas_autoevaluacion')
-          .update({
-            respuestas: respuestasArray,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', respuestaExistente.id);
+        // Delete old individual responses and recreate
+        await supabase
+          .from('respuestas_capacitaciones')
+          .delete()
+          .eq('voluntario_capacitacion_id', respuestaExistente.id);
 
-        if (error) throw error;
+        // Insert new responses
+        for (const [preguntaId, respuesta] of Object.entries(respuestas)) {
+          await supabase
+            .from('respuestas_capacitaciones')
+            .insert({
+              voluntario_capacitacion_id: respuestaExistente.id,
+              pregunta_id: preguntaId,
+              respuesta: String(respuesta),
+              es_correcta: null,
+              puntaje_obtenido: 0,
+            });
+        }
       } else {
-        // Crear nueva respuesta
+        // Create new voluntarios_capacitaciones record as 'en_progreso'
         const { data, error } = await supabase
-          .from('respuestas_autoevaluacion')
+          .from('voluntarios_capacitaciones')
           .insert({
             voluntario_id: perfil.id,
-            plantilla_id: plantilla.id,
-            respuestas: respuestasArray,
-            completada: false,
-            fecha_inicio: new Date().toISOString()
+            capacitacion_id: plantilla.id,
+            estado: 'en_progreso',
+            fecha_inicio: new Date().toISOString(),
+            intentos: 1,
           })
           .select()
           .single();
 
         if (error) throw error;
-        setRespuestaExistente(data);
+        setRespuestaExistente({ id: data.id, respuestas: [], completada: false });
+
+        // Insert individual responses
+        for (const [preguntaId, respuesta] of Object.entries(respuestas)) {
+          await supabase
+            .from('respuestas_capacitaciones')
+            .insert({
+              voluntario_capacitacion_id: data.id,
+              pregunta_id: preguntaId,
+              respuesta: String(respuesta),
+              es_correcta: null,
+              puntaje_obtenido: 0,
+            });
+        }
       }
 
       alert('✅ Progreso guardado correctamente');
@@ -163,12 +211,7 @@ export default function CompletarAutoevaluacionPage() {
 
     setEnviando(true);
     try {
-      const respuestasArray: Respuesta[] = Object.keys(respuestas).map(preguntaId => ({
-        pregunta_id: preguntaId,
-        respuesta: respuestas[preguntaId]
-      }));
-
-      // Calcular puntaje automático para preguntas tipo escala
+      // Calculate automatic score for scale questions
       let puntajeTotal = 0;
       let preguntasConPuntaje = 0;
 
@@ -184,35 +227,71 @@ export default function CompletarAutoevaluacionPage() {
         : null;
 
       if (respuestaExistente) {
-        // Actualizar respuesta existente como completada
+        // Delete old individual responses and recreate
+        await supabase
+          .from('respuestas_capacitaciones')
+          .delete()
+          .eq('voluntario_capacitacion_id', respuestaExistente.id);
+
+        // Insert final responses
+        for (const [preguntaId, respuesta] of Object.entries(respuestas)) {
+          await supabase
+            .from('respuestas_capacitaciones')
+            .insert({
+              voluntario_capacitacion_id: respuestaExistente.id,
+              pregunta_id: preguntaId,
+              respuesta: String(respuesta),
+              es_correcta: null,
+              puntaje_obtenido: typeof respuesta === 'number' ? respuesta * 2 : 0,
+            });
+        }
+
+        // Mark as completed
+        const porcentaje = puntajePromedio ? Math.round(puntajePromedio * 20) : 0;
         const { error } = await supabase
-          .from('respuestas_autoevaluacion')
+          .from('voluntarios_capacitaciones')
           .update({
-            respuestas: respuestasArray,
-            completada: true,
-            fecha_completada: new Date().toISOString(),
-            puntaje_automatico: puntajePromedio,
-            puntaje_total: puntajePromedio
+            estado: 'completada',
+            fecha_completado: new Date().toISOString(),
+            puntaje_final: puntajePromedio ? Math.round(puntajePromedio * 2) : 0,
+            puntaje_maximo: 10,
+            porcentaje,
           })
           .eq('id', respuestaExistente.id);
 
         if (error) throw error;
       } else {
-        // Crear nueva respuesta completada
-        const { error } = await supabase
-          .from('respuestas_autoevaluacion')
+        // Create new completed record
+        const { data, error } = await supabase
+          .from('voluntarios_capacitaciones')
           .insert({
             voluntario_id: perfil.id,
-            plantilla_id: plantilla.id,
-            respuestas: respuestasArray,
-            completada: true,
+            capacitacion_id: plantilla.id,
+            estado: 'completada',
             fecha_inicio: new Date().toISOString(),
-            fecha_completada: new Date().toISOString(),
-            puntaje_automatico: puntajePromedio,
-            puntaje_total: puntajePromedio
-          });
+            fecha_completado: new Date().toISOString(),
+            puntaje_final: puntajePromedio ? Math.round(puntajePromedio * 2) : 0,
+            puntaje_maximo: 10,
+            porcentaje: puntajePromedio ? Math.round(puntajePromedio * 20) : 0,
+            intentos: 1,
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Insert individual responses
+        for (const [preguntaId, respuesta] of Object.entries(respuestas)) {
+          await supabase
+            .from('respuestas_capacitaciones')
+            .insert({
+              voluntario_capacitacion_id: data.id,
+              pregunta_id: preguntaId,
+              respuesta: String(respuesta),
+              es_correcta: null,
+              puntaje_obtenido: typeof respuesta === 'number' ? respuesta * 2 : 0,
+            });
+        }
       }
 
       alert('🎉 ¡Autoevaluación completada con éxito!');
@@ -233,9 +312,9 @@ export default function CompletarAutoevaluacionPage() {
   };
 
   const areaColors: Record<string, string> = {
-    lenguaje: 'from-blue-400 to-blue-500',
+    lenguaje: 'from-sol-400 to-sol-500',
     grafismo: 'from-green-400 to-green-500',
-    lectura_escritura: 'from-purple-400 to-purple-500',
+    lectura_escritura: 'from-impulso-300 to-impulso-400',
     matematicas: 'from-orange-400 to-orange-500'
   };
 

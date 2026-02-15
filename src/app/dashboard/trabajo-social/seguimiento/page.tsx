@@ -96,7 +96,7 @@ export default function SeguimientoPage() {
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-red-600 font-semibold mb-4">⚠️ Acceso denegado</p>
           <p className="text-gray-600 mb-4">Solo trabajadores sociales pueden acceder.</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+          <Link href="/dashboard" className="text-crecimiento-600 hover:underline">
             ← Volver al inicio
           </Link>
         </div>
@@ -108,7 +108,7 @@ export default function SeguimientoPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando seguimientos...</p>
         </div>
       </div>
@@ -149,7 +149,7 @@ export default function SeguimientoPage() {
                 onClick={() => setFiltroTipo('todas')}
                 className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition ${
                   filtroTipo === 'todas'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-sol-100 text-sol-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -159,7 +159,7 @@ export default function SeguimientoPage() {
                 onClick={() => setFiltroTipo('domiciliaria')}
                 className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition ${
                   filtroTipo === 'domiciliaria'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-sol-100 text-sol-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -169,7 +169,7 @@ export default function SeguimientoPage() {
                 onClick={() => setFiltroTipo('escolar')}
                 className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition ${
                   filtroTipo === 'escolar'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-sol-100 text-sol-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -179,7 +179,7 @@ export default function SeguimientoPage() {
                 onClick={() => setFiltroTipo('telefonica')}
                 className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition ${
                   filtroTipo === 'telefonica'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-sol-100 text-sol-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -318,11 +318,11 @@ export default function SeguimientoPage() {
                         <p className="text-sm text-gray-700">{visita.acciones_realizadas}</p>
                       </div>
 
-                      <div className="bg-blue-50 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-blue-700 uppercase mb-1">
+                      <div className="bg-sol-50 rounded-lg p-3">
+                        <p className="text-xs font-semibold text-sol-700 uppercase mb-1">
                           Próximos Pasos
                         </p>
-                        <p className="text-sm text-blue-900">{visita.proximos_pasos}</p>
+                        <p className="text-sm text-sol-900">{visita.proximos_pasos}</p>
                       </div>
                     </div>
 

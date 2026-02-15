@@ -11,7 +11,8 @@ type Perfil = {
   id: string;
   rol: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajador_social' | 'director';
   zona_id: string | null;
-  metadata: any;
+  nombre: string;
+  apellido: string;
   created_at: string;
   email?: string;
 };
@@ -91,7 +92,7 @@ export default function UsuariosPage() {
 
   const getRolColor = (rol: string) => {
     const colors: Record<string, string> = {
-      voluntario: 'bg-blue-100 text-blue-800',
+      voluntario: 'bg-sol-100 text-sol-700',
       coordinador: 'bg-green-100 text-green-800',
       psicopedagogia: 'bg-purple-100 text-purple-800',
       trabajador_social: 'bg-pink-100 text-pink-800',
@@ -104,7 +105,8 @@ export default function UsuariosPage() {
     const matchRol = filtroRol === 'todos' || u.rol === filtroRol;
     const matchBusqueda = busqueda === '' || 
       u.id.toLowerCase().includes(busqueda.toLowerCase()) ||
-      (u.metadata?.nombre && u.metadata.nombre.toLowerCase().includes(busqueda.toLowerCase()));
+      (u.nombre && u.nombre.toLowerCase().includes(busqueda.toLowerCase())) ||
+      (u.apellido && u.apellido.toLowerCase().includes(busqueda.toLowerCase()));
     return matchRol && matchBusqueda;
   });
 
@@ -114,7 +116,7 @@ export default function UsuariosPage() {
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-red-600 font-semibold mb-4">⚠️ Acceso denegado</p>
           <p className="text-gray-600 mb-4">Solo directores pueden acceder a esta página.</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+          <Link href="/dashboard" className="text-crecimiento-600 hover:underline">
             ← Volver al inicio
           </Link>
         </div>
@@ -126,7 +128,7 @@ export default function UsuariosPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando usuarios...</p>
         </div>
       </div>
@@ -161,7 +163,7 @@ export default function UsuariosPage() {
                 placeholder="🔍 Buscar por ID o nombre..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
               />
             </div>
 
@@ -170,7 +172,7 @@ export default function UsuariosPage() {
               <select
                 value={filtroRol}
                 onChange={(e) => setFiltroRol(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
               >
                 <option value="todos">Todos los roles</option>
                 <option value="voluntario">Voluntarios</option>
@@ -223,7 +225,7 @@ export default function UsuariosPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900">
-                            {usuario.metadata?.nombre || 'Sin nombre'}
+                            {[usuario.nombre, usuario.apellido].filter(Boolean).join(' ') || 'Sin nombre'}
                           </div>
                           <div className="text-xs text-gray-500 font-mono">
                             {usuario.id.substring(0, 8)}...
@@ -282,7 +284,7 @@ export default function UsuariosPage() {
                                 setEditando(usuario.id);
                                 setNuevoRol(usuario.rol);
                               }}
-                              className="text-blue-600 hover:text-blue-900"
+                              className="text-crecimiento-600 hover:text-crecimiento-800"
                             >
                               ✏️ Editar
                             </button>
@@ -298,16 +300,16 @@ export default function UsuariosPage() {
         )}
 
         {/* Ayuda */}
-        <div className="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+        <div className="mt-6 bg-sol-50 border-l-4 border-sol-400 p-4 rounded">
           <div className="flex">
             <div className="flex-shrink-0">
               <span className="text-2xl">ℹ️</span>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
+              <h3 className="text-sm font-medium text-sol-800">
                 Sobre los Roles
               </h3>
-              <div className="text-sm text-blue-700 mt-2 space-y-1">
+              <div className="text-sm text-sol-700 mt-2 space-y-1">
                 <p><strong>Voluntario:</strong> Registra sesiones, ve solo sus niños asignados</p>
                 <p><strong>Coordinador:</strong> Gestiona su equipo/barrio, asigna voluntarios</p>
                 <p><strong>Psicopedagogía:</strong> Acceso completo a evaluaciones, planificación, IA</p>

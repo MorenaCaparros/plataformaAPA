@@ -39,25 +39,51 @@ export default function AutoevaluacionesPage() {
 
   async function fetchData() {
     try {
-      // Solo cargar plantillas (siempre)
+      // Load capacitaciones of type 'autoevaluacion' (replaces plantillas_autoevaluacion)
       const plantillasRes = await supabase
-        .from('plantillas_autoevaluacion')
-        .select('*')
-        .eq('activo', true)
+        .from('capacitaciones')
+        .select(`
+          *,
+          preguntas:preguntas_capacitacion(id, orden, pregunta, tipo_pregunta, puntaje)
+        `)
+        .eq('tipo', 'autoevaluacion')
+        .eq('activa', true)
         .order('area');
 
       if (plantillasRes.error) throw plantillasRes.error;
-      setPlantillas(plantillasRes.data || []);
+      
+      // Map to old plantilla shape
+      const mappedPlantillas = (plantillasRes.data || []).map((c: any) => ({
+        id: c.id,
+        titulo: c.nombre,
+        area: c.area,
+        descripcion: c.descripcion,
+        preguntas: (c.preguntas || []).sort((a: any, b: any) => a.orden - b.orden).map((p: any) => ({
+          id: p.id,
+          texto: p.pregunta,
+          tipo: p.tipo_pregunta,
+        })),
+      }));
+      setPlantillas(mappedPlantillas);
 
-      // Solo cargar respuestas si es voluntario (no roles administrativos)
+      // Load respuestas if voluntario (replaces respuestas_autoevaluacion)
       if (!puedeGestionarPlantillas) {
         const respuestasRes = await supabase
-          .from('respuestas_autoevaluacion')
-          .select('id, plantilla_id, puntaje_total, puntaje_automatico, fecha_completada')
-          .order('fecha_completada', { ascending: false });
+          .from('voluntarios_capacitaciones')
+          .select('id, capacitacion_id, puntaje_final, porcentaje, fecha_completado')
+          .order('fecha_completado', { ascending: false });
 
         if (respuestasRes.error) throw respuestasRes.error;
-        setRespuestas(respuestasRes.data || []);
+        
+        // Map to old respuesta shape
+        const mappedRespuestas = (respuestasRes.data || []).map((r: any) => ({
+          id: r.id,
+          plantilla_id: r.capacitacion_id,
+          puntaje_total: r.porcentaje ? r.porcentaje / 10 : null,
+          puntaje_automatico: r.puntaje_final ? r.puntaje_final / 10 : null,
+          fecha_completada: r.fecha_completado,
+        }));
+        setRespuestas(mappedRespuestas);
       }
     } catch (error) {
       console.error('Error al cargar datos:', error);
@@ -89,7 +115,7 @@ export default function AutoevaluacionesPage() {
   };
 
   const areaColors: Record<string, string> = {
-    lenguaje: 'bg-blue-100 text-blue-800',
+    lenguaje: 'bg-sol-100 text-sol-700',
     grafismo: 'bg-green-100 text-green-800',
     lectura_escritura: 'bg-purple-100 text-purple-800',
     matematicas: 'bg-orange-100 text-orange-800'

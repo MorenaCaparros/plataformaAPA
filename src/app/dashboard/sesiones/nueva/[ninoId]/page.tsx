@@ -1,11 +1,20 @@
 ﻿'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { ITEMS_OBSERVACION, CATEGORIAS_LABELS, ESCALA_LIKERT, type Categoria } from '@/lib/constants/items-observacion';
-import { ArrowLeft, Save, FileText, Check, AlertTriangle } from 'lucide-react';
+import {
+  ITEMS_OBSERVACION,
+  CATEGORIAS_LABELS,
+  ESCALA_LIKERT,
+  VALOR_NO_COMPLETADO,
+  LABEL_NO_COMPLETADO,
+  calcularPromedioItems,
+  contarItemsCompletados,
+  type Categoria
+} from '@/lib/constants/items-observacion';
+import { ArrowLeft, Save, FileText, Check, AlertTriangle, Timer, X } from 'lucide-react';
 
 interface Nino {
   id: string;
@@ -20,12 +29,76 @@ interface FormData {
   observaciones_libres: string;
 }
 
+// ─── Session Chronometer Hook ──────────────────────────────────
+function useChronometer() {
+  const [seconds, setSeconds] = useState(0);
+  const [isRunning, setIsRunning] = useState(true);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    // Restore start time from localStorage if available
+    const savedStart = localStorage.getItem('sesion_timer_start');
+    if (savedStart) {
+      startTimeRef.current = parseInt(savedStart, 10);
+      setSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    } else {
+      startTimeRef.current = Date.now();
+      localStorage.setItem('sesion_timer_start', String(startTimeRef.current));
+    }
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isRunning) {
+      intervalRef.current = setInterval(() => {
+        setSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      }, 1000);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning]);
+
+  const reset = useCallback(() => {
+    startTimeRef.current = Date.now();
+    localStorage.setItem('sesion_timer_start', String(startTimeRef.current));
+    setSeconds(0);
+    setIsRunning(true);
+  }, []);
+
+  const stop = useCallback(() => {
+    setIsRunning(false);
+    localStorage.removeItem('sesion_timer_start');
+  }, []);
+
+  const toggle = useCallback(() => setIsRunning(prev => !prev), []);
+
+  const formatTime = useCallback((totalSeconds: number) => {
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    if (hrs > 0) {
+      return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, []);
+
+  return { seconds, isRunning, formatTime, toggle, reset, stop };
+}
+
 export default function NuevaSesionPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
   
   const ninoId = params.ninoId as string;
+  const chrono = useChronometer();
   
   const [nino, setNino] = useState<Nino | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,10 +164,13 @@ export default function NuevaSesionPage() {
     }
   };
 
-  // Calcular progreso
+  // Calcular progreso — items con valor (1-5) OR marked as N/C (0) both count as "touched"
   const totalItems = ITEMS_OBSERVACION.length;
-  const completedItems = Object.keys(formData.items).length;
-  const progreso = Math.round((completedItems / totalItems) * 100);
+  const touchedItems = Object.keys(formData.items).length;
+  const progreso = Math.round((touchedItems / totalItems) * 100);
+
+  // Count how many are N/C
+  const ncCount = Object.values(formData.items).filter(v => v === VALOR_NO_COMPLETADO).length;
 
   // Agrupar items por categoría
   const itemsPorCategoria = ITEMS_OBSERVACION.reduce((acc, item) => {
@@ -103,8 +179,8 @@ export default function NuevaSesionPage() {
     return acc;
   }, {} as Record<Categoria, typeof ITEMS_OBSERVACION>);
 
-  // Items completados por categoría
-  const getCompletadosCategoria = (categoria: Categoria) => {
+  // Items completados por categoría (touched = rated OR marked N/C)
+  const getTocadosCategoria = (categoria: Categoria) => {
     const itemsCategoria = itemsPorCategoria[categoria];
     return itemsCategoria.filter(item => formData.items[item.id] !== undefined).length;
   };
@@ -116,6 +192,21 @@ export default function NuevaSesionPage() {
     }));
   };
 
+  const handleMarkNC = (itemId: string) => {
+    setFormData(prev => {
+      const currentVal = prev.items[itemId];
+      // Toggle: if already N/C, remove the entry so volunteer can re-rate
+      if (currentVal === VALOR_NO_COMPLETADO) {
+        const { [itemId]: _, ...rest } = prev.items;
+        return { ...prev, items: rest };
+      }
+      return {
+        ...prev,
+        items: { ...prev.items, [itemId]: VALOR_NO_COMPLETADO }
+      };
+    });
+  };
+
   const toggleCategoria = (categoria: Categoria) => {
     setExpandedCategoria(expandedCategoria === categoria ? null : categoria);
   };
@@ -123,11 +214,16 @@ export default function NuevaSesionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const itemsFaltantes = ITEMS_OBSERVACION.filter(item => !formData.items[item.id]);
+    // All items must be touched (either rated 1-5 or marked N/C)
+    const itemsFaltantes = ITEMS_OBSERVACION.filter(item => formData.items[item.id] === undefined);
     if (itemsFaltantes.length > 0) {
-      alert('Faltan ' + itemsFaltantes.length + ' items por completar');
+      alert('Faltan ' + itemsFaltantes.length + ' ítems por completar o marcar como N/C');
       return;
     }
+
+    // Stop the chronometer
+    chrono.stop();
+    const duracionReal = Math.max(1, Math.round(chrono.seconds / 60));
 
     setSubmitting(true);
 
@@ -145,7 +241,7 @@ export default function NuevaSesionPage() {
           nino_id: ninoId,
           voluntario_id: user?.id,
           fecha: new Date().toISOString(),
-          duracion_minutos: formData.duracion_minutos,
+          duracion_minutos: duracionReal,
           items: itemsArray,
           observaciones_libres: formData.observaciones_libres,
           created_offline: false,
@@ -154,10 +250,11 @@ export default function NuevaSesionPage() {
 
       if (error) throw error;
 
-      // Limpiar borrador después de guardar exitosamente
+      // Limpiar borrador y timer después de guardar exitosamente
       localStorage.removeItem(`draft_sesion_${ninoId}`);
+      localStorage.removeItem('sesion_timer_start');
       
-      alert('✅ Sesión registrada correctamente');
+      alert('✅ Sesión registrada correctamente (' + duracionReal + ' min)');
       router.push('/dashboard/ninos');
     } catch (error) {
       console.error('Error:', error);
@@ -176,15 +273,16 @@ export default function NuevaSesionPage() {
         observaciones_libres: ''
       });
       setHasDraft(false);
+      chrono.reset();
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-neutro-lienzo flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sol-200 border-t-crecimiento-400 mx-auto"></div>
+          <p className="mt-4 text-neutro-piedra font-outfit">Cargando...</p>
         </div>
       </div>
     );
@@ -193,93 +291,107 @@ export default function NuevaSesionPage() {
   if (!nino) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-neutro-lienzo pb-24">
       {/* Header fijo */}
-      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-lg border-b border-white/60 shadow-sm">
         <div className="px-4 py-3">
           <div className="flex justify-between items-center mb-2">
-            <button onClick={() => router.back()} className="text-blue-600 min-h-[44px] flex items-center gap-2">
+            <button onClick={() => router.back()} className="text-crecimiento-600 hover:text-crecimiento-700 min-h-[44px] flex items-center gap-2 font-outfit font-medium">
               <ArrowLeft className="w-5 h-5" />
               Volver
             </button>
-            <h1 className="font-bold text-base sm:text-lg">Nueva Sesión</h1>
+            <h1 className="font-bold text-base sm:text-lg font-quicksand text-neutro-carbon">Nueva Sesión</h1>
             <div className="w-16"></div>
           </div>
           
-          <div className="flex items-center justify-between text-xs text-gray-600 mb-3">
+          <div className="flex items-center justify-between text-xs text-neutro-piedra mb-3 font-outfit">
             <div>
-              <span className="font-bold">{nino.alias}</span> • {nino.rango_etario} • {nino.nivel_alfabetizacion}
+              <span className="font-bold text-neutro-carbon">{nino.alias}</span> • {nino.rango_etario} • {nino.nivel_alfabetizacion}
             </div>
-            {hasDraft && (
-              <button
-                onClick={clearDraft}
-                className="text-amber-600 hover:text-amber-800 font-medium flex items-center gap-1.5"
-                title="Borrar borrador"
-              >
-                <Save className="w-4 h-4" />
-                Borrador
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {hasDraft && (
+                <button
+                  onClick={clearDraft}
+                  className="text-sol-600 hover:text-sol-800 font-medium flex items-center gap-1.5"
+                  title="Borrar borrador"
+                >
+                  <Save className="w-4 h-4" />
+                  Borrador
+                </button>
+              )}
+            </div>
           </div>
 
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span>Progreso</span>
-              <span>{completedItems}/{totalItems}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: progreso + '%' }} />
+          {/* Chronometer + Progress */}
+          <div className="flex items-center gap-3 mb-1">
+            {/* Chronometer */}
+            <button
+              type="button"
+              onClick={chrono.toggle}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-sm font-bold font-quicksand transition-all ${
+                chrono.isRunning
+                  ? 'bg-crecimiento-50 text-crecimiento-700 border border-crecimiento-200/60'
+                  : 'bg-sol-50 text-sol-700 border border-sol-200/60'
+              }`}
+              title={chrono.isRunning ? 'Pausar cronómetro' : 'Reanudar cronómetro'}
+            >
+              <Timer className="w-4 h-4" />
+              <span className="tabular-nums">{chrono.formatTime(chrono.seconds)}</span>
+              {!chrono.isRunning && <span className="text-[10px] font-medium ml-1 opacity-70">PAUSA</span>}
+            </button>
+
+            {/* Progress */}
+            <div className="flex-1">
+              <div className="flex justify-between text-xs mb-1 font-outfit">
+                <span className="text-neutro-piedra">Progreso</span>
+                <span className="text-neutro-carbon font-semibold">
+                  {touchedItems}/{totalItems}
+                  {ncCount > 0 && <span className="text-neutro-piedra font-normal ml-1">({ncCount} N/C)</span>}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-gradient-to-r from-sol-400 to-crecimiento-400 h-2 rounded-full transition-all shadow-[0_0_6px_rgba(164,198,57,0.3)]" style={{ width: progreso + '%' }} />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       <form className="px-3 sm:px-4 py-4">
-        {/* Duración */}
-        <div className="bg-white rounded-lg shadow p-4 mb-4">
-          <div className="flex justify-between">
-            <label className="text-sm font-medium">Duración</label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min="5"
-                max="180"
-                step="5"
-                value={formData.duracion_minutos}
-                onChange={(e) => setFormData(prev => ({ ...prev, duracion_minutos: parseInt(e.target.value) || 45 }))}
-                className="w-16 px-2 py-2 text-base text-center border rounded"
-              />
-              <span>min</span>
-            </div>
+        {/* Timer alert for long sessions */}
+        {chrono.seconds >= 5400 && (
+          <div className="bg-impulso-50 border border-impulso-200/60 rounded-2xl p-3 mb-4 flex items-center gap-2 text-impulso-700 text-sm font-outfit">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>La sesión lleva más de 1h30m. Recordá guardar tu progreso.</span>
           </div>
-        </div>
+        )}
 
         {/* Acordeón */}
         <div className="space-y-3">
           {(Object.keys(itemsPorCategoria) as Categoria[]).map(categoria => {
             const items = itemsPorCategoria[categoria];
-            const completados = getCompletadosCategoria(categoria);
+            const tocados = getTocadosCategoria(categoria);
             const total = items.length;
             const isExpanded = expandedCategoria === categoria;
-            const isComplete = completados === total;
+            const isComplete = tocados === total;
 
             return (
-              <div key={categoria} className="bg-white rounded-lg shadow overflow-hidden">
+              <div key={categoria} className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] overflow-hidden">
                 <button
                   type="button"
                   onClick={() => toggleCategoria(categoria)}
-                  className="w-full px-4 py-3 min-h-[48px] flex items-center justify-between hover:bg-gray-50 active:bg-gray-100"
+                  className="w-full px-4 py-3 min-h-[48px] flex items-center justify-between hover:bg-white/40 active:bg-white/60 transition-colors"
                 >
                   <div className="flex gap-3 flex-1">
                     <span>{CATEGORIAS_LABELS[categoria].split(' ')[0]}</span>
                     <div className="text-left flex-1">
-                      <div className="text-sm font-bold">{CATEGORIAS_LABELS[categoria].replace(/^[^\s]+ /, '')}</div>
+                      <div className="text-sm font-bold font-quicksand text-neutro-carbon">{CATEGORIAS_LABELS[categoria].replace(/^[^\s]+ /, '')}</div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <div className={`text-xs font-semibold ${isComplete ? 'text-green-600' : 'text-gray-500'}`}>
-                          {completados}/{total}
+                        <div className={`text-xs font-semibold font-outfit ${isComplete ? 'text-crecimiento-600' : 'text-neutro-piedra'}`}>
+                          {tocados}/{total}
                         </div>
                         {isComplete && (
-                          <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">
+                          <span className="text-[10px] bg-crecimiento-50 text-crecimiento-700 px-2 py-0.5 rounded-full font-bold border border-crecimiento-200/40">
                             COMPLETO
                           </span>
                         )}
@@ -287,58 +399,95 @@ export default function NuevaSesionPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {isComplete && <Check className="w-5 h-5 text-green-600 font-bold" />}
-                    <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                    {isComplete && <Check className="w-5 h-5 text-crecimiento-600 font-bold" />}
+                    <span className={`transition-transform text-neutro-piedra ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
                   </div>
                 </button>
 
                 {isExpanded && (
-                  <div className="px-3 sm:px-4 pb-4 space-y-3 sm:space-y-4 border-t">
+                  <div className="px-3 sm:px-4 pb-4 space-y-3 sm:space-y-4 border-t border-white/60">
                     {items.map((item, i) => {
-                      const isItemComplete = formData.items[item.id] !== undefined;
+                      const itemValue = formData.items[item.id];
+                      const isItemTouched = itemValue !== undefined;
+                      const isNC = itemValue === VALOR_NO_COMPLETADO;
+                      const isRated = isItemTouched && !isNC;
                       
                       return (
                         <div 
                           key={item.id} 
-                          className={`${i > 0 ? 'pt-4 border-t' : 'pt-4'} ${isItemComplete ? 'bg-green-50 -mx-4 px-4 py-3 rounded-lg' : ''}`}
+                          className={`${i > 0 ? 'pt-4 border-t border-white/40' : 'pt-4'} ${
+                            isNC
+                              ? 'bg-gray-50/80 -mx-4 px-4 py-3 rounded-xl'
+                              : isRated
+                                ? 'bg-crecimiento-50/50 -mx-4 px-4 py-3 rounded-xl'
+                                : ''
+                          }`}
                         >
                           <div className="mb-3">
                             <div className="flex gap-2 mb-1">
-                              {isItemComplete ? (
-                                <Check className="w-5 h-5 text-green-600 font-bold flex-shrink-0" />
+                              {isNC ? (
+                                <div className="w-5 h-5 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                                  <X className="w-3 h-3 text-white" />
+                                </div>
+                              ) : isRated ? (
+                                <Check className="w-5 h-5 text-crecimiento-600 font-bold flex-shrink-0" />
                               ) : (
                                 <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
                               )}
-                              <label className={`text-sm font-medium flex-1 ${isItemComplete ? 'text-green-900' : ''}`}>
+                              <label className={`text-sm font-medium font-outfit flex-1 ${
+                                isNC ? 'text-gray-400 line-through' : isRated ? 'text-crecimiento-900' : 'text-neutro-carbon'
+                              }`}>
                                 {item.texto}
                               </label>
                             </div>
-                            {item.descripcion && <p className="text-xs text-gray-500 ml-7">{item.descripcion}</p>}
+                            {item.descripcion && <p className="text-xs text-neutro-piedra ml-7 font-outfit">{item.descripcion}</p>}
                           </div>
                         
-                        <div className="grid grid-cols-5 gap-2">
-                          {ESCALA_LIKERT.map(escala => (
+                          {/* Likert scale buttons + N/C button */}
+                          <div className="flex gap-2">
+                            <div className="grid grid-cols-5 gap-1.5 sm:gap-2 flex-1">
+                              {ESCALA_LIKERT.map(escala => (
+                                <button
+                                  key={escala.valor}
+                                  type="button"
+                                  onClick={() => handleItemChange(item.id, escala.valor)}
+                                  disabled={isNC}
+                                  className={`py-3 min-h-[48px] rounded-xl border-2 font-bold active:scale-95 text-sm sm:text-base transition-all font-quicksand ${
+                                    isNC
+                                      ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
+                                      : itemValue === escala.valor
+                                        ? 'border-crecimiento-500 bg-crecimiento-500 text-white shadow-glow-crecimiento'
+                                        : 'border-gray-300 hover:border-crecimiento-400 text-neutro-carbon'
+                                  }`}
+                                >
+                                  {escala.valor}
+                                </button>
+                              ))}
+                            </div>
+                            {/* N/C button */}
                             <button
-                              key={escala.valor}
                               type="button"
-                              onClick={() => handleItemChange(item.id, escala.valor)}
-                              className={`py-3 min-h-[48px] rounded-lg border-2 font-bold active:scale-95 text-sm sm:text-base ${
-                                formData.items[item.id] === escala.valor
-                                  ? 'border-blue-600 bg-blue-600 text-white'
-                                  : 'border-gray-300 hover:border-blue-400'
+                              onClick={() => handleMarkNC(item.id)}
+                              title={isNC ? 'Desmarcar N/C' : 'Marcar como No Completó'}
+                              className={`py-3 min-h-[48px] min-w-[48px] rounded-xl border-2 font-bold active:scale-95 text-xs transition-all font-outfit ${
+                                isNC
+                                  ? 'border-gray-400 bg-gray-400 text-white'
+                                  : 'border-gray-300 hover:border-gray-400 text-neutro-piedra hover:bg-gray-50'
                               }`}
                             >
-                              {escala.valor}
+                              {LABEL_NO_COMPLETADO}
                             </button>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-5 gap-2 mt-1 text-[10px] text-center text-gray-500">
-                          <div>Muy bajo</div>
-                          <div>Bajo</div>
-                          <div>Medio</div>
-                          <div>Alto</div>
-                          <div>Muy alto</div>
-                        </div>
+                          </div>
+                          <div className="flex gap-2 mt-1">
+                            <div className="grid grid-cols-5 gap-1.5 sm:gap-2 flex-1 text-[10px] text-center text-neutro-piedra font-outfit">
+                              <div>Muy bajo</div>
+                              <div>Bajo</div>
+                              <div>Medio</div>
+                              <div>Alto</div>
+                              <div>Muy alto</div>
+                            </div>
+                            <div className="min-w-[48px]"></div>
+                          </div>
                         </div>
                       );
                     })}
@@ -350,8 +499,8 @@ export default function NuevaSesionPage() {
         </div>
 
         {/* Observaciones */}
-        <div className="bg-white rounded-lg shadow p-4 mt-4">
-          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mt-4">
+          <label className="text-sm font-medium mb-2 flex items-center gap-2 text-neutro-carbon font-outfit">
             <FileText className="w-4 h-4" />
             Observaciones adicionales
           </label>
@@ -359,26 +508,31 @@ export default function NuevaSesionPage() {
             value={formData.observaciones_libres}
             onChange={(e) => setFormData(prev => ({ ...prev, observaciones_libres: e.target.value }))}
             rows={4}
-            className="w-full px-3 py-3 text-base border rounded-lg"
+            className="w-full px-3 py-3 text-base border border-gray-200 rounded-xl font-outfit focus:ring-2 focus:ring-crecimiento-300 focus:border-crecimiento-400 transition-all"
             placeholder="Situaciones relevantes..."
           />
         </div>
       </form>
 
       {/* Footer fijo */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-white/60 p-4 shadow-lg">
         <div className="max-w-md mx-auto">
           {progreso < 100 && (
-            <div className="text-center text-sm text-amber-600 font-medium mb-3 flex items-center justify-center gap-2">
+            <div className="text-center text-sm text-sol-700 font-medium mb-3 flex items-center justify-center gap-2 font-outfit">
               <AlertTriangle className="w-4 h-4" />
-              Faltan {totalItems - completedItems} ítems
+              Faltan {totalItems - touchedItems} ítems por completar o marcar N/C
+            </div>
+          )}
+          {progreso >= 100 && ncCount > 0 && (
+            <div className="text-center text-xs text-neutro-piedra mb-2 font-outfit">
+              {ncCount} ítem{ncCount > 1 ? 'es' : ''} marcado{ncCount > 1 ? 's' : ''} como N/C — no afectan el promedio
             </div>
           )}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => router.back()}
-              className="w-full sm:flex-1 px-6 py-3 min-h-[48px] border-2 rounded-lg font-semibold active:scale-95 flex items-center justify-center"
+              className="w-full sm:flex-1 px-6 py-3 min-h-[48px] border-2 border-gray-300 rounded-xl font-semibold active:scale-95 flex items-center justify-center text-neutro-carbon font-outfit hover:bg-gray-50 transition-all"
               disabled={submitting}
             >
               Cancelar
@@ -387,12 +541,12 @@ export default function NuevaSesionPage() {
               type="button"
               onClick={handleSubmit}
               disabled={submitting || progreso < 100}
-              className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg font-semibold active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-xl font-semibold active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-glow-crecimiento transition-all font-outfit"
             >
               {submitting ? 'Guardando...' : (
                 <>
                   <Check className="w-5 h-5" />
-                  Guardar
+                  Guardar ({Math.max(1, Math.round(chrono.seconds / 60))} min)
                 </>
               )}
             </button>

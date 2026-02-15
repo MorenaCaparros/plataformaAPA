@@ -5,14 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { ArrowLeft, Plus, BookOpen, ClipboardList, Target, Info, ChevronRight, UserCheck } from 'lucide-react';
+import type { Nino, NinoSensible, Zona, Escuela, Perfil } from '@/types/database';
 
-interface Nino {
-  id: string;
-  alias: string;
-  rango_etario: string;
-  nivel_alfabetizacion: string;
-  escolarizado: boolean;
-  metadata: any;
+interface NinoCompleto extends Nino {
+  zonas: Pick<Zona, 'id' | 'nombre'> | null;
+  escuelas: Pick<Escuela, 'id' | 'nombre'> | null;
+  ninos_sensibles: NinoSensible | null;
 }
 
 interface Sesion {
@@ -21,20 +19,13 @@ interface Sesion {
   duracion_minutos: number;
   observaciones_libres: string;
   voluntario_id: string;
-  items: any;
 }
 
 interface AsignacionActiva {
   id: string;
   fecha_asignacion: string;
-  score_matching: number;
-  voluntario: {
-    id: string;
-    metadata: {
-      nombre_completo?: string;
-      telefono?: string;
-    };
-  };
+  score_matching: number | null;
+  voluntario: Pick<Perfil, 'id' | 'nombre' | 'apellido'> | null;
 }
 
 export default function NinoPerfilPage() {
@@ -43,7 +34,7 @@ export default function NinoPerfilPage() {
   const { user, perfil } = useAuth();
   const ninoId = params.ninoId as string;
 
-  const [nino, setNino] = useState<Nino | null>(null);
+  const [nino, setNino] = useState<NinoCompleto | null>(null);
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [asignacionActiva, setAsignacionActiva] = useState<AsignacionActiva | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,61 +47,63 @@ export default function NinoPerfilPage() {
   });
 
   const isVoluntario = perfil?.rol === 'voluntario';
+  const tieneAccesoCompleto = perfil?.rol && ['psicopedagogia', 'director', 'admin'].includes(perfil.rol);
 
   useEffect(() => {
-    fetchDatos();
+    if (user) fetchDatos();
   }, [ninoId, user]);
 
   const fetchDatos = async () => {
     try {
       setLoading(true);
 
-      // Obtener datos del niño
+      // Obtener datos del niño con relaciones
+      const selectFields = tieneAccesoCompleto
+        ? `*, zonas(id, nombre), escuelas(id, nombre), ninos_sensibles(*)`
+        : `*, zonas(id, nombre), escuelas(id, nombre)`;
+
       const { data: ninoData, error: ninoError } = await supabase
         .from('ninos')
-        .select('*')
+        .select(selectFields)
         .eq('id', ninoId)
         .single();
 
       if (ninoError) throw ninoError;
-      setNino(ninoData);
+      setNino(ninoData as NinoCompleto);
 
-      // Obtener asignación activa del voluntario usando el endpoint API
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        try {
-          const asignacionResponse = await fetch(`/api/asignaciones?nino_id=${ninoId}&activo=true`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            }
-          });
-          
-          if (asignacionResponse.ok) {
-            const asignacionResult = await asignacionResponse.json();
-            if (asignacionResult.asignaciones && asignacionResult.asignaciones.length > 0) {
-              const asignacion = asignacionResult.asignaciones[0];
-              setAsignacionActiva({
-                id: asignacion.id,
-                fecha_asignacion: asignacion.fecha_asignacion,
-                score_matching: asignacion.score_matching,
-                voluntario: {
-                  id: asignacion.voluntario?.id,
-                  metadata: asignacion.voluntario?.metadata || {}
-                }
-              });
-            } else {
-              setAsignacionActiva(null);
-            }
-          }
-        } catch (asignacionErr) {
-          console.error('Error al obtener asignación:', asignacionErr);
-        }
+      // Obtener asignación activa directamente de la tabla asignaciones
+      const { data: asignacionData } = await supabase
+        .from('asignaciones')
+        .select(`
+          id,
+          fecha_asignacion,
+          score_matching,
+          perfiles!asignaciones_voluntario_id_fkey (
+            id,
+            nombre,
+            apellido
+          )
+        `)
+        .eq('nino_id', ninoId)
+        .eq('activa', true)
+        .limit(1)
+        .single();
+
+      if (asignacionData) {
+        setAsignacionActiva({
+          id: asignacionData.id,
+          fecha_asignacion: asignacionData.fecha_asignacion,
+          score_matching: asignacionData.score_matching,
+          voluntario: (asignacionData as any).perfiles || null
+        });
+      } else {
+        setAsignacionActiva(null);
       }
 
       // Obtener sesiones
       let sesionesQuery = supabase
         .from('sesiones')
-        .select('*')
+        .select('id, fecha, duracion_minutos, observaciones_libres, voluntario_id')
         .eq('nino_id', ninoId)
         .order('fecha', { ascending: false });
 
@@ -120,7 +113,6 @@ export default function NinoPerfilPage() {
       }
 
       const { data: sesionesData, error: sesionesError } = await sesionesQuery;
-
       if (sesionesError) throw sesionesError;
       setSesiones(sesionesData || []);
 
@@ -185,7 +177,7 @@ export default function NinoPerfilPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando perfil...</p>
         </div>
       </div>
@@ -201,7 +193,7 @@ export default function NinoPerfilPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
           <button
             onClick={() => router.back()}
-            className="text-blue-600 hover:text-blue-700 font-medium mb-3 flex items-center gap-2 touch-manipulation min-h-[44px]"
+            className="text-crecimiento-600 hover:text-crecimiento-700 font-medium mb-3 flex items-center gap-2 touch-manipulation min-h-[44px]"
           >
             <ArrowLeft className="w-5 h-5" />
             Volver
@@ -209,13 +201,18 @@ export default function NinoPerfilPage() {
 
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
                 {nino.alias}
               </h1>
+              {nino.legajo && (
+                <p className="text-sm text-gray-500 font-mono mb-2">Legajo: {nino.legajo}</p>
+              )}
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-medium">
-                  {nino.rango_etario} años
-                </span>
+                {nino.rango_etario && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-sol-100 text-sol-700 font-medium">
+                    {nino.rango_etario} años
+                  </span>
+                )}
                 <span className="inline-flex items-center px-3 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">
                   {nino.nivel_alfabetizacion || 'Sin nivel'}
                 </span>
@@ -223,6 +220,12 @@ export default function NinoPerfilPage() {
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium">
                     <BookOpen className="w-4 h-4" />
                     Escolarizado
+                    {nino.grado_escolar && ` (${nino.grado_escolar})`}
+                  </span>
+                )}
+                {nino.zonas && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">
+                    {nino.zonas.nombre}
                   </span>
                 )}
               </div>
@@ -233,7 +236,7 @@ export default function NinoPerfilPage() {
               {!isVoluntario && (
                 <button
                   onClick={() => router.push(`/dashboard/ninos/${ninoId}/asignar-voluntario`)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all touch-manipulation min-h-[44px] flex items-center gap-2"
+                  className="px-4 py-2.5 bg-gradient-to-r from-impulso-400 to-crecimiento-500 hover:from-impulso-500 hover:to-crecimiento-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all touch-manipulation min-h-[44px] flex items-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -244,7 +247,7 @@ export default function NinoPerfilPage() {
               
               <button
                 onClick={() => router.push(`/dashboard/sesiones/nueva/${ninoId}`)}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all touch-manipulation min-h-[44px] flex items-center gap-2"
+                className="px-4 py-2.5 bg-crecimiento-500 hover:bg-crecimiento-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all touch-manipulation min-h-[44px] flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Nueva Sesión
@@ -265,7 +268,7 @@ export default function NinoPerfilPage() {
           {isVoluntario && (
             <div className="bg-white rounded-xl p-4 shadow-md">
               <p className="text-xs text-gray-500 mb-1">Mis Sesiones</p>
-              <p className="text-3xl font-bold text-blue-600">{estadisticas.mis_sesiones}</p>
+              <p className="text-3xl font-bold text-crecimiento-600">{estadisticas.mis_sesiones}</p>
             </div>
           )}
 
@@ -284,10 +287,77 @@ export default function NinoPerfilPage() {
           </div>
         </div>
 
+        {/* Datos sensibles - solo para roles con acceso */}
+        {tieneAccesoCompleto && nino.ninos_sensibles && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-md p-4 sm:p-6">
+            <h2 className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2">
+              🔒 Datos Sensibles
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500 mb-0.5">Nombre completo</p>
+                <p className="font-medium text-gray-900">{nino.ninos_sensibles.nombre_completo_encrypted}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 mb-0.5">Apellido</p>
+                <p className="font-medium text-gray-900">{nino.ninos_sensibles.apellido_encrypted}</p>
+              </div>
+              {nino.ninos_sensibles.dni_encrypted && (
+                <div>
+                  <p className="text-gray-500 mb-0.5">DNI</p>
+                  <p className="font-medium text-gray-900">{nino.ninos_sensibles.dni_encrypted}</p>
+                </div>
+              )}
+              {nino.ninos_sensibles.direccion && (
+                <div>
+                  <p className="text-gray-500 mb-0.5">Dirección</p>
+                  <p className="font-medium text-gray-900">{nino.ninos_sensibles.direccion}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Información del niño */}
+        {!isVoluntario && (
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <ClipboardList className="w-6 h-6" />
+              Información del Niño
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              {nino.genero && (
+                <div>
+                  <p className="text-gray-500 mb-0.5">Género</p>
+                  <p className="font-medium text-gray-900 capitalize">{nino.genero.replace('_', ' ')}</p>
+                </div>
+              )}
+              {nino.escuelas && (
+                <div>
+                  <p className="text-gray-500 mb-0.5">Escuela</p>
+                  <p className="font-medium text-gray-900">{nino.escuelas.nombre}</p>
+                </div>
+              )}
+              {nino.turno_escolar && (
+                <div>
+                  <p className="text-gray-500 mb-0.5">Turno escolar</p>
+                  <p className="font-medium text-gray-900 capitalize">{nino.turno_escolar}</p>
+                </div>
+              )}
+              {nino.fecha_ingreso && (
+                <div>
+                  <p className="text-gray-500 mb-0.5">Fecha de ingreso</p>
+                  <p className="font-medium text-gray-900">{formatearFecha(nino.fecha_ingreso)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Voluntario Asignado (solo para no-voluntarios) */}
         {!isVoluntario && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-md p-4 sm:p-6">
-            <h2 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+          <div className="bg-gradient-to-br from-crecimiento-50 to-sol-50 border border-crecimiento-200 rounded-xl shadow-md p-4 sm:p-6">
+            <h2 className="text-xl font-bold text-crecimiento-800 mb-4 flex items-center gap-2">
               <UserCheck className="w-6 h-6" />
               Voluntario Asignado
             </h2>
@@ -295,18 +365,20 @@ export default function NinoPerfilPage() {
             {asignacionActiva ? (
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                    {asignacionActiva.voluntario?.metadata?.nombre_completo?.charAt(0) || '?'}
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-crecimiento-500 to-sol-400 flex items-center justify-center text-white font-bold text-lg">
+                    {asignacionActiva.voluntario?.nombre?.charAt(0) || '?'}
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900 text-lg">
-                      {asignacionActiva.voluntario?.metadata?.nombre_completo || 'Sin nombre'}
+                      {asignacionActiva.voluntario
+                        ? `${asignacionActiva.voluntario.nombre} ${asignacionActiva.voluntario.apellido}`
+                        : 'Sin nombre'}
                     </p>
                     <div className="flex items-center gap-3 text-sm text-gray-600">
                       <span>
-                        Asignado: {new Date(asignacionActiva.fecha_asignacion).toLocaleDateString('es-AR')}
+                        Asignado: {formatearFecha(asignacionActiva.fecha_asignacion)}
                       </span>
-                      {asignacionActiva.score_matching > 0 && (
+                      {asignacionActiva.score_matching != null && asignacionActiva.score_matching > 0 && (
                         <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
                           Score: {asignacionActiva.score_matching}/100
                         </span>
@@ -317,7 +389,7 @@ export default function NinoPerfilPage() {
                 
                 <button
                   onClick={() => router.push(`/dashboard/ninos/${ninoId}/asignar-voluntario`)}
-                  className="px-4 py-2 text-sm bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors font-medium"
+                  className="px-4 py-2 text-sm bg-white border border-crecimiento-300 text-crecimiento-700 rounded-lg hover:bg-crecimiento-50 transition-colors font-medium"
                 >
                   Cambiar
                 </button>
@@ -333,58 +405,12 @@ export default function NinoPerfilPage() {
                 
                 <button
                   onClick={() => router.push(`/dashboard/ninos/${ninoId}/asignar-voluntario`)}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="px-4 py-2 text-sm bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 transition-colors font-medium"
                 >
                   Asignar Voluntario
                 </button>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Información Adicional (solo para no-voluntarios) */}
-        {!isVoluntario && nino.metadata && (
-          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <ClipboardList className="w-6 h-6" />
-              Información del Niño
-            </h2>
-            <div className="space-y-3 text-sm">
-              {nino.metadata.dificultades && (
-                <div>
-                  <p className="text-gray-500 mb-1">Dificultades Identificadas:</p>
-                  <p className="text-gray-900 font-medium">{nino.metadata.dificultades}</p>
-                </div>
-              )}
-              {nino.metadata.observaciones && (
-                <div>
-                  <p className="text-gray-500 mb-1">Observaciones:</p>
-                  <p className="text-gray-900">{nino.metadata.observaciones}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Objetivos (visible para todos) */}
-        {nino.metadata?.objetivos && (
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-md p-4 sm:p-6">
-            <h2 className="text-xl font-bold text-purple-900 mb-4 flex items-center gap-2">
-              <Target className="w-6 h-6" />
-              Objetivos Asignados
-            </h2>
-            <div className="space-y-3">
-              {Array.isArray(nino.metadata.objetivos) ? (
-                nino.metadata.objetivos.map((objetivo: string, i: number) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <span className="text-purple-600 font-bold">•</span>
-                    <p className="text-purple-900 flex-1">{objetivo}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-purple-900">{nino.metadata.objetivos}</p>
-              )}
-            </div>
           </div>
         )}
 
@@ -412,7 +438,7 @@ export default function NinoPerfilPage() {
               </p>
               <button
                 onClick={() => router.push(`/dashboard/sesiones/nueva/${ninoId}`)}
-                className="mt-4 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-md transition-all touch-manipulation min-h-[44px]"
+                className="mt-4 px-6 py-2.5 bg-crecimiento-500 hover:bg-crecimiento-600 text-white rounded-lg font-semibold shadow-md transition-all touch-manipulation min-h-[44px]"
               >
                 Registrar Primera Sesión
               </button>
@@ -450,14 +476,14 @@ export default function NinoPerfilPage() {
 
         {/* Mensaje informativo para voluntarios */}
         {isVoluntario && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="bg-sol-50 border border-sol-200 rounded-xl p-4">
             <div className="flex gap-3">
-              <Info className="w-6 h-6 text-blue-600 flex-shrink-0" />
+              <Info className="w-6 h-6 text-sol-600 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm text-blue-900 font-medium mb-1">
+                <p className="text-sm text-sol-900 font-medium mb-1">
                   Vista de Voluntario
                 </p>
-                <p className="text-sm text-blue-700">
+                <p className="text-sm text-sol-700">
                   Solo ves tus propias sesiones con este niño. Los coordinadores y psicopedagogos pueden ver todas las sesiones.
                 </p>
               </div>

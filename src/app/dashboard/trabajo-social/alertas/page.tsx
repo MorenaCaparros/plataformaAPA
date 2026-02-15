@@ -117,7 +117,7 @@ export default function AlertasPage() {
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-red-600 font-semibold mb-4">⚠️ Acceso denegado</p>
           <p className="text-gray-600 mb-4">Solo trabajadores sociales pueden acceder.</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+          <Link href="/dashboard" className="text-crecimiento-600 hover:underline">
             ← Volver al inicio
           </Link>
         </div>
@@ -164,7 +164,7 @@ export default function AlertasPage() {
       case 'critica': return 'bg-red-50 border-red-400';
       case 'alta': return 'bg-orange-50 border-orange-300';
       case 'media': return 'bg-yellow-50 border-yellow-300';
-      case 'baja': return 'bg-blue-50 border-blue-300';
+      case 'baja': return 'bg-sol-50 border-sol-300';
     }
   };
 
@@ -173,7 +173,7 @@ export default function AlertasPage() {
       case 'critica': return 'bg-red-200 text-red-900';
       case 'alta': return 'bg-orange-200 text-orange-900';
       case 'media': return 'bg-yellow-200 text-yellow-900';
-      case 'baja': return 'bg-blue-200 text-blue-900';
+      case 'baja': return 'bg-sol-200 text-sol-900';
     }
   };
 
@@ -233,7 +233,7 @@ export default function AlertasPage() {
                 onClick={() => setFiltroEstado('todas')}
                 className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition ${
                   filtroEstado === 'todas'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-sol-100 text-sol-700'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -382,10 +382,10 @@ export default function AlertasPage() {
         )}
 
         {/* Banner informativo */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="mt-6 bg-sol-50 border border-sol-200 rounded-lg p-4">
           <div className="flex items-start">
             <svg
-              className="w-5 h-5 text-blue-600 mt-0.5 mr-3"
+              className="w-5 h-5 text-crecimiento-600 mt-0.5 mr-3"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -398,10 +398,10 @@ export default function AlertasPage() {
               />
             </svg>
             <div>
-              <p className="text-sm font-medium text-blue-900">
+              <p className="text-sm font-medium text-sol-900">
                 Notificaciones automáticas
               </p>
-              <p className="text-sm text-blue-700 mt-1">
+              <p className="text-sm text-sol-700 mt-1">
                 Coordinadores y Psicopedagogía reciben notificación de alertas de prioridad alta y crítica automáticamente.
               </p>
             </div>

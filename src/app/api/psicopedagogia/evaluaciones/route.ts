@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// GET - Listar evaluaciones
+// GET - Listar evaluaciones (now from entrevistas table, tipo='inicial')
 export async function GET(request: Request) {
   try {
     const cookieStore = cookies();
@@ -23,22 +23,23 @@ export async function GET(request: Request) {
     const ninoId = searchParams.get('nino_id');
 
     let query = supabase
-      .from('evaluaciones_iniciales')
+      .from('entrevistas')
       .select(`
         *,
-        nino:ninos!evaluaciones_iniciales_nino_id_fkey(
+        nino:ninos!entrevistas_nino_id_fkey(
           id,
-          nombre,
-          apellido,
+          alias,
           fecha_nacimiento,
           rango_etario
         ),
-        psicopedagoga:perfiles!evaluaciones_iniciales_psicopedagoga_id_fkey(
+        entrevistador:perfiles!entrevistas_entrevistador_id_fkey(
           id,
-          nombre_completo
+          nombre,
+          apellido
         )
       `)
-      .order('fecha_evaluacion', { ascending: false });
+      .eq('tipo', 'inicial')
+      .order('fecha', { ascending: false });
 
     if (ninoId) {
       query = query.eq('nino_id', ninoId);
@@ -51,7 +52,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ evaluaciones: data });
+    // Map entrevistas to evaluaciones-like shape for frontend compatibility
+    const evaluaciones = (data || []).map((e: any) => ({
+      id: e.id,
+      nino_id: e.nino_id,
+      fecha_evaluacion: e.fecha,
+      observaciones_generales: e.observaciones,
+      conclusiones: e.conclusiones,
+      acciones_sugeridas: e.acciones_sugeridas,
+      nino: e.nino,
+      psicopedagoga: e.entrevistador,
+    }));
+
+    return NextResponse.json({ evaluaciones });
   } catch (error) {
     console.error('Error en GET /api/psicopedagogia/evaluaciones:', error);
     return NextResponse.json(
@@ -61,7 +74,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST - Crear nueva evaluación
+// POST - Crear nueva evaluación (inserts into entrevistas with tipo='inicial')
 export async function POST(request: Request) {
   try {
     const cookieStore = cookies();
@@ -148,25 +161,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insertar evaluación
-    const { data: evaluacion, error: insertError } = await supabase
-      .from('evaluaciones_iniciales')
-      .insert({
-        nino_id,
-        psicopedagoga_id: session.user.id,
-        fecha_evaluacion: new Date().toISOString(),
-        // Lenguaje
+    // Build structured observaciones with all scoring data
+    const evaluacionData = {
+      lenguaje: {
         comprension_ordenes,
         identificacion_objetos,
         formacion_oraciones,
         pronunciacion,
-        notas_lenguaje,
-        // Grafismo
+        notas: notas_lenguaje,
+      },
+      grafismo: {
         agarre_lapiz,
         tipo_trazo,
         representacion_figuras,
-        notas_grafismo,
-        // Lectoescritura
+        notas: notas_grafismo,
+      },
+      lectoescritura: {
         reconocimiento_vocales,
         reconocimiento_consonantes,
         identificacion_silabas,
@@ -176,24 +186,54 @@ export async function POST(request: Request) {
         escritura_palabras,
         escritura_oraciones,
         comprension_lectora,
-        notas_lectoescritura,
-        // Matemáticas
+        notas: notas_lectoescritura,
+      },
+      matematicas: {
         conteo,
         reconocimiento_numeros,
         suma_basica,
         resta_basica,
         razonamiento_logico,
-        notas_matematicas,
-        // Conclusiones
-        dificultades_identificadas: Array.isArray(dificultades_identificadas)
-          ? dificultades_identificadas
-          : dificultades_identificadas.split('\n').filter((d: string) => d.trim()),
-        fortalezas: Array.isArray(fortalezas)
-          ? fortalezas
-          : fortalezas.split('\n').filter((f: string) => f.trim()),
-        nivel_alfabetizacion,
-        observaciones_generales,
-        recomendaciones,
+        notas: notas_matematicas,
+      },
+    };
+
+    // Build conclusiones text
+    const dificultadesArr = Array.isArray(dificultades_identificadas)
+      ? dificultades_identificadas
+      : (dificultades_identificadas || '').split('\n').filter((d: string) => d.trim());
+    const fortalezasArr = Array.isArray(fortalezas)
+      ? fortalezas
+      : (fortalezas || '').split('\n').filter((f: string) => f.trim());
+
+    const conclusionesText = [
+      `Nivel de alfabetización: ${nivel_alfabetizacion || 'No especificado'}`,
+      '',
+      'Dificultades identificadas:',
+      ...dificultadesArr.map((d: string) => `- ${d}`),
+      '',
+      'Fortalezas:',
+      ...fortalezasArr.map((f: string) => `- ${f}`),
+    ].join('\n');
+
+    // Build observaciones: structured scoring + general notes
+    const observacionesText = [
+      `Datos de evaluación: ${JSON.stringify(evaluacionData)}`,
+      '',
+      observaciones_generales || '',
+    ].join('\n').trim();
+
+    // Insert into entrevistas with tipo='inicial'
+    const { data: entrevista, error: insertError } = await supabase
+      .from('entrevistas')
+      .insert({
+        nino_id,
+        entrevistador_id: session.user.id,
+        tipo: 'inicial',
+        fecha: new Date().toISOString().split('T')[0],
+        observaciones: observacionesText,
+        conclusiones: conclusionesText,
+        acciones_sugeridas: recomendaciones || null,
       })
       .select()
       .single();
@@ -203,9 +243,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
+    // Update nivel_alfabetizacion on ninos table if provided
+    if (nivel_alfabetizacion) {
+      await supabase
+        .from('ninos')
+        .update({ nivel_alfabetizacion })
+        .eq('id', nino_id);
+    }
+
     return NextResponse.json({
       success: true,
-      evaluacion,
+      evaluacion: entrevista,
       message: 'Evaluación creada exitosamente',
     });
   } catch (error) {

@@ -1,6 +1,30 @@
-# Plataforma APA
+# 🎓 Plataforma APA
 
-Sistema de seguimiento y acompañamiento educativo con IA desarrollado por GlobalIA en colaboración con la ONG Adelante.
+**Sistema de gestión y seguimiento educativo con IA**  
+Desarrollado por GlobalIA en colaboración con la ONG Adelante
+
+Plataforma web progresiva (PWA) para el seguimiento continuo del proceso educativo de niños en contextos vulnerables, con capacidades offline y análisis inteligente de datos.
+
+---
+
+## 🚀 Estado del Proyecto
+
+✅ **Base de datos:** Reestructuración completa aplicada (31 tablas relacionales)  
+✅ **Backend:** Supabase con PostgreSQL + Auth + Storage  
+🔄 **Frontend:** Next.js 14 + TypeScript + Tailwind CSS  
+🔄 **IA/RAG:** Sistema de análisis con Google Gemini (en desarrollo)
+
+---
+
+## 📋 Documentación
+
+- **[GUIA_REESTRUCTURACION_RELACIONAL.md](./GUIA_REESTRUCTURACION_RELACIONAL.md)** - Arquitectura de base de datos (31 tablas)
+- **[.github/instructions/](../.github/instructions/)** - Instrucciones técnicas
+  - `contexto-proyecto.md` - Objetivos y funcionalidades
+  - `stack-tecnologico.md` - Stack completo
+  - `instrucciones.md` - Reglas de seguridad y workflow
+
+---
 
 ## Stack Tecnológico
 
@@ -30,18 +54,41 @@ npm run dev
 
 4. Abrir [http://localhost:3000](http://localhost:3000)
 
-## Documentación
+---
 
-- [Instrucciones técnicas](./.github/instructions/instrucciones.instructions.md)
-- [Stack tecnológico](./.github/instructions/stack-tecnologico.instructions.md)
-- [Contexto del proyecto](./.github/instructions/contexto-proyecto.md)
-- [Migraciones de base de datos](./supabase/README.md)
+## 🔐 Seguridad
 
-## Desarrollo
+- **RLS (Row Level Security)** habilitado en todas las tablas
+- **Encriptación** de datos sensibles (PII)
+- **Control de acceso por roles:** voluntario, coordinador, psicopedagogía, director, admin
+
+⚠️ **IMPORTANTE:** Nunca commitear archivos `.env*` ni exponer API keys
+
+---
+
+## 📚 Scripts Disponibles
 
 ```bash
-npm run dev      # Servidor de desarrollo
-npm run build    # Build de producción
-npm run start    # Servidor de producción
-npm run lint     # Linter
+npm run dev              # Desarrollo
+npm run build            # Build de producción
+npm run start            # Servidor de producción
+npm run lint             # Linter
 ```
+
+**Scripts de base de datos:**
+```bash
+npm run db:check         # Verificar salud de la BD
+npm run db:verify        # Verificar migración aplicada
+npm run create:coord     # Crear usuario coordinador
+```
+
+---
+
+## 📞 Contacto
+
+- **GlobalIA:** [contacto]
+- **ONG Adelante:** [contacto]
+
+---
+
+**Última actualización:** Febrero 2026

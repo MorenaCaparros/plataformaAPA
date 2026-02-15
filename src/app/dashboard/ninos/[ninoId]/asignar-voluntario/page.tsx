@@ -44,9 +44,9 @@ interface SugerenciaMatching {
 }
 
 const COLORES_AREA: Record<string, { bg: string; text: string; border: string }> = {
-  lenguaje: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+  lenguaje: { bg: 'bg-sol-50', text: 'text-sol-700', border: 'border-sol-200' },
   grafismo: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-  lectura_escritura: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  lectura_escritura: { bg: 'bg-impulso-50', text: 'text-impulso-600', border: 'border-impulso-200' },
   matematicas: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
 };
 
@@ -168,9 +168,9 @@ export default function AsignarVoluntarioPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-sol-50 via-neutro-lienzo to-crecimiento-50 p-4 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-crecimiento-500 animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Analizando compatibilidades...</p>
         </div>
       </div>
@@ -179,7 +179,7 @@ export default function AsignarVoluntarioPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-sol-50 via-neutro-lienzo to-crecimiento-50 p-4">
         <div className="max-w-2xl mx-auto">
           <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
@@ -199,7 +199,7 @@ export default function AsignarVoluntarioPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-sol-50 via-neutro-lienzo to-crecimiento-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -213,8 +213,8 @@ export default function AsignarVoluntarioPage() {
 
           <div className="bg-white/70 backdrop-blur-sm border border-gray-200 rounded-3xl p-6 shadow-sm">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-blue-100 rounded-2xl">
-                <Users className="w-8 h-8 text-blue-600" />
+              <div className="p-3 bg-crecimiento-100 rounded-2xl">
+                <Users className="w-8 h-8 text-crecimiento-600" />
               </div>
               <div className="flex-1">
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
@@ -264,7 +264,7 @@ export default function AsignarVoluntarioPage() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center gap-3 mb-4">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
+              <TrendingUp className="w-5 h-5 text-crecimiento-600" />
               <h2 className="text-lg font-semibold text-gray-900">
                 {sugerencias.length} voluntario{sugerencias.length !== 1 ? 's' : ''} compatible{sugerencias.length !== 1 ? 's' : ''}
               </h2>
@@ -277,8 +277,8 @@ export default function AsignarVoluntarioPage() {
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl">
-                      <UserCheck className="w-6 h-6 text-blue-600" />
+                    <div className="p-3 bg-gradient-to-br from-crecimiento-100 to-sol-100 rounded-2xl">
+                      <UserCheck className="w-6 h-6 text-crecimiento-600" />
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">
@@ -355,7 +355,7 @@ export default function AsignarVoluntarioPage() {
                     nino?.deficits?.map((d: DeficitNino) => d.area) || []
                   )}
                   disabled={asignando}
-                  className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full md:w-auto px-6 py-3 bg-gradient-to-r from-crecimiento-500 to-crecimiento-700 text-white font-semibold rounded-xl hover:from-crecimiento-600 hover:to-crecimiento-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {asignando ? (
                     <>

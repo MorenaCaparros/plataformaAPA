@@ -107,7 +107,8 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         perfiles:creado_por (
-          nombre_completo
+          nombre,
+          apellido
         )
       `)
       .eq('nino_id', ninoId)

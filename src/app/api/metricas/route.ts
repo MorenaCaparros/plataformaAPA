@@ -17,10 +17,10 @@ async function getMetricasVoluntario(userId: string) {
   inicioSemana.setHours(0, 0, 0, 0);
 
   const { data: asignaciones } = await supabase
-    .from('asignaciones_voluntarios')
+    .from('asignaciones')
     .select('nino_id')
     .eq('voluntario_id', userId)
-    .eq('activo', true);
+    .eq('activa', true);
 
   const ninosIds = (asignaciones || []).map((a: { nino_id: string }) => a.nino_id);
 

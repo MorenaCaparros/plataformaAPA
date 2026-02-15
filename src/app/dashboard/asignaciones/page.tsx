@@ -149,7 +149,6 @@ function AsignacionesPageContent() {
           alias,
           rango_etario,
           zona_id,
-          metadata,
           zona:zonas(nombre)
         `)
         .order('alias', { ascending: true });
@@ -165,10 +164,17 @@ function AsignacionesPageContent() {
       
       const { asignaciones } = await response.json();
 
+      // Obtener déficits activos para cada niño
+      const { data: deficitsData } = await supabase
+        .from('historico_deficits')
+        .select('nino_id')
+        .is('resuelto_en', null);
+      
+      const ninosConDeficits = new Set((deficitsData || []).map((d: any) => d.nino_id));
+
       // Combinar datos
       const ninosConAsignacion: NinoConAsignacion[] = (ninosData || []).map((nino: any) => {
         const asignacion = asignaciones?.find((a: any) => a.nino_id === nino.id);
-        const metadata = nino.metadata as any;
         
         return {
           id: nino.id,
@@ -176,11 +182,11 @@ function AsignacionesPageContent() {
           rango_etario: nino.rango_etario,
           zona_id: nino.zona_id,
           zona_nombre: nino.zona?.nombre || null,
-          tiene_deficits: Array.isArray(metadata?.deficits) && metadata.deficits.length > 0,
+          tiene_deficits: ninosConDeficits.has(nino.id),
           asignacion: asignacion ? {
             id: asignacion.id,
             voluntario_id: asignacion.voluntario_id,
-            voluntario_nombre: asignacion.voluntario?.metadata?.nombre_completo || 'Voluntario',
+            voluntario_nombre: asignacion.voluntario_nombre || 'Voluntario',
             fecha_asignacion: asignacion.fecha_asignacion,
             score_matching: asignacion.score_matching,
           } : null,
@@ -212,7 +218,8 @@ function AsignacionesPageContent() {
         .from('perfiles')
         .select(`
           id,
-          metadata,
+          nombre,
+          apellido,
           zona_id,
           zona:zonas(nombre)
         `)
@@ -229,11 +236,11 @@ function AsignacionesPageContent() {
       
       const { asignaciones } = await response.json();
 
-      // Obtener autoevaluaciones completadas
+      // Obtener autoevaluaciones completadas (migrated from respuestas_autoevaluacion → voluntarios_capacitaciones)
       const { data: autoevaluaciones } = await supabase
-        .from('respuestas_autoevaluacion')
+        .from('voluntarios_capacitaciones')
         .select('voluntario_id')
-        .eq('estado', 'evaluada');
+        .in('estado', ['aprobada', 'reprobada', 'completada']);
 
       const voluntariosConAutoeval = new Set(
         autoevaluaciones?.map((a: { voluntario_id: string }) => a.voluntario_id) || []
@@ -250,7 +257,7 @@ function AsignacionesPageContent() {
 
         return {
           id: vol.id,
-          nombre: vol.metadata?.nombre_completo || 'Sin nombre',
+          nombre: [vol.nombre, vol.apellido].filter(Boolean).join(' ') || 'Sin nombre',
           zona_id: vol.zona_id,
           zona_nombre: vol.zona?.nombre || null,
           asignaciones_activas: numAsignaciones,
@@ -390,8 +397,8 @@ function AsignacionesPageContent() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
               <div className="flex items-center gap-3">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Users className="w-5 h-5 text-blue-600" />
+                <div className="bg-crecimiento-100 p-2 rounded-lg">
+                  <Users className="w-5 h-5 text-crecimiento-600" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-gray-900">{estadisticas.total_ninos}</p>

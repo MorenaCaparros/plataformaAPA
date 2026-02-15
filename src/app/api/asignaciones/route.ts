@@ -45,15 +45,16 @@ export async function GET(request: NextRequest) {
     const esVoluntario = perfil?.rol === 'voluntario';
     const idConsulta = esVoluntario ? user.id : voluntarioId;
 
-    // Construir query
+    // Construir query - usa tabla 'asignaciones' (tabla 23)
     let query = supabaseAdmin
-      .from('asignaciones_voluntarios')
+      .from('asignaciones')
       .select(`
         *,
-        voluntario:perfiles!voluntario_id (
+        voluntario:perfiles!asignaciones_voluntario_id_fkey (
           id,
-          rol,
-          metadata
+          nombre,
+          apellido,
+          rol
         ),
         nino:ninos (
           id,
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
           rango_etario
         )
       `)
-      .eq('activo', activo)
+      .eq('activa', activo)
       .order('fecha_asignacion', { ascending: false });
 
     if (idConsulta) {
@@ -132,11 +133,11 @@ export async function POST(request: NextRequest) {
 
     // Verificar que no exista asignación activa entre el mismo par voluntario-niño
     const { data: existente } = await supabaseAdmin
-      .from('asignaciones_voluntarios')
+      .from('asignaciones')
       .select('id')
       .eq('voluntario_id', voluntario_id)
       .eq('nino_id', nino_id)
-      .eq('activo', true)
+      .eq('activa', true)
       .single();
 
     if (existente) {
@@ -149,13 +150,14 @@ export async function POST(request: NextRequest) {
     // Desactivar todas las asignaciones activas anteriores del niño
     // (un niño solo puede tener UN voluntario activo a la vez)
     const { data: asignacionesAnteriores, error: errorDesactivar } = await supabaseAdmin
-      .from('asignaciones_voluntarios')
+      .from('asignaciones')
       .update({ 
-        activo: false, 
-        fecha_finalizacion: new Date().toISOString()
+        activa: false, 
+        fecha_fin: new Date().toISOString().split('T')[0],
+        motivo_fin: 'Reasignación a otro voluntario'
       })
       .eq('nino_id', nino_id)
-      .eq('activo', true)
+      .eq('activa', true)
       .select('id, voluntario_id');
 
     if (errorDesactivar) {
@@ -171,7 +173,7 @@ export async function POST(request: NextRequest) {
 
     // Crear asignación
     const { data, error } = await supabaseAdmin
-      .from('asignaciones_voluntarios')
+      .from('asignaciones')
       .insert({
         voluntario_id,
         nino_id,
@@ -179,13 +181,14 @@ export async function POST(request: NextRequest) {
         areas_foco,
         notas,
         asignado_por: user.id,
-        activo: true
+        activa: true
       })
       .select(`
         *,
-        voluntario:perfiles!voluntario_id (
+        voluntario:perfiles!asignaciones_voluntario_id_fkey (
           id,
-          metadata
+          nombre,
+          apellido
         ),
         nino:ninos (
           id,
@@ -243,7 +246,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, activo, notas, areas_foco } = body;
+    const { id, activa, motivo_fin } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID de asignación requerido' }, { status: 400 });
@@ -251,31 +254,25 @@ export async function PATCH(request: NextRequest) {
 
     const updates: any = {};
 
-    if (activo !== undefined) {
-      updates.activo = activo;
-      if (!activo) {
-        updates.fecha_finalizacion = new Date().toISOString();
+    if (activa !== undefined) {
+      updates.activa = activa;
+      if (!activa) {
+        updates.fecha_fin = new Date().toISOString().split('T')[0];
+        updates.motivo_fin = motivo_fin || 'Finalizada manualmente';
       }
-    }
-
-    if (notas !== undefined) {
-      updates.notas = notas;
-    }
-
-    if (areas_foco !== undefined) {
-      updates.areas_foco = areas_foco;
     }
 
     // Actualizar
     const { data, error } = await supabaseAdmin
-      .from('asignaciones_voluntarios')
+      .from('asignaciones')
       .update(updates)
       .eq('id', id)
       .select(`
         *,
-        voluntario:perfiles!voluntario_id (
+        voluntario:perfiles!asignaciones_voluntario_id_fkey (
           id,
-          metadata
+          nombre,
+          apellido
         ),
         nino:ninos (
           id,
@@ -337,7 +334,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { error } = await supabaseAdmin
-      .from('asignaciones_voluntarios')
+      .from('asignaciones')
       .delete()
       .eq('id', id);
 

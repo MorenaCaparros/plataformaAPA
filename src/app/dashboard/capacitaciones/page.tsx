@@ -12,20 +12,20 @@ interface Habilidad {
 
 interface Capacitacion {
   id: string;
-  titulo: string;
+  nombre: string;
   descripcion: string;
   area: string;
-  tipo: 'presencial' | 'online' | 'autoevaluacion' | 'material';
-  puntaje_otorgado: number;
-  duracion_estimada: number;
+  tipo: 'autoevaluacion' | 'capacitacion';
+  puntaje_minimo_aprobacion: number;
+  duracion_estimada_minutos: number;
 }
 
 interface CapacitacionAsignada {
   id: string;
-  estado: 'pendiente' | 'en_curso' | 'completada' | 'no_aprobada';
-  fecha_asignacion: string;
-  fecha_completada?: string;
-  puntaje_obtenido?: number;
+  estado: 'pendiente' | 'en_progreso' | 'completada' | 'aprobada' | 'reprobada';
+  created_at: string;
+  fecha_completado?: string;
+  puntaje_final?: number;
   capacitacion: Capacitacion;
 }
 
@@ -109,7 +109,7 @@ export default function CapacitacionesPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500"></div>
       </div>
     );
   }
@@ -128,14 +128,14 @@ export default function CapacitacionesPage() {
         </div>
 
         {/* Tarjeta de Resumen */}
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg shadow-lg p-6 mb-8 text-white">
+        <div className="bg-gradient-to-r from-crecimiento-500 to-crecimiento-700 rounded-lg shadow-lg p-6 mb-8 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm font-medium">Tu promedio general</p>
+              <p className="text-crecimiento-100 text-sm font-medium">Tu promedio general</p>
               <p className="text-4xl font-bold mt-2">{promedio.toFixed(1)} ⭐</p>
             </div>
             <div className="text-right">
-              <p className="text-blue-100 text-sm">Capacitaciones completadas</p>
+              <p className="text-crecimiento-100 text-sm">Capacitaciones completadas</p>
               <p className="text-3xl font-bold mt-2">
                 {capacitacionesAsignadas.filter(c => c.estado === 'completada').length}
               </p>
@@ -181,30 +181,30 @@ export default function CapacitacionesPage() {
 
         {/* Capacitaciones Sugeridas */}
         {capacitacionesSugeridas.length > 0 && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-lg p-6 mb-8">
+          <div className="bg-sol-50 dark:bg-sol-900/20 border border-sol-200 dark:border-sol-800 rounded-lg shadow-lg p-6 mb-8">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0">
-                <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-6 h-6 text-sol-600 dark:text-sol-500" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
+                <h3 className="text-lg font-semibold text-sol-900 dark:text-sol-200 mb-2">
                   Te recomendamos fortalecer estas áreas
                 </h3>
-                <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-4">
+                <p className="text-sm text-sol-800 dark:text-sol-300 mb-4">
                   Según tu nivel actual, estas capacitaciones te ayudarían:
                 </p>
                 <div className="space-y-2">
                   {capacitacionesSugeridas.slice(0, 3).map((cap) => (
                     <div key={cap.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">{cap.titulo}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{cap.nombre}</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {getAreaNombre(cap.area)} • {cap.puntaje_otorgado}⭐ • {cap.duracion_estimada} min
+                          {getAreaNombre(cap.area)} • Aprobación: {cap.puntaje_minimo_aprobacion}% • {cap.duracion_estimada_minutos} min
                         </p>
                       </div>
-                      <button className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors">
+                      <button className="px-4 py-2 bg-sol-600 hover:bg-sol-700 text-white rounded-lg text-sm font-medium transition-colors">
                         Solicitar
                       </button>
                     </div>
@@ -241,17 +241,17 @@ export default function CapacitacionesPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {asignada.capacitacion.titulo}
+                          {asignada.capacitacion.nombre}
                         </h3>
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          asignada.estado === 'completada' ? 'bg-green-100 text-green-800' :
-                          asignada.estado === 'en_curso' ? 'bg-blue-100 text-blue-800' :
-                          asignada.estado === 'no_aprobada' ? 'bg-red-100 text-red-800' :
+                          ['completada', 'aprobada'].includes(asignada.estado) ? 'bg-green-100 text-green-800' :
+                          asignada.estado === 'en_progreso' ? 'bg-sol-100 text-sol-700' :
+                          asignada.estado === 'reprobada' ? 'bg-red-100 text-red-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
-                          {asignada.estado === 'completada' ? 'Completada' :
-                           asignada.estado === 'en_curso' ? 'En curso' :
-                           asignada.estado === 'no_aprobada' ? 'No aprobada' :
+                          {['completada', 'aprobada'].includes(asignada.estado) ? 'Completada' :
+                           asignada.estado === 'en_progreso' ? 'En curso' :
+                           asignada.estado === 'reprobada' ? 'No aprobada' :
                            'Pendiente'}
                         </span>
                       </div>
@@ -267,22 +267,22 @@ export default function CapacitacionesPage() {
                           </svg>
                           {getAreaNombre(asignada.capacitacion.area)}
                         </span>
-                        <span>{asignada.capacitacion.duracion_estimada} minutos</span>
-                        <span>{asignada.capacitacion.puntaje_otorgado}⭐ al completar</span>
+                        <span>{asignada.capacitacion.duracion_estimada_minutos} minutos</span>
+                        <span>Aprobación: {asignada.capacitacion.puntaje_minimo_aprobacion}%</span>
                       </div>
 
-                      {asignada.estado === 'completada' && (
+                      {['completada', 'aprobada'].includes(asignada.estado) && (
                         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                           <p className="text-sm text-green-600 dark:text-green-400 font-medium">
-                            ✓ Completada el {new Date(asignada.fecha_completada!).toLocaleDateString('es-AR')}
-                            {asignada.puntaje_obtenido && ` • Puntaje obtenido: ${asignada.puntaje_obtenido}⭐`}
+                            ✓ Completada el {new Date(asignada.fecha_completado!).toLocaleDateString('es-AR')}
+                            {asignada.puntaje_final != null && ` • Puntaje: ${asignada.puntaje_final}%`}
                           </p>
                         </div>
                       )}
                     </div>
 
                     {asignada.estado === 'pendiente' && (
-                      <button className="ml-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                      <button className="ml-4 px-4 py-2 bg-crecimiento-500 hover:bg-crecimiento-600 text-white rounded-lg text-sm font-medium transition-colors">
                         Iniciar
                       </button>
                     )}

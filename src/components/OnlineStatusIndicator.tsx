@@ -42,7 +42,7 @@ export default function OnlineStatusIndicator() {
   // Mostrar indicador cuando está sincronizando
   if (isSyncing) {
     return (
-      <div className="fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-pulse max-w-xs">
+      <div className="fixed top-4 right-4 z-50 bg-crecimiento-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-pulse max-w-xs">
         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
         <div className="flex-1">
           <p className="text-sm font-semibold">Sincronizando...</p>
@@ -133,7 +133,7 @@ export default function OnlineStatusIndicator() {
             
             <button
               onClick={handleManualSync}
-              className="mt-3 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold transition touch-manipulation"
+              className="mt-3 w-full py-2 bg-crecimiento-500 hover:bg-crecimiento-600 text-white rounded text-xs font-semibold transition touch-manipulation"
               style={{ minHeight: '36px' }}
             >
               🔄 Sincronizar Ahora

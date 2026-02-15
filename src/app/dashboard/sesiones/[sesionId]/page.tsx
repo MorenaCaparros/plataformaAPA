@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { CATEGORIAS_LABELS, type Categoria } from '@/lib/constants/items-observacion';
+import { CATEGORIAS_LABELS, type Categoria, VALOR_NO_COMPLETADO, LABEL_NO_COMPLETADO, calcularPromedioItems } from '@/lib/constants/items-observacion';
 import { ArrowLeft, Calendar, Clock, BarChart3, FileText } from 'lucide-react';
 
 interface SesionDetalle {
@@ -77,19 +77,18 @@ export default function SesionDetallePage() {
     });
   };
 
-  const itemsPorCategoria = sesion?.items.reduce((acc, item) => {
+  const itemsPorCategoria = (sesion?.items || []).reduce((acc: Record<string, Array<{id: string; categoria: Categoria; texto: string; valor: number}>>, item: any) => {
     if (!acc[item.categoria]) acc[item.categoria] = [];
     acc[item.categoria].push(item);
     return acc;
-  }, {} as Record<Categoria, typeof sesion.items>) || {};
+  }, {} as Record<string, Array<{id: string; categoria: Categoria; texto: string; valor: number}>>);
 
   const calcularPromedio = (items: any[]) => {
-    if (!items || items.length === 0) return 0;
-    const sum = items.reduce((acc, item) => acc + item.valor, 0);
-    return (sum / items.length).toFixed(1);
+    return calcularPromedioItems(items);
   };
 
   const getColorByValue = (valor: number) => {
+    if (valor === VALOR_NO_COMPLETADO) return 'text-gray-500 bg-gray-100';
     if (valor <= 2) return 'text-red-600 bg-red-50';
     if (valor === 3) return 'text-yellow-600 bg-yellow-50';
     return 'text-green-600 bg-green-50';
@@ -152,7 +151,7 @@ export default function SesionDetallePage() {
               <div className="flex-1 bg-white/60 rounded-full h-4 border border-white/60 overflow-hidden">
                 <div
                   className="bg-gradient-to-r from-sol-400 to-crecimiento-400 h-4 rounded-full shadow-[0_0_8px_rgba(242,201,76,0.4)] transition-all duration-500"
-                  style={{ width: `${(parseFloat(calcularPromedio(sesion.items)) / 5) * 100}%` }}
+                  style={{ width: `${(calcularPromedio(sesion.items) / 5) * 100}%` }}
                 />
               </div>
               <span className="text-2xl font-bold text-neutro-carbon font-quicksand">
@@ -178,13 +177,16 @@ export default function SesionDetallePage() {
                 </div>
 
                 <div className="space-y-4">
-                  {items.map(item => (
+                  {items.map((item: any) => (
                     <div key={item.id} className="flex items-start gap-3 pb-4 border-b border-white/60 last:border-0 last:pb-0">
                       <div className={`px-4 py-2 rounded-2xl font-bold font-quicksand text-lg ${getColorByValue(item.valor)}`}>
-                        {item.valor}
+                        {item.valor === VALOR_NO_COMPLETADO ? LABEL_NO_COMPLETADO : item.valor}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-neutro-carbon font-outfit">{item.texto}</p>
+                        <p className={`text-sm font-medium font-outfit ${item.valor === VALOR_NO_COMPLETADO ? 'text-gray-400' : 'text-neutro-carbon'}`}>{item.texto}</p>
+                        {item.valor === VALOR_NO_COMPLETADO && (
+                          <p className="text-xs text-gray-400 mt-0.5">No completó el campo — no afecta el promedio</p>
+                        )}
                       </div>
                     </div>
                   ))}

@@ -142,7 +142,7 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
+    <div className="bg-gradient-to-r from-sol-50 to-crecimiento-50 border border-sol-200 rounded-lg p-6">
       <div className="flex items-center gap-3 mb-4">
         <span className="text-3xl">🎤</span>
         <div>
@@ -188,7 +188,7 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
           <>
             <button
               onClick={pauseRecording}
-              className="flex items-center gap-2 px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium transition"
+              className="flex items-center gap-2 px-6 py-3 bg-sol-600 text-white rounded-lg hover:bg-sol-700 font-medium transition"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M5 4h3v12H5V4zm7 0h3v12h-3V4z" />
@@ -261,7 +261,7 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
               </button>
               <button
                 onClick={startRecording}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition"
+                className="flex-1 px-4 py-2 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 font-medium transition"
               >
                 🔄 Grabar de nuevo
               </button>

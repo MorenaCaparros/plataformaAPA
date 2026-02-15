@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { ArrowLeft, UserPlus, Plus, Eye, Brain } from 'lucide-react';
+import type { NinoListado, RangoEtario } from '@/types/database';
 
 // Función helper para normalizar texto (quitar acentos)
 const normalizarTexto = (texto: string) => {
@@ -14,25 +15,6 @@ const normalizarTexto = (texto: string) => {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 };
-
-interface Nino {
-  id: string;
-  alias: string;
-  rango_etario: string;
-  nivel_alfabetizacion: string;
-  escolarizado: boolean;
-  metadata?: {
-    nombre_completo?: string;
-    apellido?: string;
-    numero_legajo?: string;
-  };
-  zona?: {
-    id: string;
-    nombre: string;
-  } | null;
-  total_sesiones: number;
-  ultima_sesion: string | null;
-}
 
 interface Zona {
   id: string;
@@ -45,15 +27,19 @@ function MisNinosPageContent() {
   const searchParams = useSearchParams();
   const zonaParam = searchParams.get('zona');
   
-  const [ninos, setNinos] = useState<Nino[]>([]);
+  const [ninos, setNinos] = useState<NinoListado[]>([]);
   const [zonas, setZonas] = useState<Zona[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroZona, setFiltroZona] = useState<string>(zonaParam || 'todas');
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
 
-  // Determinar si el usuario tiene acceso completo
-  const rolesConAccesoCompleto = ['psicopedagogia', 'director'];
+  // Determinar si el usuario tiene acceso completo (ve datos sensibles)
+  const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin'];
   const tieneAccesoCompleto = perfil?.rol && rolesConAccesoCompleto.includes(perfil.rol);
+
+  // Roles con acceso a todos los niños
+  const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director', 'admin'];
+  const tieneAccesoTotal = perfil?.rol && rolesConAccesoTotal.includes(perfil.rol);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -85,115 +71,152 @@ function MisNinosPageContent() {
 
   const fetchNinos = async () => {
     try {
-      console.log('Fetching niños para user:', user?.id, 'rol:', perfil?.rol);
-      
-      // Psicopedagogía, coordinador y director ven TODOS los niños
-      const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director'];
-      const tieneAccesoTotal = perfil?.rol && rolesConAccesoTotal.includes(perfil.rol);
-
       let ninosData: any[] = [];
 
       if (tieneAccesoTotal) {
-        // Ver TODOS los niños CON metadata y zona
-        const { data, error } = await supabase
-          .from('ninos')
-          .select(`
+        // Roles con acceso total: ver TODOS los niños
+        // Si tiene acceso completo (psico/director/admin), incluir datos sensibles
+        const selectFields = tieneAccesoCompleto
+          ? `
             id,
             alias,
+            legajo,
             rango_etario,
             nivel_alfabetizacion,
             escolarizado,
-            metadata,
+            grado_escolar,
+            activo,
+            zona_id,
+            zonas (
+              id,
+              nombre
+            ),
+            ninos_sensibles (
+              nombre_completo_encrypted,
+              apellido_encrypted
+            )
+          `
+          : `
+            id,
+            alias,
+            legajo,
+            rango_etario,
+            nivel_alfabetizacion,
+            escolarizado,
+            grado_escolar,
+            activo,
             zona_id,
             zonas (
               id,
               nombre
             )
-          `)
+          `;
+
+        const { data, error } = await supabase
+          .from('ninos')
+          .select(selectFields)
+          .eq('activo', true)
           .order('alias', { ascending: true });
 
         if (error) throw error;
         ninosData = data || [];
       } else {
-        // Voluntarios: solo ven sus niños asignados
+        // Voluntarios: solo ven sus niños asignados vía tabla asignaciones
         const { data, error } = await supabase
-          .from('nino_voluntarios')
+          .from('asignaciones')
           .select(`
             nino_id,
             ninos (
               id,
               alias,
+              legajo,
               rango_etario,
               nivel_alfabetizacion,
-              escolarizado
+              escolarizado,
+              grado_escolar,
+              activo,
+              zonas (
+                id,
+                nombre
+              )
             )
           `)
           .eq('voluntario_id', user?.id)
-          .eq('activo', true);
+          .eq('activa', true);
 
         if (error) throw error;
-        ninosData = (data || []).map((item: any) => item.ninos);
+        ninosData = (data || []).map((item: any) => item.ninos).filter(Boolean);
       }
 
-      console.log('Niños encontrados:', ninosData.length);
-
-      // Para cada niño, obtener info de sesiones
-      const ninosConSesiones = await Promise.all(
+      // Para cada niño, obtener conteo de sesiones (optimizado con count)
+      const ninosConSesiones: NinoListado[] = await Promise.all(
         ninosData.map(async (nino: any) => {
-          // Contar TODAS las sesiones del niño (no filtrar por voluntario)
-          const { data: sesiones } = await supabase
+          const { count } = await supabase
             .from('sesiones')
-            .select('id, fecha')
+            .select('*', { count: 'exact', head: true })
+            .eq('nino_id', nino.id);
+
+          const { data: ultimaSesion } = await supabase
+            .from('sesiones')
+            .select('fecha')
             .eq('nino_id', nino.id)
-            .order('fecha', { ascending: false });
+            .order('fecha', { ascending: false })
+            .limit(1)
+            .single();
 
           return {
             id: nino.id,
             alias: nino.alias,
+            legajo: nino.legajo,
             rango_etario: nino.rango_etario,
             nivel_alfabetizacion: nino.nivel_alfabetizacion,
             escolarizado: nino.escolarizado,
-            metadata: nino.metadata || {},
-            zona: nino.zonas || null,
-            total_sesiones: sesiones?.length || 0,
-            ultima_sesion: sesiones?.[0]?.fecha || null
+            grado_escolar: nino.grado_escolar,
+            activo: nino.activo,
+            zonas: nino.zonas || null,
+            ninos_sensibles: nino.ninos_sensibles || null,
+            total_sesiones: count || 0,
+            ultima_sesion: ultimaSesion?.fecha || null
           };
         })
       );
 
-      console.log('Niños con sesiones:', ninosConSesiones);
-      setNinos(ninosConSesiones || []);
+      setNinos(ninosConSesiones);
     } catch (error) {
       console.error('Error fetching niños:', error);
     } finally {
       setLoading(false);
     }
   };
+
   // Filtrar niños
   const ninosFiltrados = ninos.filter(nino => {
     // Filtro por zona
-    if (filtroZona !== 'todas' && nino.zona?.id !== filtroZona) {
+    if (filtroZona !== 'todas' && nino.zonas?.id !== filtroZona) {
       return false;
     }
 
-    // Filtro por búsqueda (nombre, apellido, legajo) - sin acentos
+    // Filtro por búsqueda (alias, legajo, nombre/apellido encriptado)
     if (filtroBusqueda) {
       const busqueda = normalizarTexto(filtroBusqueda);
-      const nombreCompleto = normalizarTexto(nino.metadata?.nombre_completo || '');
-      const apellido = normalizarTexto(nino.metadata?.apellido || '');
-      const legajo = normalizarTexto(nino.metadata?.numero_legajo || '');
       const alias = normalizarTexto(nino.alias);
+      const legajo = normalizarTexto(nino.legajo || '');
+      
+      // Datos sensibles solo si tiene acceso
+      const nombreCompleto = normalizarTexto(nino.ninos_sensibles?.nombre_completo_encrypted || '');
+      const apellido = normalizarTexto(nino.ninos_sensibles?.apellido_encrypted || '');
 
       return (
-        nombreCompleto.includes(busqueda) ||
-        apellido.includes(busqueda) ||
+        alias.includes(busqueda) ||
         legajo.includes(busqueda) ||
-        alias.includes(busqueda)
+        nombreCompleto.includes(busqueda) ||
+        apellido.includes(busqueda)
       );
     }
 
     return true;
   });
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -236,7 +259,7 @@ function MisNinosPageContent() {
           </Link>
 
           {/* Filtros */}
-          {tieneAccesoCompleto && (
+          {tieneAccesoTotal && (
             <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
               {/* Filtro por zona */}
               <select
@@ -255,7 +278,7 @@ function MisNinosPageContent() {
               {/* Búsqueda */}
               <input
                 type="text"
-                placeholder="Buscar por nombre, apellido o legajo..."
+                placeholder="Buscar por alias, legajo..."
                 value={filtroBusqueda}
                 onChange={(e) => setFiltroBusqueda(e.target.value)}
                 className="px-4 py-3 bg-white/60 backdrop-blur-md border border-white/60 rounded-2xl focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] w-full sm:w-72 placeholder:text-neutro-piedra/60 transition-all"
@@ -309,25 +332,26 @@ function MisNinosPageContent() {
                 {/* Título con alias */}
                 <div className="flex justify-between items-start mb-5">
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold text-neutro-carbon font-quicksand mb-2">
+                    <h3 className="text-xl font-bold text-neutro-carbon font-quicksand mb-1">
                       {nino.alias}
                     </h3>
-                    {/* Mostrar nombre completo, apellido y legajo para admin/psico */}
-                    {tieneAccesoCompleto && nino.metadata && (
+                    {/* Legajo siempre visible */}
+                    {nino.legajo && (
+                      <p className="text-xs text-neutro-piedra font-mono">
+                        Legajo: {nino.legajo}
+                      </p>
+                    )}
+                    {/* Datos sensibles solo para roles con acceso completo */}
+                    {tieneAccesoCompleto && nino.ninos_sensibles && (
                       <div className="mt-2 space-y-1 bg-impulso-50/30 rounded-2xl p-3 border border-impulso-200/20">
-                        {nino.metadata.nombre_completo && (
+                        {nino.ninos_sensibles.nombre_completo_encrypted && (
                           <p className="text-sm text-neutro-piedra font-outfit">
-                            <span className="font-semibold text-neutro-carbon">Nombre:</span> {nino.metadata.nombre_completo}
+                            <span className="font-semibold text-neutro-carbon">Nombre:</span> {nino.ninos_sensibles.nombre_completo_encrypted}
                           </p>
                         )}
-                        {nino.metadata.apellido && (
+                        {nino.ninos_sensibles.apellido_encrypted && (
                           <p className="text-sm text-neutro-piedra font-outfit">
-                            <span className="font-semibold text-neutro-carbon">Apellido:</span> {nino.metadata.apellido}
-                          </p>
-                        )}
-                        {nino.metadata.numero_legajo && (
-                          <p className="text-sm text-neutro-piedra font-outfit">
-                            <span className="font-semibold text-neutro-carbon">Legajo:</span> {nino.metadata.numero_legajo}
+                            <span className="font-semibold text-neutro-carbon">Apellido:</span> {nino.ninos_sensibles.apellido_encrypted}
                           </p>
                         )}
                       </div>
@@ -339,17 +363,18 @@ function MisNinosPageContent() {
                 </div>
 
                 <div className="space-y-2.5 mb-5">
-                  {/* Mostrar equipo/zona */}
-                  {nino.zona && (
+                  {/* Equipo/zona */}
+                  {nino.zonas && (
                     <p className="text-sm text-neutro-piedra font-outfit">
-                      <span className="font-semibold text-neutro-carbon">Equipo:</span> {nino.zona.nombre}
+                      <span className="font-semibold text-neutro-carbon">Equipo:</span> {nino.zonas.nombre}
                     </p>
                   )}
                   <p className="text-sm text-neutro-piedra font-outfit">
-                    <span className="font-semibold text-neutro-carbon">Nivel:</span> {nino.nivel_alfabetizacion}
+                    <span className="font-semibold text-neutro-carbon">Nivel:</span> {nino.nivel_alfabetizacion || 'Sin evaluar'}
                   </p>
                   <p className="text-sm text-neutro-piedra font-outfit">
                     <span className="font-semibold text-neutro-carbon">Escolarizado:</span> {nino.escolarizado ? 'Sí' : 'No'}
+                    {nino.grado_escolar && ` (${nino.grado_escolar})`}
                   </p>
                 </div>
 
@@ -385,7 +410,7 @@ function MisNinosPageContent() {
                     <Eye className="w-5 h-5" /> Ver Perfil
                   </Link>
                   
-                  {nino.total_sesiones > 0 && (
+                  {(nino.total_sesiones ?? 0) > 0 && (
                     <Link
                       href={`/dashboard/ninos/${nino.id}/analisis`}
                       className="block w-full text-center bg-sol-50 border border-sol-200/40 text-sol-700 font-medium py-3.5 px-4 min-h-[56px] rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.2)] transition-all text-sm active:scale-95 flex items-center justify-center gap-2 touch-manipulation font-outfit"

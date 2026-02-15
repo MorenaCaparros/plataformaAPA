@@ -76,7 +76,7 @@ export default function BibliotecaPage() {
 
   const getTipoColor = (tipo: string) => {
     const colors: Record<string, string> = {
-      'guia': 'bg-blue-100 text-blue-800',
+      'guia': 'bg-sol-100 text-sol-700',
       'paper': 'bg-purple-100 text-purple-800',
       'manual': 'bg-green-100 text-green-800'
     };
@@ -125,7 +125,7 @@ export default function BibliotecaPage() {
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
             <Link
               href="/dashboard/biblioteca/drive"
-              className="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(59,130,246,0.25)] transition-all font-outfit font-semibold text-center min-h-[56px] flex items-center justify-center active:scale-95 shadow-[0_4px_16px_rgba(59,130,246,0.15)]"
+              className="px-6 py-4 bg-gradient-to-r from-crecimiento-500 to-crecimiento-600 text-white rounded-2xl hover:shadow-glow-crecimiento-lg transition-all font-outfit font-semibold text-center min-h-[56px] flex items-center justify-center active:scale-95 shadow-glow-crecimiento"
             >
               <span className="mr-2">📁</span> Google Drive
             </Link>

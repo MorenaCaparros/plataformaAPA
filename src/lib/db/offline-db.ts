@@ -7,7 +7,8 @@ export interface NinoOffline {
   rango_etario: string;
   nivel_alfabetizacion: string;
   escolarizado: boolean;
-  metadata: any;
+  zona_id?: string;
+  escuela_id?: string;
   sincronizado: boolean;
   updated_at: Date;
 }

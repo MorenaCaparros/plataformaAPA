@@ -64,9 +64,10 @@ export async function GET(request: NextRequest) {
       .from('perfiles')
       .select(`
         id,
+        nombre,
+        apellido,
         rol,
         zona_id,
-        metadata,
         created_at,
         zonas (
           nombre
@@ -88,7 +89,10 @@ export async function GET(request: NextRequest) {
           zona_id: perfil.zona_id,
           zona_nombre: perfil.zonas?.nombre || 'Sin equipo',
           created_at: perfil.created_at,
-          metadata: perfil.metadata || {}
+          nombre: perfil.nombre || '',
+          apellido: perfil.apellido || '',
+          // Keep backward compat for any frontend reading metadata
+          metadata: { nombre_completo: [perfil.nombre, perfil.apellido].filter(Boolean).join(' ') }
         };
       })
     );

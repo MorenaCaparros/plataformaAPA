@@ -9,9 +9,8 @@ import { useRouter } from 'next/navigation';
 
 type Coordinador = {
   id: string;
-  metadata: {
-    nombre?: string;
-  };
+  nombre: string;
+  apellido: string;
   zona_id: string | null;
 };
 
@@ -67,9 +66,9 @@ export default function FeedbackPage() {
       // Obtener coordinadores
       const { data: coords, error: errorCoords } = await supabase
         .from('perfiles')
-        .select('*')
+        .select('id, nombre, apellido, zona_id')
         .eq('rol', 'coordinador')
-        .order('metadata->nombre');
+        .order('nombre');
 
       if (errorCoords) throw errorCoords;
 
@@ -177,7 +176,7 @@ export default function FeedbackPage() {
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-red-600 font-semibold mb-4">⚠️ Acceso denegado</p>
           <p className="text-gray-600 mb-4">Solo directores pueden acceder a esta página.</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+          <Link href="/dashboard" className="text-crecimiento-600 hover:underline">
             ← Volver al inicio
           </Link>
         </div>
@@ -189,7 +188,7 @@ export default function FeedbackPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando coordinadores...</p>
         </div>
       </div>
@@ -221,7 +220,7 @@ export default function FeedbackPage() {
               onClick={() => setVistaActiva('nuevo')}
               className={`flex-1 px-6 py-3 text-sm font-medium ${
                 vistaActiva === 'nuevo'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  ? 'border-b-2 border-crecimiento-500 text-crecimiento-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -231,7 +230,7 @@ export default function FeedbackPage() {
               onClick={() => setVistaActiva('historial')}
               className={`flex-1 px-6 py-3 text-sm font-medium ${
                 vistaActiva === 'historial'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  ? 'border-b-2 border-crecimiento-500 text-crecimiento-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -251,13 +250,13 @@ export default function FeedbackPage() {
               <select
                 value={coordinadorSeleccionado}
                 onChange={(e) => setCoordinadorSeleccionado(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                 required
               >
                 <option value="">Seleccionar coordinador...</option>
                 {coordinadores.map((coord) => (
                   <option key={coord.id} value={coord.id}>
-                    {coord.metadata?.nombre || 'Sin nombre'} {coord.zona_id ? `- ${coord.zona_id}` : ''}
+                    {[coord.nombre, coord.apellido].filter(Boolean).join(' ') || 'Sin nombre'} {coord.zona_id ? `- ${coord.zona_id}` : ''}
                   </option>
                 ))}
               </select>
@@ -273,7 +272,7 @@ export default function FeedbackPage() {
                 onChange={(e) => setComentario(e.target.value)}
                 placeholder="Describe el desempeño del coordinador, logros, áreas de mejora, situaciones destacadas..."
                 rows={6}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent resize-none"
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -292,7 +291,7 @@ export default function FeedbackPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm text-gray-600">Liderazgo</label>
-                    <span className="text-lg font-bold text-blue-600">{puntuacionLiderazgo}</span>
+                    <span className="text-lg font-bold text-crecimiento-600">{puntuacionLiderazgo}</span>
                   </div>
                   <input
                     type="range"
@@ -300,7 +299,7 @@ export default function FeedbackPage() {
                     max="10"
                     value={puntuacionLiderazgo}
                     onChange={(e) => setPuntuacionLiderazgo(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-crecimiento-500"
                   />
                 </div>
 
@@ -324,7 +323,7 @@ export default function FeedbackPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm text-gray-600">Comunicación</label>
-                    <span className="text-lg font-bold text-purple-600">{puntuacionComunicacion}</span>
+                    <span className="text-lg font-bold text-impulso-500">{puntuacionComunicacion}</span>
                   </div>
                   <input
                     type="range"
@@ -332,7 +331,7 @@ export default function FeedbackPage() {
                     max="10"
                     value={puntuacionComunicacion}
                     onChange={(e) => setPuntuacionComunicacion(parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-impulso-400"
                   />
                 </div>
 
@@ -372,14 +371,14 @@ export default function FeedbackPage() {
                   type="button"
                   onClick={handleAnalizarConIA}
                   disabled={analizando || !comentario.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  className="px-4 py-2 bg-impulso-400 text-white rounded-lg hover:bg-impulso-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                 >
                   {analizando ? '🤔 Analizando...' : '🤖 Analizar con IA'}
                 </button>
               </div>
               
               {analisisIA && (
-                <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="p-4 bg-impulso-50 border border-impulso-200 rounded-lg">
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{analisisIA}</p>
                 </div>
               )}
@@ -390,7 +389,7 @@ export default function FeedbackPage() {
               <button
                 type="submit"
                 disabled={guardando}
-                className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                className="flex-1 bg-crecimiento-500 text-white py-3 px-6 rounded-lg hover:bg-crecimiento-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {guardando ? 'Guardando...' : '💾 Guardar Feedback'}
               </button>
@@ -422,16 +421,16 @@ export default function FeedbackPage() {
         )}
 
         {/* Ayuda */}
-        <div className="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+        <div className="mt-6 bg-sol-50 border-l-4 border-sol-400 p-4 rounded">
           <div className="flex">
             <div className="flex-shrink-0">
               <span className="text-2xl">💡</span>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
+              <h3 className="text-sm font-medium text-sol-800">
                 Criterios de Evaluación
               </h3>
-              <div className="text-sm text-blue-700 mt-2 space-y-1">
+              <div className="text-sm text-sol-700 mt-2 space-y-1">
                 <p><strong>Liderazgo:</strong> Capacidad de guiar y motivar al equipo</p>
                 <p><strong>Gestión:</strong> Organización, planificación y seguimiento</p>
                 <p><strong>Comunicación:</strong> Claridad, frecuencia y efectividad</p>

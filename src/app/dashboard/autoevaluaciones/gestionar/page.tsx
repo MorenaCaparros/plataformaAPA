@@ -40,10 +40,14 @@ function GestionarPlantillasContent() {
 
   async function fetchPlantillas() {
     try {
-      console.log('🔍 Intentando cargar plantillas...');
+      console.log('🔍 Intentando cargar plantillas (capacitaciones)...');
       const { data, error } = await supabase
-        .from('plantillas_autoevaluacion')
-        .select('*')
+        .from('capacitaciones')
+        .select(`
+          *,
+          preguntas:preguntas_capacitacion(id, orden, pregunta, tipo_pregunta, puntaje)
+        `)
+        .eq('tipo', 'autoevaluacion')
         .order('area');
 
       console.log('📊 Respuesta de Supabase:', { data, error });
@@ -54,8 +58,19 @@ function GestionarPlantillasContent() {
         throw error;
       }
       
-      console.log('✅ Plantillas cargadas:', data?.length || 0);
-      setPlantillas(data || []);
+      // Map to old plantilla shape
+      const mapped = (data || []).map((c: any) => ({
+        id: c.id,
+        titulo: c.nombre,
+        area: c.area,
+        descripcion: c.descripcion,
+        activo: c.activa,
+        preguntas: (c.preguntas || []).sort((a: any, b: any) => a.orden - b.orden),
+        created_at: c.created_at,
+      }));
+      
+      console.log('✅ Plantillas cargadas:', mapped.length);
+      setPlantillas(mapped);
     } catch (error) {
       console.error('💥 Error al cargar plantillas:', error);
       alert('Error al cargar las plantillas. Revisa la consola para más detalles.');
@@ -67,8 +82,8 @@ function GestionarPlantillasContent() {
   async function toggleActivo(plantillaId: string, activo: boolean) {
     try {
       const { error } = await supabase
-        .from('plantillas_autoevaluacion')
-        .update({ activo: !activo })
+        .from('capacitaciones')
+        .update({ activa: !activo })
         .eq('id', plantillaId);
 
       if (error) throw error;
@@ -86,7 +101,7 @@ function GestionarPlantillasContent() {
 
     try {
       const { error } = await supabase
-        .from('plantillas_autoevaluacion')
+        .from('capacitaciones')
         .delete()
         .eq('id', plantillaId);
 

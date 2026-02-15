@@ -1,29 +1,54 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import type { RangoEtario, Zona } from '@/types/database';
 
 export default function NuevoNinoPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, perfil } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [zonas, setZonas] = useState<Zona[]>([]);
   const [formData, setFormData] = useState({
     alias: '',
-    rango_etario: '8-10',
+    rango_etario: '8-10' as RangoEtario,
     nivel_alfabetizacion: 'Pre-silábico',
     escolarizado: true,
-    observaciones_iniciales: ''
+    grado_escolar: '',
+    turno_escolar: '' as '' | 'mañana' | 'tarde' | 'noche',
+    zona_id: '',
+    genero: '' as '' | 'masculino' | 'femenino' | 'otro' | 'prefiero_no_decir',
   });
+
+  useEffect(() => {
+    fetchZonas();
+  }, []);
+
+  // Auto-seleccionar zona del voluntario si tiene una
+  useEffect(() => {
+    if (perfil?.zona_id && !formData.zona_id) {
+      setFormData(prev => ({ ...prev, zona_id: perfil.zona_id || '' }));
+    }
+  }, [perfil]);
+
+  const fetchZonas = async () => {
+    const { data } = await supabase
+      .from('zonas')
+      .select('id, nombre')
+      .eq('activa', true)
+      .order('nombre');
+    setZonas(data || []);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 1. Crear el niño
+      // 1. Crear el niño en la tabla ninos (estructura limpia)
       const { data: nino, error: ninoError } = await supabase
         .from('ninos')
         .insert({
@@ -31,26 +56,32 @@ export default function NuevoNinoPage() {
           rango_etario: formData.rango_etario,
           nivel_alfabetizacion: formData.nivel_alfabetizacion,
           escolarizado: formData.escolarizado,
-          metadata: formData.observaciones_iniciales ? {
-            observaciones_iniciales: formData.observaciones_iniciales,
-            creado_por: user?.id
-          } : { creado_por: user?.id }
+          grado_escolar: formData.grado_escolar || null,
+          turno_escolar: formData.turno_escolar || null,
+          zona_id: formData.zona_id || perfil?.zona_id || null,
+          genero: formData.genero || null,
         })
         .select()
         .single();
 
       if (ninoError) throw ninoError;
 
-      // 2. Auto-asignar al voluntario
-      const { error: asignacionError } = await supabase
-        .from('nino_voluntarios')
-        .insert({
-          nino_id: nino.id,
-          voluntario_id: user?.id,
-          activo: true
-        });
+      // 2. Auto-asignar al voluntario vía tabla asignaciones
+      if (user?.id) {
+        const { error: asignacionError } = await supabase
+          .from('asignaciones')
+          .insert({
+            nino_id: nino.id,
+            voluntario_id: user.id,
+            activa: true,
+            fecha_asignacion: new Date().toISOString().split('T')[0],
+          });
 
-      if (asignacionError) throw asignacionError;
+        if (asignacionError) {
+          console.error('Error al crear asignación:', asignacionError);
+          // No bloqueamos el flujo, el niño ya se creó
+        }
+      }
 
       alert('✅ Niño registrado exitosamente');
       router.push('/dashboard/ninos');
@@ -103,6 +134,24 @@ export default function NuevoNinoPage() {
               </p>
             </div>
 
+            {/* Género */}
+            <div>
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
+                Género
+              </label>
+              <select
+                value={formData.genero}
+                onChange={(e) => setFormData({ ...formData, genero: e.target.value as any })}
+                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+              >
+                <option value="">Sin especificar</option>
+                <option value="masculino">Masculino</option>
+                <option value="femenino">Femenino</option>
+                <option value="otro">Otro</option>
+                <option value="prefiero_no_decir">Prefiero no decir</option>
+              </select>
+            </div>
+
             {/* Rango Etario */}
             <div>
               <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
@@ -110,13 +159,14 @@ export default function NuevoNinoPage() {
               </label>
               <select
                 value={formData.rango_etario}
-                onChange={(e) => setFormData({ ...formData, rango_etario: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, rango_etario: e.target.value as RangoEtario })}
                 className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
               >
                 <option value="5-7">5 a 7 años</option>
                 <option value="8-10">8 a 10 años</option>
                 <option value="11-13">11 a 13 años</option>
-                <option value="14+">14 años o más</option>
+                <option value="14-16">14 a 16 años</option>
+                <option value="17+">17 años o más</option>
               </select>
             </div>
 
@@ -167,18 +217,56 @@ export default function NuevoNinoPage() {
               </div>
             </div>
 
-            {/* Observaciones iniciales */}
+            {/* Grado y turno escolar (condicional) */}
+            {formData.escolarizado && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
+                    Grado escolar
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.grado_escolar}
+                    onChange={(e) => setFormData({ ...formData, grado_escolar: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] placeholder:text-neutro-piedra/60 transition-all"
+                    placeholder="Ej: 3° grado"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
+                    Turno
+                  </label>
+                  <select
+                    value={formData.turno_escolar}
+                    onChange={(e) => setFormData({ ...formData, turno_escolar: e.target.value as any })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                  >
+                    <option value="">Sin especificar</option>
+                    <option value="mañana">Mañana</option>
+                    <option value="tarde">Tarde</option>
+                    <option value="noche">Noche</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Zona / Equipo */}
             <div>
               <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
-                Observaciones iniciales (opcional)
+                Equipo / Zona
               </label>
-              <textarea
-                value={formData.observaciones_iniciales}
-                onChange={(e) => setFormData({ ...formData, observaciones_iniciales: e.target.value })}
-                rows={4}
-                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] placeholder:text-neutro-piedra/60 transition-all resize-none"
-                placeholder="Contexto, situación familiar, motivo de ingreso, etc."
-              />
+              <select
+                value={formData.zona_id}
+                onChange={(e) => setFormData({ ...formData, zona_id: e.target.value })}
+                className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+              >
+                <option value="">Sin asignar</option>
+                {zonas.map((zona) => (
+                  <option key={zona.id} value={zona.id}>
+                    {zona.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Botones */}
@@ -207,8 +295,9 @@ export default function NuevoNinoPage() {
             <span className="text-xl">ℹ️</span> Importante
           </h3>
           <ul className="text-sm text-sol-700 space-y-2 font-outfit">
-            <li>• Los datos sensibles (nombre completo, fecha de nacimiento) los cargará psicopedagogía</li>
+            <li>• Los datos sensibles (nombre completo, DNI, fecha de nacimiento) los cargará psicopedagogía</li>
             <li>• El niño quedará automáticamente asignado a vos</li>
+            <li>• Se generará un número de legajo automáticamente</li>
             <li>• Podés empezar a registrar sesiones inmediatamente</li>
           </ul>
         </div>

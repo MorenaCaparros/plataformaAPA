@@ -54,14 +54,14 @@ export async function POST(request: Request) {
       const [
         { data: ninos },
         { data: sesiones },
-        { data: evaluaciones },
-        { data: planes },
+        { data: entrevistas },
+        { data: deficits },
         { data: zonas }
       ] = await Promise.all([
-        supabaseAdmin.from('ninos').select('id, alias, rango_etario, zona_id, fecha_nacimiento, metadata'),
+        supabaseAdmin.from('ninos').select('id, alias, rango_etario, zona_id, fecha_nacimiento'),
         supabaseAdmin.from('sesiones').select('id, nino_id, fecha, duracion_minutos, items, observaciones_libres').order('fecha', { ascending: false }).limit(200),
-        supabaseAdmin.from('evaluaciones_iniciales').select('*').order('fecha_evaluacion', { ascending: false }).limit(100),
-        supabaseAdmin.from('planes_intervencion').select('*'),
+        supabaseAdmin.from('entrevistas').select('*').order('fecha', { ascending: false }).limit(100),
+        supabaseAdmin.from('historico_deficits').select('*').eq('activo', true),
         supabaseAdmin.from('zonas').select('id, nombre')
       ]);
 
@@ -81,18 +81,19 @@ export async function POST(request: Request) {
           items: s.items,
           observaciones: s.observaciones_libres?.substring(0, 200)
         })),
-        evaluaciones: evaluaciones?.map((e: any) => ({
+        entrevistas: entrevistas?.map((e: any) => ({
           nino_id: e.nino_id,
-          fecha: e.fecha_evaluacion,
-          nivel_alfabetizacion: e.nivel_alfabetizacion,
-          dificultades: e.dificultades_identificadas,
-          fortalezas: e.fortalezas,
-          lectura: promedioArea(e, ['reconocimiento_vocales', 'reconocimiento_consonantes', 'lectura_palabras', 'comprension_lectora']),
-          escritura: promedioArea(e, ['escritura_nombre', 'escritura_palabras', 'escritura_oraciones']),
-          matematicas: promedioArea(e, ['conteo', 'reconocimiento_numeros', 'suma_basica', 'resta_basica']),
-          lenguaje: promedioArea(e, ['comprension_ordenes', 'identificacion_objetos', 'formacion_oraciones', 'pronunciacion'])
+          fecha: e.fecha,
+          tipo: e.tipo,
+          observaciones: e.observaciones,
+          conclusiones: e.conclusiones
         })),
-        planes_activos: planes?.filter((p: any) => p.activo).length || 0,
+        deficits_activos: deficits?.map((d: any) => ({
+          nino_id: d.nino_id,
+          deficit: d.deficit,
+          severidad: d.severidad,
+          origen: d.origen
+        })),
         zonas: zonas
       };
     }
@@ -108,11 +109,11 @@ export async function POST(request: Request) {
 
       const [
         { data: sesionesZona },
-        { data: evaluacionesZona },
+        { data: entrevistasZona },
         { data: zona }
       ] = await Promise.all([
         supabaseAdmin.from('sesiones').select('*').in('nino_id', ninoIds).order('fecha', { ascending: false }).limit(100),
-        supabaseAdmin.from('evaluaciones_iniciales').select('*').in('nino_id', ninoIds),
+        supabaseAdmin.from('entrevistas').select('*').in('nino_id', ninoIds),
         supabaseAdmin.from('zonas').select('nombre').eq('id', zona_id).single()
       ]);
 
@@ -125,9 +126,10 @@ export async function POST(request: Request) {
           rango_etario: n.rango_etario
         })),
         sesiones: sesionesZona?.length || 0,
-        evaluaciones: evaluacionesZona?.map((e: any) => ({
-          nivel_alfabetizacion: e.nivel_alfabetizacion,
-          dificultades: e.dificultades_identificadas
+        entrevistas: entrevistasZona?.map((e: any) => ({
+          tipo: e.tipo,
+          observaciones: e.observaciones,
+          conclusiones: e.conclusiones
         }))
       };
     }
@@ -137,13 +139,13 @@ export async function POST(request: Request) {
       const [
         { data: nino },
         { data: sesionesNino },
-        { data: evaluacionesNino },
-        { data: planesNino }
+        { data: entrevistasNino },
+        { data: deficitsNino }
       ] = await Promise.all([
         supabaseAdmin.from('ninos').select('*').eq('id', nino_id).single(),
         supabaseAdmin.from('sesiones').select('*').eq('nino_id', nino_id).order('fecha', { ascending: false }),
-        supabaseAdmin.from('evaluaciones_iniciales').select('*').eq('nino_id', nino_id).order('fecha_evaluacion', { ascending: false }),
-        supabaseAdmin.from('planes_intervencion').select('*').eq('nino_id', nino_id).order('fecha_inicio', { ascending: false })
+        supabaseAdmin.from('entrevistas').select('*').eq('nino_id', nino_id).order('fecha', { ascending: false }),
+        supabaseAdmin.from('historico_deficits').select('*').eq('nino_id', nino_id).eq('activo', true)
       ]);
 
       datosContexto = {
@@ -159,21 +161,17 @@ export async function POST(request: Request) {
           items: s.items,
           observaciones: s.observaciones_libres?.substring(0, 300)
         })),
-        evaluaciones: evaluacionesNino?.map((e: any) => ({
-          fecha: e.fecha_evaluacion,
-          nivel_alfabetizacion: e.nivel_alfabetizacion,
-          dificultades: e.dificultades_identificadas,
-          fortalezas: e.fortalezas,
-          lectura: promedioArea(e, ['reconocimiento_vocales', 'reconocimiento_consonantes', 'lectura_palabras', 'comprension_lectora']),
-          escritura: promedioArea(e, ['escritura_nombre', 'escritura_palabras', 'escritura_oraciones']),
-          matematicas: promedioArea(e, ['conteo', 'reconocimiento_numeros', 'suma_basica', 'resta_basica']),
-          lenguaje: promedioArea(e, ['comprension_ordenes', 'identificacion_objetos', 'formacion_oraciones', 'pronunciacion'])
+        entrevistas: entrevistasNino?.map((e: any) => ({
+          fecha: e.fecha,
+          tipo: e.tipo,
+          observaciones: e.observaciones,
+          conclusiones: e.conclusiones
         })),
-        planes: planesNino?.map((p: any) => ({
-          titulo: p.titulo,
-          objetivo: p.objetivo_general,
-          activo: p.activo,
-          fecha_inicio: p.fecha_inicio
+        deficits: deficitsNino?.map((d: any) => ({
+          deficit: d.deficit,
+          severidad: d.severidad,
+          origen: d.origen,
+          fecha_deteccion: d.fecha_deteccion
         }))
       };
     }

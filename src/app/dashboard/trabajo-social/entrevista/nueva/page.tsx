@@ -190,7 +190,7 @@ export default function NuevaEntrevistaPage() {
         )}
 
         {/* Selector de Niño */}
-        <SelectorNino onSelect={setNinoId} mostrarApellido={false} />
+        <SelectorNino onSelect={setNinoId} />
 
         
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -287,7 +287,7 @@ export default function NuevaEntrevistaPage() {
                 <button
                   type="button"
                   onClick={addPersona}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  className="text-sm text-crecimiento-600 hover:text-crecimiento-700 font-medium"
                 >
                   + Agregar persona
                 </button>
@@ -428,7 +428,7 @@ export default function NuevaEntrevistaPage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 text-center"
+              className="flex-1 bg-crecimiento-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-crecimiento-600 transition-colors disabled:bg-gray-400 text-center"
             >
               {loading ? 'Guardando...' : '💾 Guardar Entrevista'}
             </button>

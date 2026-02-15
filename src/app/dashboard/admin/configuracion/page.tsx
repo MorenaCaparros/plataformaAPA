@@ -24,7 +24,7 @@ export default function ConfiguracionPage() {
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-red-600 font-semibold mb-4">⚠️ Acceso denegado</p>
           <p className="text-gray-600 mb-4">Solo directores pueden acceder a esta página.</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+          <Link href="/dashboard" className="text-crecimiento-600 hover:underline">
             ← Volver al inicio
           </Link>
         </div>
@@ -58,7 +58,7 @@ export default function ConfiguracionPage() {
                 onClick={() => setSeccionActiva('general')}
                 className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
                   seccionActiva === 'general'
-                    ? 'bg-blue-50 text-blue-700'
+                    ? 'bg-crecimiento-50 text-crecimiento-700'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
@@ -68,7 +68,7 @@ export default function ConfiguracionPage() {
                 onClick={() => setSeccionActiva('seguridad')}
                 className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
                   seccionActiva === 'seguridad'
-                    ? 'bg-blue-50 text-blue-700'
+                    ? 'bg-crecimiento-50 text-crecimiento-700'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
@@ -78,7 +78,7 @@ export default function ConfiguracionPage() {
                 onClick={() => setSeccionActiva('logs')}
                 className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
                   seccionActiva === 'logs'
-                    ? 'bg-blue-50 text-blue-700'
+                    ? 'bg-crecimiento-50 text-crecimiento-700'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
@@ -88,7 +88,7 @@ export default function ConfiguracionPage() {
                 onClick={() => setSeccionActiva('backups')}
                 className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
                   seccionActiva === 'backups'
-                    ? 'bg-blue-50 text-blue-700'
+                    ? 'bg-crecimiento-50 text-crecimiento-700'
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
@@ -113,7 +113,7 @@ export default function ConfiguracionPage() {
                     <input
                       type="text"
                       defaultValue="Mentes Curiosas - ONG Adelante"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                     />
                   </div>
 
@@ -125,7 +125,7 @@ export default function ConfiguracionPage() {
                     <input
                       type="number"
                       defaultValue="2026"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                     />
                   </div>
 
@@ -137,7 +137,7 @@ export default function ConfiguracionPage() {
                     <input
                       type="number"
                       defaultValue="7"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Si un voluntario no sincroniza en X días, se genera una alerta
@@ -152,11 +152,11 @@ export default function ConfiguracionPage() {
                     <input
                       type="number"
                       defaultValue="4"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                     />
                   </div>
 
-                  <button className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 font-medium">
+                  <button className="w-full bg-crecimiento-500 text-white py-2 px-4 rounded-lg hover:bg-crecimiento-600 font-medium">
                     💾 Guardar Cambios
                   </button>
                 </div>
@@ -177,7 +177,7 @@ export default function ConfiguracionPage() {
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" className="sr-only peer" defaultChecked />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-crecimiento-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-crecimiento-500"></div>
                       </label>
                     </div>
 
@@ -200,7 +200,7 @@ export default function ConfiguracionPage() {
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" className="sr-only peer" defaultChecked />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-crecimiento-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-crecimiento-500"></div>
                       </label>
                     </div>
                   </div>
@@ -220,7 +220,7 @@ export default function ConfiguracionPage() {
                       </p>
                     </div>
 
-                    <button className="w-full bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 font-medium">
+                    <button className="w-full bg-sol-600 text-white py-2 px-4 rounded-lg hover:bg-sol-700 font-medium">
                       🔑 Rotar Clave de Encriptación
                     </button>
                     <p className="text-xs text-gray-500 text-center">
@@ -249,7 +249,7 @@ export default function ConfiguracionPage() {
                       <option>Exportación de datos</option>
                       <option>Modificación de configuración</option>
                     </select>
-                    <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    <button className="px-6 py-2 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600">
                       Filtrar
                     </button>
                   </div>
@@ -298,7 +298,7 @@ export default function ConfiguracionPage() {
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" className="sr-only peer" defaultChecked />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-crecimiento-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-crecimiento-500"></div>
                       </label>
                     </div>
 
@@ -333,10 +333,10 @@ export default function ConfiguracionPage() {
                   </div>
 
                   <div className="flex gap-3">
-                    <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 font-medium">
+                    <button className="flex-1 bg-crecimiento-500 text-white py-2 px-4 rounded-lg hover:bg-crecimiento-600 font-medium">
                       ⚡ Backup Manual Ahora
                     </button>
-                    <button className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 font-medium">
+                    <button className="flex-1 bg-impulso-400 text-white py-2 px-4 rounded-lg hover:bg-impulso-500 font-medium">
                       📥 Descargar Último Backup
                     </button>
                   </div>

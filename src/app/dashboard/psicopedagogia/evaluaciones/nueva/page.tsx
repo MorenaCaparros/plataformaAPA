@@ -105,7 +105,7 @@ export default function NuevaEvaluacionPage() {
           </p>
         </div>
 {/* Selector de Niño */}
-        <SelectorNino onSelect={setNinoId} mostrarApellido={true} />
+        <SelectorNino onSelect={setNinoId} />
 
         
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -424,7 +424,7 @@ export default function NuevaEvaluacionPage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+              className="flex-1 bg-crecimiento-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-crecimiento-600 transition-colors disabled:bg-gray-400"
             >
               {loading ? 'Guardando...' : 'Guardar Evaluación'}
             </button>

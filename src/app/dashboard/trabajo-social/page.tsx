@@ -21,7 +21,7 @@ export default function TrabajoSocialPage() {
         <div className="bg-white p-8 rounded-lg shadow-md text-center">
           <p className="text-red-600 font-semibold mb-4">⚠️ Acceso denegado</p>
           <p className="text-gray-600 mb-4">Solo trabajadores sociales pueden acceder.</p>
-          <Link href="/dashboard" className="text-blue-600 hover:underline">
+          <Link href="/dashboard" className="text-crecimiento-600 hover:underline">
             ← Volver al inicio
           </Link>
         </div>
@@ -50,9 +50,9 @@ export default function TrabajoSocialPage() {
             className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-center mb-4">
-              <div className="bg-blue-100 rounded-full p-3">
+              <div className="bg-crecimiento-100 rounded-full p-3">
                 <svg
-                  className="w-6 h-6 text-blue-600"
+                  className="w-6 h-6 text-crecimiento-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -232,7 +232,7 @@ export default function TrabajoSocialPage() {
         <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-gray-600 text-sm">Entrevistas del Mes</p>
-            <p className="text-3xl font-bold text-blue-600">8</p>
+            <p className="text-3xl font-bold text-crecimiento-600">8</p>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-gray-600 text-sm">Familias Activas</p>
@@ -249,10 +249,10 @@ export default function TrabajoSocialPage() {
         </div>
 
         {/* Banner de funcionalidad offline */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="mt-6 bg-sol-50 border border-sol-200 rounded-lg p-4">
           <div className="flex items-start">
             <svg
-              className="w-5 h-5 text-blue-600 mt-0.5 mr-3"
+              className="w-5 h-5 text-crecimiento-600 mt-0.5 mr-3"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -265,10 +265,10 @@ export default function TrabajoSocialPage() {
               />
             </svg>
             <div>
-              <p className="text-sm font-medium text-blue-900">
+              <p className="text-sm font-medium text-sol-900">
                 Funcionalidad Offline Activa
               </p>
-              <p className="text-sm text-blue-700 mt-1">
+              <p className="text-sm text-sol-700 mt-1">
                 Podés registrar entrevistas sin conexión. Los datos se
                 sincronizarán automáticamente cuando tengas internet.
               </p>

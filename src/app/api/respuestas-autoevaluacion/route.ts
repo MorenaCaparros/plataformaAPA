@@ -4,6 +4,7 @@ import { createAuthenticatedClient } from '@/lib/supabase/api-auth';
 /**
  * GET /api/respuestas-autoevaluacion
  * Lista respuestas de autoevaluación
+ * (Migrated from respuestas_autoevaluacion → voluntarios_capacitaciones + respuestas_capacitaciones)
  * - Voluntarios ven solo las suyas
  * - Psico/Coordinador/Director ven todas las que necesitan revisión
  */
@@ -11,12 +12,10 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createAuthenticatedClient(request);
 
-    // Verificar autenticación (con Bearer token, el userId está en _authUserId)
     let userId = (supabase as any)._authUserId;
     let user = null;
     
     if (!userId) {
-      // Si no hay _authUserId, intentar con getUser() (cookies)
       const { data: { user: cookieUser }, error: authError } = await supabase.auth.getUser();
       if (authError || !cookieUser) {
         return NextResponse.json(
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
       userId = user.id;
     }
 
-    // Obtener perfil del usuario usando userId
+    // Obtener perfil del usuario
     const { data: perfil, error: perfilError } = await supabase
       .from('perfiles')
       .select('id, rol')
@@ -46,20 +45,27 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get('estado');
 
     let query = supabase
-      .from('respuestas_autoevaluacion')
+      .from('voluntarios_capacitaciones')
       .select(`
         *,
-        plantilla:plantillas_autoevaluacion(titulo, area)
+        capacitacion:capacitaciones(id, nombre, descripcion, area, tipo)
       `)
-      .order('fecha_completada', { ascending: false });
+      .order('fecha_completado', { ascending: false });
+
+    // Only fetch autoevaluacion type
+    // We'll filter after join since we can't easily filter on the related table in supabase-js
 
     if (perfil.rol === 'voluntario') {
-      // Voluntarios solo ven sus propias respuestas
       query = query.eq('voluntario_id', perfil.id);
     } else if (['psicopedagogia', 'coordinador', 'director'].includes(perfil.rol)) {
-      // Estos roles pueden filtrar por estado
       if (estado) {
-        query = query.eq('estado', estado);
+        // Map old estados to new ones
+        const estadoMap: Record<string, string> = {
+          'en_revision': 'completada',
+          'completada': 'aprobada',
+          'evaluada': 'aprobada',
+        };
+        query = query.eq('estado', estadoMap[estado] || estado);
       }
     } else {
       return NextResponse.json(
@@ -68,7 +74,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data: respuestas, error } = await query;
+    const { data: registros, error } = await query;
 
     if (error) {
       console.error('Error al obtener respuestas:', error);
@@ -77,6 +83,24 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Filter only autoevaluacion type and map to old shape
+    const respuestas = (registros || [])
+      .filter((r: any) => r.capacitacion?.tipo === 'autoevaluacion')
+      .map((r: any) => ({
+        id: r.id,
+        plantilla_id: r.capacitacion_id,
+        voluntario_id: r.voluntario_id,
+        puntaje_automatico: r.puntaje_final,
+        puntaje_total: r.puntaje_final,
+        puntaje_manual: null,
+        estado: mapEstadoToOld(r.estado),
+        fecha_completada: r.fecha_completado || r.created_at,
+        plantilla: r.capacitacion ? {
+          titulo: r.capacitacion.nombre,
+          area: r.capacitacion.area,
+        } : null,
+      }));
 
     return NextResponse.json(respuestas, { status: 200 });
   } catch (error) {
@@ -88,16 +112,27 @@ export async function GET(request: NextRequest) {
   }
 }
 
+function mapEstadoToOld(estado: string): string {
+  const mapping: Record<string, string> = {
+    'pendiente': 'completada',
+    'en_progreso': 'completada',
+    'completada': 'en_revision',
+    'aprobada': 'evaluada',
+    'reprobada': 'evaluada',
+  };
+  return mapping[estado] || estado;
+}
+
 /**
  * POST /api/respuestas-autoevaluacion
  * Crea una respuesta de autoevaluación (voluntario completa la evaluación)
+ * (Migrated to voluntarios_capacitaciones + respuestas_capacitaciones)
  * Acceso: voluntario
  */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createAuthenticatedClient(request);
 
-    // Verificar autenticación
     let userId = (supabase as any)._authUserId;
     let user = null;
     
@@ -113,7 +148,7 @@ export async function POST(request: NextRequest) {
       userId = user.id;
     }
 
-    // Verificar que sea voluntario (usar userId que ya tenemos)
+    // Verificar que sea voluntario
     const { data: perfil, error: perfilError } = await supabase
       .from('perfiles')
       .select('id, rol')
@@ -134,7 +169,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Obtener datos del body
     const body = await request.json();
     const { plantilla_id, respuestas } = body;
 
@@ -153,134 +187,102 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Obtener la plantilla
-    const { data: plantilla, error: plantillaError } = await supabase
-      .from('plantillas_autoevaluacion')
-      .select('*')
+    // Get capacitacion + preguntas
+    const { data: capacitacion, error: capError } = await supabase
+      .from('capacitaciones')
+      .select(`
+        *,
+        preguntas:preguntas_capacitacion(id, pregunta, tipo_pregunta, respuesta_correcta, puntaje)
+      `)
       .eq('id', plantilla_id)
-      .eq('activo', true)
+      .eq('activa', true)
       .single();
 
-    if (plantillaError || !plantilla) {
+    if (capError || !capacitacion) {
       return NextResponse.json(
         { error: 'Plantilla no encontrada o no está activa' },
         { status: 404 }
       );
     }
 
-    // Validar que todas las preguntas estén respondidas
-    const preguntasIds = plantilla.preguntas.map((p: any) => p.id);
-    const respuestasIds = respuestas.map((r: any) => r.pregunta_id);
-
-    if (preguntasIds.length !== respuestasIds.length) {
-      return NextResponse.json(
-        { error: 'Debe responder todas las preguntas' },
-        { status: 400 }
-      );
-    }
-
-    for (const preguntaId of preguntasIds) {
-      if (!respuestasIds.includes(preguntaId)) {
-        return NextResponse.json(
-          { error: `Falta responder la pregunta ${preguntaId}` },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Calcular puntaje automático
-    let puntajeAutomatico = 0;
-    let requiereRevision = false;
-
-    for (const respuesta of respuestas) {
-      const pregunta = plantilla.preguntas.find((p: any) => p.id === respuesta.pregunta_id);
-      
-      if (!pregunta) continue;
-
-      if (pregunta.tipo === 'multiple_choice') {
-        // Obtener puntaje de la opción seleccionada
-        const indiceOpcion = pregunta.opciones.indexOf(respuesta.respuesta);
-        if (indiceOpcion !== -1) {
-          puntajeAutomatico += pregunta.puntaje_por_opcion[indiceOpcion] || 0;
-        }
-      } else if (pregunta.tipo === 'escala') {
-        // El puntaje es el valor seleccionado en la escala
-        puntajeAutomatico += parseFloat(respuesta.respuesta) || 0;
-      } else if (pregunta.tipo === 'texto_abierto') {
-        // Validar longitud mínima
-        if (respuesta.respuesta.length < pregunta.min_caracteres) {
-          return NextResponse.json(
-            { error: `La respuesta a "${pregunta.pregunta}" debe tener al menos ${pregunta.min_caracteres} caracteres` },
-            { status: 400 }
-          );
-        }
-        requiereRevision = true;
-      }
-    }
-
-    // Normalizar puntaje automático a escala 1-10
-    const cantidadPreguntasAutomaticas = plantilla.preguntas.filter(
-      (p: any) => p.tipo !== 'texto_abierto'
-    ).length;
-
-    let puntajeAutomaticoNormalizado = 0;
-    if (cantidadPreguntasAutomaticas > 0) {
-      const puntajeMaximoAutomatico = plantilla.preguntas
-        .filter((p: any) => p.tipo !== 'texto_abierto')
-        .reduce((sum: number, p: any) => {
-          if (p.tipo === 'multiple_choice') {
-            return sum + Math.max(...p.puntaje_por_opcion);
-          } else if (p.tipo === 'escala') {
-            return sum + (p.puntaje_maximo || p.escala_max);
-          }
-          return sum;
-        }, 0);
-
-      puntajeAutomaticoNormalizado = (puntajeAutomatico / puntajeMaximoAutomatico) * 10;
-    }
-
-    // Determinar estado inicial
-    const estadoInicial = requiereRevision ? 'en_revision' : 'completada';
-    const puntajeTotal = requiereRevision ? null : puntajeAutomaticoNormalizado;
-
-    // Insertar respuesta
-    const { data: nuevaRespuesta, error: insertError } = await supabase
-      .from('respuestas_autoevaluacion')
+    // 1. Create or get voluntarios_capacitaciones record
+    const { data: volCap, error: volCapError } = await supabase
+      .from('voluntarios_capacitaciones')
       .insert({
         voluntario_id: perfil.id,
-        plantilla_id,
-        respuestas,
-        puntaje_automatico: puntajeAutomaticoNormalizado,
-        puntaje_manual: null,
-        puntaje_total: puntajeTotal,
-        estado: estadoInicial,
-        fecha_completada: new Date().toISOString()
+        capacitacion_id: plantilla_id,
+        estado: 'completada',
+        fecha_inicio: new Date().toISOString(),
+        fecha_completado: new Date().toISOString(),
+        intentos: 1,
       })
       .select()
       .single();
 
-    if (insertError) {
-      console.error('Error al guardar respuesta:', insertError);
+    if (volCapError) {
+      console.error('Error al crear registro de capacitación:', volCapError);
       return NextResponse.json(
         { error: 'Error al guardar respuesta de autoevaluación' },
         { status: 500 }
       );
     }
 
-    // Si no requiere revisión, actualizar estrellas inmediatamente
-    // El trigger se encargará automáticamente cuando estado = 'evaluada'
-    if (!requiereRevision) {
-      const { error: updateError } = await supabase
-        .from('respuestas_autoevaluacion')
-        .update({ estado: 'evaluada', fecha_evaluacion: new Date().toISOString() })
-        .eq('id', nuevaRespuesta.id);
+    // 2. Insert individual responses
+    let puntajeTotal = 0;
+    let puntajeMaximo = 0;
 
-      if (updateError) {
-        console.error('Error al marcar como evaluada:', updateError);
-      }
+    for (const respuesta of respuestas) {
+      const pregunta = capacitacion.preguntas?.find((p: any) => p.id === respuesta.pregunta_id);
+      
+      if (!pregunta) continue;
+
+      const esCorrecta = checkRespuestaCorrecta(pregunta, respuesta.respuesta);
+      const puntajeObtenido = esCorrecta ? (pregunta.puntaje || 10) : 0;
+      
+      puntajeTotal += puntajeObtenido;
+      puntajeMaximo += (pregunta.puntaje || 10);
+
+      await supabase
+        .from('respuestas_capacitaciones')
+        .insert({
+          voluntario_capacitacion_id: volCap.id,
+          pregunta_id: pregunta.id,
+          respuesta: String(respuesta.respuesta),
+          es_correcta: esCorrecta,
+          puntaje_obtenido: puntajeObtenido,
+        });
     }
 
-    return NextResponse.json(nuevaRespuesta, { status: 201 });
+    // 3. Update puntaje in voluntarios_capacitaciones
+    const porcentaje = puntajeMaximo > 0 ? Math.round((puntajeTotal / puntajeMaximo) * 100) : 0;
+    const aprobada = porcentaje >= (capacitacion.puntaje_minimo_aprobacion || 70);
+
+    const { error: updateError } = await supabase
+      .from('voluntarios_capacitaciones')
+      .update({
+        puntaje_final: puntajeTotal,
+        puntaje_maximo: puntajeMaximo,
+        porcentaje,
+        estado: aprobada ? 'aprobada' : 'reprobada',
+      })
+      .eq('id', volCap.id);
+
+    if (updateError) {
+      console.error('Error al actualizar puntaje:', updateError);
+    }
+
+    // Map to old response shape
+    const respuestaFormateada = {
+      id: volCap.id,
+      plantilla_id,
+      voluntario_id: perfil.id,
+      puntaje_automatico: porcentaje / 10, // normalize to 0-10
+      puntaje_total: porcentaje / 10,
+      estado: aprobada ? 'evaluada' : 'completada',
+      fecha_completada: volCap.fecha_completado,
+    };
+
+    return NextResponse.json(respuestaFormateada, { status: 201 });
   } catch (error) {
     console.error('Error en POST /api/respuestas-autoevaluacion:', error);
     return NextResponse.json(
@@ -288,4 +290,20 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function checkRespuestaCorrecta(pregunta: any, respuesta: any): boolean {
+  if (pregunta.tipo_pregunta === 'verdadero_falso') {
+    return String(respuesta).toLowerCase() === String(pregunta.respuesta_correcta).toLowerCase();
+  }
+  if (pregunta.tipo_pregunta === 'multiple_choice') {
+    return String(respuesta) === String(pregunta.respuesta_correcta);
+  }
+  if (pregunta.tipo_pregunta === 'escala' || pregunta.tipo_pregunta === 'numero') {
+    // For scales, any answer above half the puntaje is "correct"
+    const val = parseFloat(respuesta);
+    return !isNaN(val) && val >= 3;
+  }
+  // texto_libre - needs manual review, mark as not auto-correct
+  return false;
 }

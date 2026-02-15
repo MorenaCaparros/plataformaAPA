@@ -80,7 +80,7 @@ export default function ImportarUsuariosPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-sol-50 to-crecimiento-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
@@ -88,11 +88,11 @@ export default function ImportarUsuariosPage() {
           </h1>
 
           {/* Instrucciones */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-2">
+          <div className="bg-sol-50 dark:bg-sol-900/20 rounded-lg p-4 mb-6">
+            <h2 className="text-lg font-semibold text-sol-900 dark:text-sol-300 mb-2">
               📋 Formato del CSV
             </h2>
-            <p className="text-sm text-blue-800 dark:text-blue-400 mb-3">
+            <p className="text-sm text-sol-700 dark:text-sol-400 mb-3">
               El archivo debe tener las siguientes columnas (sin espacios):
             </p>
             <code className="block bg-white dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto">
@@ -102,7 +102,7 @@ export default function ImportarUsuariosPage() {
               <br />
               coord1@apa.org,María,González,coordinador,La Herradura,987654321,Segura456
             </code>
-            <div className="mt-3 text-sm text-blue-800 dark:text-blue-400 space-y-1">
+            <div className="mt-3 text-sm text-sol-700 dark:text-sol-400 space-y-1">
               <p><strong>Roles válidos:</strong> voluntario, coordinador, psicopedagogia, director</p>
               <p><strong>Equipos válidos:</strong> Las Dalias, La Herradura, Parque Palermo, Villa de Paso</p>
               <p><strong>Password:</strong> Mínimo 8 caracteres. Si se deja vacío, se genera automáticamente.</p>
@@ -126,7 +126,7 @@ export default function ImportarUsuariosPage() {
           <button
             onClick={handleImportar}
             disabled={!archivo || procesando}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-crecimiento-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-crecimiento-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {procesando ? 'Procesando...' : 'Importar Usuarios'}
           </button>

@@ -81,10 +81,7 @@ export async function POST(request: Request) {
     await supabaseAdmin
       .from('perfiles')
       .update({
-        metadata: {
-          ...usuario.user_metadata,
-          password_temporal: false
-        }
+        password_temporal: false
       })
       .eq('id', usuario.id);
 
@@ -179,19 +176,10 @@ export async function PUT(request: Request) {
         if (updateError) throw updateError;
 
         // Actualizar perfil
-        const { data: perfilData } = await supabaseAdmin
-          .from('perfiles')
-          .select('metadata')
-          .eq('id', usuario.id)
-          .single();
-
         await supabaseAdmin
           .from('perfiles')
           .update({
-            metadata: {
-              ...(perfilData?.metadata || {}),
-              password_temporal: false
-            }
+            password_temporal: false
           })
           .eq('id', usuario.id);
 

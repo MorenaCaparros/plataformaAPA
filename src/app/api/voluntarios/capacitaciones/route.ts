@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const voluntarioId = searchParams.get('voluntario_id') || user.id;
-    const estado = searchParams.get('estado'); // pendiente, en_curso, completada
+    const estado = searchParams.get('estado'); // pendiente, en_progreso, completada, aprobada, reprobada
 
     // Verificar permisos (solo el voluntario o roles superiores)
     const { data: perfil } = await supabaseAdmin
@@ -56,17 +56,16 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         capacitacion:capacitaciones (
-          titulo,
+          nombre,
           descripcion,
           area,
           tipo,
-          puntaje_otorgado,
-          duracion_estimada,
-          contenido
+          puntaje_minimo_aprobacion,
+          duracion_estimada_minutos
         )
       `)
       .eq('voluntario_id', voluntarioId)
-      .order('fecha_asignacion', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (estado) {
       query = query.eq('estado', estado);
@@ -77,12 +76,13 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     // Agrupar por estado para estadísticas
+    const items = (data || []) as Array<{ estado: string; [key: string]: unknown }>;
     const estadisticas = {
-      pendientes: data?.filter(c => c.estado === 'pendiente').length || 0,
-      en_curso: data?.filter(c => c.estado === 'en_curso').length || 0,
-      completadas: data?.filter(c => c.estado === 'completada').length || 0,
-      no_aprobadas: data?.filter(c => c.estado === 'no_aprobada').length || 0,
-      total: data?.length || 0
+      pendientes: items.filter(c => c.estado === 'pendiente').length,
+      en_curso: items.filter(c => c.estado === 'en_progreso').length,
+      completadas: items.filter(c => ['completada', 'aprobada'].includes(c.estado)).length,
+      no_aprobadas: items.filter(c => c.estado === 'reprobada').length,
+      total: items.length
     };
 
     return NextResponse.json({
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { voluntario_id, capacitacion_id, notas } = body;
+    const { voluntario_id, capacitacion_id } = body;
 
     if (!voluntario_id || !capacitacion_id) {
       return NextResponse.json(
@@ -160,12 +160,11 @@ export async function POST(request: NextRequest) {
         voluntario_id,
         capacitacion_id,
         estado: 'pendiente',
-        notas,
-        evaluador_id: user.id
+        intentos: 0
       })
       .select(`
         *,
-        capacitacion:capacitaciones (titulo, area, tipo)
+        capacitacion:capacitaciones (nombre, area, tipo)
       `)
       .single();
 
@@ -213,9 +212,7 @@ export async function PATCH(request: NextRequest) {
     const {
       id, // ID de voluntarios_capacitaciones
       estado,
-      puntaje_obtenido,
-      respuestas,
-      notas
+      puntaje_final,
     } = body;
 
     if (!id || !estado) {
@@ -225,7 +222,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const estadosValidos = ['pendiente', 'en_curso', 'completada', 'no_aprobada'];
+    const estadosValidos = ['pendiente', 'en_progreso', 'completada', 'aprobada', 'reprobada'];
     if (!estadosValidos.includes(estado)) {
       return NextResponse.json(
         { error: `Estado inválido. Debe ser: ${estadosValidos.join(', ')}` },
@@ -236,7 +233,7 @@ export async function PATCH(request: NextRequest) {
     // Verificar que el usuario es el voluntario o tiene permisos
     const { data: asignacion } = await supabaseAdmin
       .from('voluntarios_capacitaciones')
-      .select('voluntario_id')
+      .select('voluntario_id, fecha_inicio')
       .eq('id', id)
       .single();
 
@@ -261,31 +258,17 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Preparar update
-    const updates: any = { estado };
+    const updates: Record<string, unknown> = { estado };
 
-    if (estado === 'en_curso' && !asignacion.fecha_inicio) {
+    if (estado === 'en_progreso' && !asignacion.fecha_inicio) {
       updates.fecha_inicio = new Date().toISOString();
     }
 
-    if (estado === 'completada') {
-      updates.fecha_completada = new Date().toISOString();
-      if (puntaje_obtenido !== undefined) {
-        if (puntaje_obtenido < 0 || puntaje_obtenido > 5) {
-          return NextResponse.json(
-            { error: 'Puntaje debe estar entre 0 y 5' },
-            { status: 400 }
-          );
-        }
-        updates.puntaje_obtenido = puntaje_obtenido;
+    if (['completada', 'aprobada', 'reprobada'].includes(estado)) {
+      updates.fecha_completado = new Date().toISOString();
+      if (puntaje_final !== undefined) {
+        updates.puntaje_final = puntaje_final;
       }
-    }
-
-    if (respuestas) {
-      updates.respuestas = respuestas;
-    }
-
-    if (notas) {
-      updates.notas = notas;
     }
 
     // Actualizar
@@ -295,7 +278,7 @@ export async function PATCH(request: NextRequest) {
       .eq('id', id)
       .select(`
         *,
-        capacitacion:capacitaciones (titulo, area, puntaje_otorgado)
+        capacitacion:capacitaciones (nombre, area, puntaje_minimo_aprobacion)
       `)
       .single();
 

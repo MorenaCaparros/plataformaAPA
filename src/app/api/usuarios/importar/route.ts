@@ -128,13 +128,10 @@ export async function POST(request: NextRequest) {
                 id: usuarioExistente.id,
                 rol: rolNormalizado as 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin',
                 zona_id,
-                metadata: {
-                  nombre: usuario.nombre,
-                  apellido: usuario.apellido || '',
-                  telefono: usuario.telefono || '',
-                  equipo: usuario.equipo || '',
-                  password_temporal: false
-                },
+                nombre: usuario.nombre,
+                apellido: usuario.apellido || '',
+                telefono: usuario.telefono || '',
+                password_temporal: false,
               });
             
             if (perfilError) throw perfilError;
@@ -146,8 +143,8 @@ export async function POST(request: NextRequest) {
         // Verificar perfiles huérfanos (perfil sin usuario en auth)
         const { data: perfilesHuerfanos } = await supabaseAdmin
           .from('perfiles')
-          .select('id, metadata')
-          .eq('metadata->>email', usuario.email);
+          .select('id, email')
+          .eq('email', usuario.email);
         
         if (perfilesHuerfanos && perfilesHuerfanos.length > 0) {
           // Eliminar perfiles huérfanos automáticamente
@@ -191,13 +188,10 @@ export async function POST(request: NextRequest) {
           .update({
             rol: rolNormalizado as 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin',
             zona_id,
-            metadata: {
-              nombre: usuario.nombre,
-              apellido: usuario.apellido || '',
-              telefono: usuario.telefono || '',
-              equipo: usuario.equipo || '',
-              password_temporal: passwordEsTemporal,
-            },
+            nombre: usuario.nombre,
+            apellido: usuario.apellido || '',
+            telefono: usuario.telefono || '',
+            password_temporal: passwordEsTemporal,
           })
           .eq('id', authData.user!.id);
 

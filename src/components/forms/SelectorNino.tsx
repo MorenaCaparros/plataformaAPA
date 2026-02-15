@@ -2,23 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import { formatearEdad } from '@/lib/utils/date-helpers';
 
 interface Nino {
   id: string;
-  nombre: string;
-  apellido?: string;
+  alias: string;
   rango_etario: string;
+  fecha_nacimiento: string | null;
   numero_legajo: string;
 }
 
 interface SelectorNinoProps {
   onSelect: (ninoId: string) => void;
-  mostrarApellido?: boolean;
 }
 
 export default function SelectorNino({
   onSelect,
-  mostrarApellido = false,
 }: SelectorNinoProps) {
   const [ninos, setNinos] = useState<Nino[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,8 +32,8 @@ export default function SelectorNino({
     try {
       const { data, error } = await supabase
         .from('ninos')
-        .select('id, nombre, apellido, rango_etario, numero_legajo')
-        .order('nombre', { ascending: true });
+        .select('id, alias, rango_etario, fecha_nacimiento, numero_legajo')
+        .order('alias', { ascending: true });
 
       if (error) throw error;
 
@@ -49,9 +48,8 @@ export default function SelectorNino({
   const filteredNinos = ninos.filter((nino) => {
     const search = searchTerm.toLowerCase();
     return (
-      nino.nombre.toLowerCase().includes(search) ||
-      nino.numero_legajo.toLowerCase().includes(search) ||
-      (mostrarApellido && nino.apellido?.toLowerCase().includes(search))
+      nino.alias.toLowerCase().includes(search) ||
+      nino.numero_legajo.toLowerCase().includes(search)
     );
   });
 
@@ -100,25 +98,22 @@ export default function SelectorNino({
               onClick={() => handleSelect(nino.id)}
               className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
                 selectedNino === nino.id
-                  ? 'border-blue-500 bg-blue-50'
+                  ? 'border-crecimiento-400 bg-crecimiento-50'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-900">
-                    {nino.nombre}{' '}
-                    {mostrarApellido && nino.apellido && (
-                      <span className="text-gray-600">{nino.apellido}</span>
-                    )}
+                    {nino.alias}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Legajo: {nino.numero_legajo} • {nino.rango_etario} años
+                    Legajo: {nino.numero_legajo} • {formatearEdad(nino.fecha_nacimiento, nino.rango_etario)}
                   </p>
                 </div>
                 {selectedNino === nino.id && (
                   <svg
-                    className="w-6 h-6 text-blue-600"
+                    className="w-6 h-6 text-crecimiento-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"

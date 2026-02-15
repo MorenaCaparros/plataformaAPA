@@ -61,7 +61,7 @@ export default function EditarUsuarioPage() {
       // Obtener perfil
       const { data: perfilData, error: perfilError } = await supabase
         .from('perfiles')
-        .select('rol, zona_id, metadata')
+        .select('rol, zona_id, nombre, apellido, telefono')
         .eq('id', usuarioId)
         .single();
 
@@ -81,11 +81,11 @@ export default function EditarUsuarioPage() {
 
       setFormData({
         email: usuario.email || '',
-        nombre: perfilData.metadata?.nombre || '',
-        apellido: perfilData.metadata?.apellido || '',
+        nombre: perfilData.nombre || '',
+        apellido: perfilData.apellido || '',
         rol: perfilData.rol,
-        equipo: perfilData.metadata?.equipo || '',
-        telefono: perfilData.metadata?.telefono || '',
+        equipo: '',
+        telefono: perfilData.telefono || '',
         zona_id: perfilData.zona_id,
       });
 
@@ -113,12 +113,9 @@ export default function EditarUsuarioPage() {
         .update({
           rol: formData.rol,
           zona_id: formData.zona_id,
-          metadata: {
-            nombre: formData.nombre,
-            apellido: formData.apellido,
-            telefono: formData.telefono,
-            equipo: formData.equipo,
-          },
+          nombre: formData.nombre,
+          apellido: formData.apellido,
+          telefono: formData.telefono,
         })
         .eq('id', usuarioId);
 
@@ -179,7 +176,7 @@ export default function EditarUsuarioPage() {
               value={formData.nombre}
               onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
 
@@ -192,7 +189,7 @@ export default function EditarUsuarioPage() {
               type="text"
               value={formData.apellido}
               onChange={(e) => setFormData({ ...formData, apellido: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
 
@@ -205,7 +202,7 @@ export default function EditarUsuarioPage() {
               value={formData.rol}
               onChange={(e) => setFormData({ ...formData, rol: e.target.value as any })}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="voluntario">Voluntario</option>
               <option value="coordinador">Coordinador</option>
@@ -231,7 +228,7 @@ export default function EditarUsuarioPage() {
                   equipo: zonaNombre
                 });
               }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="">Sin equipo</option>
               {zonas.map(zona => (
@@ -249,7 +246,7 @@ export default function EditarUsuarioPage() {
               type="tel"
               value={formData.telefono}
               onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             />
           </div>
 
@@ -258,7 +255,7 @@ export default function EditarUsuarioPage() {
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+              className="flex-1 bg-crecimiento-500 text-white px-6 py-3 rounded-lg hover:bg-crecimiento-600 disabled:opacity-50 font-medium"
             >
               {saving ? 'Guardando...' : 'Guardar Cambios'}
             </button>

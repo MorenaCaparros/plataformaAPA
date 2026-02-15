@@ -15,6 +15,7 @@ const supabaseAdmin = createClient(
 );
 
 // GET - Ver estrellas y habilidades del voluntario
+// (Migrated from voluntarios_habilidades → scores_voluntarios_por_area)
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization');
@@ -49,23 +50,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Obtener habilidades
-    const { data: habilidades, error } = await supabaseAdmin
-      .from('voluntarios_habilidades')
+    // Obtener scores por área (replaces voluntarios_habilidades)
+    const { data: scores, error } = await supabaseAdmin
+      .from('scores_voluntarios_por_area')
       .select('*')
       .eq('voluntario_id', voluntarioId)
       .order('area');
 
     if (error) throw error;
 
-    // Si no tiene habilidades, inicializar con 0 en todas las áreas
-    if (!habilidades || habilidades.length === 0) {
-      const areasBase = ['lenguaje', 'grafismo', 'lectura_escritura', 'matematicas'];
+    // Si no tiene scores, inicializar con 0 en todas las áreas
+    if (!scores || scores.length === 0) {
+      const areasBase = ['lenguaje_vocabulario', 'grafismo_motricidad', 'lectura_escritura', 'nociones_matematicas'];
       const habilidadesIniciales = areasBase.map(area => ({
         area,
         estrellas: 0,
         capacitaciones_completadas: 0,
-        sesiones_realizadas: 0
+        sesiones_realizadas: 0,
+        score_autoevaluacion: 0,
+        score_capacitaciones: 0,
+        score_final: 0,
       }));
 
       return NextResponse.json({
@@ -76,16 +80,26 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Map scores to habilidades shape for frontend compatibility
+    const habilidades = scores.map((s: any) => ({
+      area: s.area,
+      estrellas: Math.round((s.score_final || 0) / 20), // 0-100 → 0-5 stars
+      score_autoevaluacion: s.score_autoevaluacion,
+      score_capacitaciones: s.score_capacitaciones,
+      score_final: s.score_final,
+      necesita_capacitacion: s.necesita_capacitacion,
+      capacitaciones_completadas: 0,
+      sesiones_realizadas: 0,
+    }));
+
     // Calcular estadísticas
-    const promedio = habilidades.reduce((sum, h) => sum + Number(h.estrellas), 0) / habilidades.length;
-    const totalCapacitaciones = habilidades.reduce((sum, h) => sum + h.capacitaciones_completadas, 0);
-    const totalSesiones = habilidades.reduce((sum, h) => sum + h.sesiones_realizadas, 0);
+    const promedio = habilidades.reduce((sum: number, h: any) => sum + Number(h.estrellas), 0) / habilidades.length;
 
     return NextResponse.json({
       habilidades,
       promedio: Math.round(promedio * 10) / 10,
-      total_capacitaciones: totalCapacitaciones,
-      total_sesiones: totalSesiones
+      total_capacitaciones: 0,
+      total_sesiones: 0
     });
 
   } catch (error: any) {
@@ -98,6 +112,7 @@ export async function GET(request: NextRequest) {
 }
 
 // PATCH - Actualizar habilidades manualmente (solo coordinador/psico)
+// (Migrated from voluntarios_habilidades → scores_voluntarios_por_area)
 export async function PATCH(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization');
@@ -144,23 +159,18 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const areasValidas = ['lenguaje', 'grafismo', 'lectura_escritura', 'matematicas'];
-    if (!areasValidas.includes(area)) {
-      return NextResponse.json(
-        { error: `Área inválida. Debe ser: ${areasValidas.join(', ')}` },
-        { status: 400 }
-      );
-    }
+    // Convert stars (0-5) to score (0-100)
+    const scoreValue = Math.round(estrellas * 20);
 
-    // Upsert habilidad
+    // Upsert score
     const { data, error } = await supabaseAdmin
-      .from('voluntarios_habilidades')
+      .from('scores_voluntarios_por_area')
       .upsert({
         voluntario_id,
         area,
-        estrellas,
-        notas,
-        ultima_actualizacion: new Date().toISOString()
+        score_autoevaluacion: scoreValue,
+        necesita_capacitacion: estrellas < 3,
+        fecha_ultima_evaluacion: new Date().toISOString(),
       }, {
         onConflict: 'voluntario_id,area'
       })
@@ -171,7 +181,10 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       mensaje: 'Habilidad actualizada exitosamente',
-      habilidad: data
+      habilidad: {
+        ...data,
+        estrellas,
+      }
     });
 
   } catch (error: any) {

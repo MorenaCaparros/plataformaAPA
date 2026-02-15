@@ -125,7 +125,7 @@ export default function SubirDocumentoPage() {
       <nav className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
-            <Link href="/dashboard/biblioteca" className="text-blue-600 font-medium">
+            <Link href="/dashboard/biblioteca" className="text-crecimiento-600 font-medium">
               ← Volver
             </Link>
             <h1 className="text-lg font-bold text-gray-900">Subir Documento</h1>
@@ -146,7 +146,7 @@ export default function SubirDocumentoPage() {
                 type="text"
                 value={formData.titulo}
                 onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                 placeholder="Si no completás, se usa el nombre del archivo"
               />
             </div>
@@ -160,7 +160,7 @@ export default function SubirDocumentoPage() {
                 type="text"
                 value={formData.autor}
                 onChange={(e) => setFormData({ ...formData, autor: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                 placeholder="Si no lo completás, quedará como 'Autor no especificado'"
               />
             </div>
@@ -173,7 +173,7 @@ export default function SubirDocumentoPage() {
               <select
                 value={formData.tipo}
                 onChange={(e) => setFormData({ ...formData, tipo: e.target.value as any })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
               >
                 <option value="guia">Guía práctica</option>
                 <option value="paper">Paper / Investigación</option>
@@ -190,7 +190,7 @@ export default function SubirDocumentoPage() {
                 value={formData.descripcion}
                 onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                 placeholder="Breve resumen del contenido..."
               />
             </div>
@@ -204,7 +204,7 @@ export default function SubirDocumentoPage() {
                 type="file"
                 accept=".pdf,.docx,.doc,.txt"
                 onChange={handleFileChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                 required
               />
               {file && (
@@ -219,21 +219,21 @@ export default function SubirDocumentoPage() {
 
             {/* Progress Bar */}
             {uploading && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <div className="bg-sol-50 border border-sol-200 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-blue-800 text-sm font-medium flex items-center gap-2">
+                  <p className="text-sol-800 text-sm font-medium flex items-center gap-2">
                     <span className="animate-spin">⏳</span>
                     {progress}
                   </p>
-                  <span className="text-blue-700 font-bold text-sm">
+                  <span className="text-sol-700 font-bold text-sm">
                     {progressPercent}%
                   </span>
                 </div>
                 
                 {/* Barra de progreso */}
-                <div className="w-full bg-blue-100 rounded-full h-3 overflow-hidden">
+                <div className="w-full bg-sol-100 rounded-full h-3 overflow-hidden">
                   <div 
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+                    className="bg-gradient-to-r from-crecimiento-500 to-crecimiento-600 h-3 rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${progressPercent}%` }}
                   >
                     <div className="w-full h-full bg-white/30 animate-pulse"></div>
@@ -261,7 +261,7 @@ export default function SubirDocumentoPage() {
               <button
                 type="submit"
                 disabled={uploading || !file}
-                className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               >
                 {uploading ? 'Procesando...' : '✓ Subir y Procesar'}
               </button>
@@ -270,9 +270,9 @@ export default function SubirDocumentoPage() {
         </div>
 
         {/* Info */}
-        <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h3 className="font-medium text-yellow-900 mb-2">ℹ️ Importante</h3>
-          <ul className="text-sm text-yellow-800 space-y-1">
+        <div className="mt-6 bg-sol-50 border border-sol-200 rounded-lg p-4">
+          <h3 className="font-medium text-sol-900 mb-2">ℹ️ Importante</h3>
+          <ul className="text-sm text-sol-800 space-y-1">
             <li>• El procesamiento puede tardar unos minutos según el tamaño del documento</li>
             <li>• El texto será indexado con IA para búsquedas semánticas</li>
             <li>• Archivos soportados: PDF, DOCX, TXT (máximo 10MB)</li>

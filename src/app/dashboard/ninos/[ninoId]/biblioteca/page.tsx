@@ -103,7 +103,7 @@ export default function BibliotecaNinoPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto"></div>
           <p className="mt-4 text-gray-600">Cargando...</p>
         </div>
       </div>
@@ -116,12 +116,12 @@ export default function BibliotecaNinoPage() {
       <nav className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
-            <Link href={`/dashboard/ninos/${ninoId}`} className="text-indigo-600 font-medium min-h-[44px] flex items-center">
+            <Link href={`/dashboard/ninos/${ninoId}`} className="text-crecimiento-600 font-medium min-h-[44px] flex items-center">
               ← Volver
             </Link>
             <div className="text-center">
               <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2 justify-center">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-crecimiento-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                 </svg>
                 Biblioteca Personal
@@ -144,7 +144,7 @@ export default function BibliotecaNinoPage() {
               onClick={() => setFiltroTipo('todos')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                 filtroTipo === 'todos'
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-crecimiento-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -159,7 +159,7 @@ export default function BibliotecaNinoPage() {
                   onClick={() => setFiltroTipo(tipo as TipoArtefacto)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                     filtroTipo === tipo
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-crecimiento-500 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -182,7 +182,7 @@ export default function BibliotecaNinoPage() {
             </p>
             <Link
               href={`/dashboard/ninos/${ninoId}/analisis`}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 transition font-medium"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -198,7 +198,7 @@ export default function BibliotecaNinoPage() {
                 <div
                   key={artefacto.id}
                   onClick={() => setArtefactoSeleccionado(artefacto)}
-                  className="bg-white rounded-lg shadow-sm border-2 border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer p-4"
+                  className="bg-white rounded-lg shadow-sm border-2 border-gray-200 hover:border-crecimiento-400 hover:shadow-md transition-all cursor-pointer p-4"
                 >
                   <div className="flex items-start gap-3 mb-3">
                     <svg className={`w-6 h-6 text-${tipoInfo.color}-600 flex-shrink-0`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,17 +238,17 @@ export default function BibliotecaNinoPage() {
       {artefactoSeleccionado && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setArtefactoSeleccionado(null)}>
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-indigo-600 text-white p-4 flex justify-between items-start">
+            <div className="bg-crecimiento-600 text-white p-4 flex justify-between items-start">
               <div className="flex-1">
                 <h2 className="text-lg font-bold mb-1">{artefactoSeleccionado.titulo}</h2>
-                <p className="text-sm text-indigo-100">
+                <p className="text-sm text-crecimiento-100">
                   {TIPOS_ARTEFACTOS[artefactoSeleccionado.tipo].nombre} • {' '}
                   {new Date(artefactoSeleccionado.created_at).toLocaleDateString('es-AR')}
                 </p>
               </div>
               <button
                 onClick={() => setArtefactoSeleccionado(null)}
-                className="text-white hover:bg-indigo-700 rounded-lg p-2 transition"
+                className="text-white hover:bg-crecimiento-700 rounded-lg p-2 transition"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
