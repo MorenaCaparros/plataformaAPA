@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
+import { QueryProvider } from "@/lib/contexts/QueryProvider";
 import OnlineStatusIndicator from "@/components/OnlineStatusIndicator";
 import PWAInitializer from "@/components/PWAInitializer";
 
@@ -39,12 +40,14 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className={inter.className}>
-        <AuthProvider>
-          <PWAInitializer />
-          {/* Temporalmente deshabilitado hasta implementar sincronización completa */}
-          {/* <OnlineStatusIndicator /> */}
-          {children}
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <PWAInitializer />
+            {/* Temporalmente deshabilitado hasta implementar sincronización completa */}
+            {/* <OnlineStatusIndicator /> */}
+            {children}
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

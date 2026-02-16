@@ -34,11 +34,11 @@ function MisNinosPageContent() {
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
 
   // Determinar si el usuario tiene acceso completo (ve datos sensibles)
-  const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajadora_social'];
+  const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social'];
   const tieneAccesoCompleto = perfil?.rol && rolesConAccesoCompleto.includes(perfil.rol);
 
   // Roles con acceso a todos los niños
-  const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director', 'admin', 'trabajadora_social'];
+  const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director', 'admin', 'trabajador_social'];
   const tieneAccesoTotal = perfil?.rol && rolesConAccesoTotal.includes(perfil.rol);
 
   useEffect(() => {

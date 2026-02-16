@@ -3,45 +3,33 @@
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { Users, FileText, UserCheck, Building2, BookOpen, Settings, Baby, BarChart3 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const { user, perfil } = useAuth();
   const router = useRouter();
-  const [metricas, setMetricas] = useState({
+
+  const { data: metricas = {
     totalNinos: 0,
     totalSesiones: 0,
     totalVoluntarios: 0,
     totalEquipos: 0,
     sesionesEsteMes: 0,
     ninosSinSesiones: 0,
-  });
-
-  useEffect(() => {
-    if (user) {
-      cargarMetricas();
-    }
-  }, [user]);
-
-  const cargarMetricas = async () => {
-    try {
-      console.log('🔍 Cargando métricas del dashboard...');
-      
+  }} = useQuery({
+    queryKey: ['admin-metricas'],
+    queryFn: async () => {
       // Total niños
-      const { count: countNinos, error: errorNinos } = await supabase
+      const { count: countNinos } = await supabase
         .from('ninos')
         .select('*', { count: 'exact', head: true });
-      
-      console.log('Total niños:', countNinos, errorNinos ? `Error: ${errorNinos.message}` : '✅');
 
       // Total sesiones
-      const { count: countSesiones, error: errorSesiones } = await supabase
+      const { count: countSesiones } = await supabase
         .from('sesiones')
         .select('*', { count: 'exact', head: true });
-      
-      console.log('Total sesiones:', countSesiones, errorSesiones ? `Error: ${errorSesiones.message}` : '✅');
 
       // Sesiones este mes
       const inicioMes = new Date();
@@ -53,7 +41,7 @@ export default function AdminDashboard() {
         .select('*', { count: 'exact', head: true })
         .gte('fecha', inicioMes.toISOString());
 
-      // Total usuarios (todos los perfiles)
+      // Total usuarios
       const { count: countVoluntarios } = await supabase
         .from('perfiles')
         .select('*', { count: 'exact', head: true });
@@ -63,37 +51,28 @@ export default function AdminDashboard() {
         .from('zonas')
         .select('*', { count: 'exact', head: true });
 
-      // Niños sin sesiones
-      const { data: todosNinos } = await supabase
-        .from('ninos')
-        .select('id');
+      // Niños sin sesiones — UNA SOLA QUERY en vez del loop N+1
+      const { data: ninosConSesiones } = await supabase
+        .from('sesiones')
+        .select('nino_id');
 
-      let ninosSinSesiones = 0;
-      if (todosNinos) {
-        for (const nino of todosNinos) {
-          const { count } = await supabase
-            .from('sesiones')
-            .select('*', { count: 'exact', head: true })
-            .eq('nino_id', nino.id);
-          if (count === 0) ninosSinSesiones++;
-        }
-      }
+      const ninosConSesionesSet = new Set(
+        (ninosConSesiones || []).map((s: any) => s.nino_id)
+      );
+      const ninosSinSesiones = (countNinos || 0) - ninosConSesionesSet.size;
 
-      const metricas = {
+      return {
         totalNinos: countNinos || 0,
         totalSesiones: countSesiones || 0,
         totalVoluntarios: countVoluntarios || 0,
         totalEquipos: countEquipos || 0,
         sesionesEsteMes: countSesionesMes || 0,
-        ninosSinSesiones,
+        ninosSinSesiones: Math.max(0, ninosSinSesiones),
       };
-      
-      console.log('📊 Métricas finales:', metricas);
-      setMetricas(metricas);
-    } catch (error) {
-      console.error('❌ Error cargando métricas:', error);
-    }
-  };
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2, // 2 minutos frescos
+  });
 
   return (
     <div>

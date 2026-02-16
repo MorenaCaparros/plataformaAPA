@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, FileText, Calendar, Clock, Download } from 'lucide-react';
 import { calcularPromedioItems, VALOR_NO_COMPLETADO } from '@/lib/constants/items-observacion';
 
@@ -37,58 +38,40 @@ const normalizarTexto = (texto: string) => {
 export default function HistorialPage() {
   const router = useRouter();
   const { user, perfil } = useAuth();
-  const [sesiones, setSesiones] = useState<Sesion[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filtroNino, setFiltroNino] = useState<string>('todos');
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
-  const [ninos, setNinos] = useState<Array<{ id: string; alias: string }>>([]);
 
-  useEffect(() => {
-    if (user && perfil) {
-      fetchNinos();
-      fetchSesiones();
-    }
-  }, [user, perfil]);
-
-  const fetchNinos = async () => {
-    try {
+  // Query de niños para el filtro
+  const { data: ninos = [] } = useQuery<Array<{ id: string; alias: string }>>({
+    queryKey: ['sesiones-ninos-filtro', user?.id, perfil?.rol],
+    queryFn: async () => {
       if (perfil?.rol === 'voluntario') {
-        // Voluntario: solo sus niños asignados (vía tabla asignaciones)
         const { data } = await supabase
           .from('asignaciones')
-          .select(`
-            nino_id,
-            ninos (
-              id,
-              alias
-            )
-          `)
+          .select('nino_id, ninos (id, alias)')
           .eq('voluntario_id', user?.id)
           .eq('activa', true);
 
-        const ninosData = data?.map((item: any) => ({
+        return data?.map((item: any) => ({
           id: item.ninos.id,
           alias: item.ninos.alias
         })) || [];
-        
-        setNinos(ninosData);
       } else {
-        // Director, psico, coordinador: todos los niños
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('ninos')
           .select('id, alias')
           .order('alias', { ascending: true });
-
-        if (error) throw error;
-        setNinos(data || []);
+        return data || [];
       }
-    } catch (error) {
-      console.error('Error:', error);
-    }
-  };
+    },
+    enabled: !!user && !!perfil,
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const fetchSesiones = async () => {
-    try {
+  // Query principal de sesiones — SIN la relación problemática de perfiles
+  const { data: sesiones = [], isLoading: loading } = useQuery<Sesion[]>({
+    queryKey: ['sesiones-historial', user?.id, perfil?.rol],
+    queryFn: async () => {
       let query = supabase
         .from('sesiones')
         .select(`
@@ -98,11 +81,6 @@ export default function HistorialPage() {
           observaciones_libres,
           items,
           voluntario_id,
-          perfiles!sesiones_voluntario_id_fkey (
-            id,
-            nombre,
-            apellido
-          ),
           ninos (
             id,
             alias,
@@ -123,14 +101,15 @@ export default function HistorialPage() {
 
       const { data, error } = await query;
 
-      if (error) throw error;
-      setSesiones(data || []);
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (error) {
+        console.error('Error cargando sesiones:', error);
+        throw error;
+      }
+      return (data || []) as unknown as Sesion[];
+    },
+    enabled: !!user && !!perfil,
+    staleTime: 1000 * 60 * 2,
+  });
 
   // Filtrar sesiones
   const sesionesFiltradas = sesiones.filter(sesion => {

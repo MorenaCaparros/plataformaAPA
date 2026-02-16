@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { 
   ClipboardList, 
@@ -28,20 +28,15 @@ interface Metrics {
 
 export default function EquipoProfesionalDashboard({ title }: { title: string }) {
   const { perfil } = useAuth();
-  const [metrics, setMetrics] = useState<Metrics>({
+
+  const { data: metrics = {
     totalNinos: 0,
     evaluacionesPendientes: 0,
     planesActivos: 0,
     sesionesEsteMes: 0
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchMetrics();
-  }, []);
-
-  const fetchMetrics = async () => {
-    try {
+  }, isLoading: loading } = useQuery<Metrics>({
+    queryKey: ['profesional-metricas'],
+    queryFn: async () => {
       // Total de niños
       const { count: ninosCount } = await supabase
         .from('ninos')
@@ -56,8 +51,7 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
             fecha,
             tipo
           )
-        `)
-        .order('entrevistas.fecha', { ascending: false });
+        `);
 
       let evaluacionesPendientes = 0;
       const hoy = new Date();
@@ -68,16 +62,15 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         if (evaluaciones.length === 0) {
           evaluacionesPendientes++;
         } else {
-          const ultimaEvaluacion = new Date(evaluaciones[0].fecha);
+          // Ordenar por fecha desc en cliente
+          const sorted = [...evaluaciones].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+          const ultimaEvaluacion = new Date(sorted[0].fecha);
           const diasDesdeUltima = Math.floor((hoy.getTime() - ultimaEvaluacion.getTime()) / (1000 * 60 * 60 * 24));
           if (diasDesdeUltima > 180) {
             evaluacionesPendientes++;
           }
         }
       });
-
-      // Planes activos (planes_intervencion no longer exists in new schema)
-      const planesCount = 0;
 
       // Sesiones este mes
       const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
@@ -86,18 +79,15 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
         .select('*', { count: 'exact', head: true })
         .gte('fecha', inicioMes.toISOString());
 
-      setMetrics({
+      return {
         totalNinos: ninosCount || 0,
         evaluacionesPendientes,
-        planesActivos: planesCount || 0,
+        planesActivos: 0,
         sesionesEsteMes: sesionesCount || 0
-      });
-    } catch (error) {
-      console.error('Error cargando métricas:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      };
+    },
+    staleTime: 1000 * 60 * 2,
+  });
 
   return (
     <div className="space-y-6">

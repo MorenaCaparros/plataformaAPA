@@ -96,7 +96,7 @@ export default function NinoPerfilPage() {
   const [editTerapia, setEditTerapia] = useState<string[]>([]);
 
   const isVoluntario = perfil?.rol === 'voluntario';
-  const tieneAccesoCompleto = perfil?.rol && ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajadora_social'].includes(perfil.rol);
+  const tieneAccesoCompleto = perfil?.rol && ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social'].includes(perfil.rol);
 
   useEffect(() => {
     if (user) fetchDatos();

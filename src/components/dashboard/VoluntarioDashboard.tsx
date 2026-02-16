@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { formatearEdad } from '@/lib/utils/date-helpers';
 
 interface NinoAsignado {
@@ -13,7 +13,7 @@ interface NinoAsignado {
   nivel_alfabetizacion: string;
   total_sesiones: number;
   ultima_sesion: string | null;
-  mis_sesiones: number; // Sesiones que este voluntario ha hecho
+  mis_sesiones: number;
 }
 
 interface UltimaSesion {
@@ -36,110 +36,95 @@ interface VoluntarioDashboardProps {
 
 export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps) {
   const router = useRouter();
-  const [ninos, setNinos] = useState<NinoAsignado[]>([]);
-  const [estadisticas, setEstadisticas] = useState<EstadisticasVoluntario>({
-    total_ninos: 0,
-    sesiones_este_mes: 0,
-    horas_este_mes: 0,
-    ultima_sesion: null
-  });
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDatos();
-  }, [userId]);
-
-  const fetchDatos = async () => {
-    try {
-      setLoading(true);
-
-      // Obtener niños asignados a este voluntario (que tienen al menos una sesión con él)
-      const { data: sesionesData, error: sesionesError } = await supabase
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['voluntario-dashboard', userId],
+    queryFn: async () => {
+      // 1. Traer TODAS las sesiones del voluntario con datos del niño en UNA query
+      const { data: misSesiones, error: sesionesError } = await supabase
         .from('sesiones')
-        .select('nino_id, ninos!inner(id, alias, rango_etario, fecha_nacimiento, nivel_alfabetizacion)')
-        .eq('voluntario_id', userId);
+        .select('id, nino_id, fecha, duracion_minutos, ninos!inner(id, alias, rango_etario, fecha_nacimiento, nivel_alfabetizacion)')
+        .eq('voluntario_id', userId)
+        .order('fecha', { ascending: false });
 
       if (sesionesError) throw sesionesError;
 
-      // Agrupar por niño y contar sesiones
+      // 2. Agrupar por niño
       const ninosMap = new Map<string, any>();
-      sesionesData?.forEach((sesion: any) => {
+      (misSesiones || []).forEach((sesion: any) => {
         const nino = sesion.ninos;
         if (!ninosMap.has(nino.id)) {
           ninosMap.set(nino.id, {
             ...nino,
-            mis_sesiones: 0
+            mis_sesiones: 0,
+            ultima_sesion: sesion.fecha, // ya están ordenadas DESC
           });
         }
         ninosMap.get(nino.id).mis_sesiones++;
       });
 
-      // Obtener total de sesiones y última sesión por niño
-      const ninosArray = Array.from(ninosMap.values());
-      const ninosConDetalles = await Promise.all(
-        ninosArray.map(async (nino) => {
-          // Total de sesiones del niño
-          const { count: totalSesiones } = await supabase
-            .from('sesiones')
-            .select('*', { count: 'exact', head: true })
-            .eq('nino_id', nino.id);
+      // 3. Para total de sesiones por niño (incluye las de otros voluntarios), 
+      //    traer en UNA sola query todos los nino_ids que nos importan
+      const ninoIds = Array.from(ninosMap.keys());
+      let totalSesionesPorNino: Record<string, number> = {};
+      
+      if (ninoIds.length > 0) {
+        const { data: todasSesiones } = await supabase
+          .from('sesiones')
+          .select('nino_id')
+          .in('nino_id', ninoIds);
 
-          // Última sesión del niño
-          const { data: ultimaSesion } = await supabase
-            .from('sesiones')
-            .select('fecha')
-            .eq('nino_id', nino.id)
-            .order('fecha', { ascending: false })
-            .limit(1)
-            .single();
+        // Contar por niño
+        (todasSesiones || []).forEach((s: any) => {
+          totalSesionesPorNino[s.nino_id] = (totalSesionesPorNino[s.nino_id] || 0) + 1;
+        });
+      }
 
-          return {
-            ...nino,
-            total_sesiones: totalSesiones || 0,
-            ultima_sesion: ultimaSesion?.fecha || null
-          };
-        })
-      );
+      const ninosArray: NinoAsignado[] = Array.from(ninosMap.values()).map((nino) => ({
+        ...nino,
+        total_sesiones: totalSesionesPorNino[nino.id] || nino.mis_sesiones,
+      }));
 
-      setNinos(ninosConDetalles);
-
-      // Calcular estadísticas del mes actual
+      // 4. Estadísticas del mes — filtrar en memoria (ya tenemos las sesiones)
       const inicioMes = new Date();
       inicioMes.setDate(1);
       inicioMes.setHours(0, 0, 0, 0);
 
-      const { data: sesionesMes, error: sesionesError2 } = await supabase
-        .from('sesiones')
-        .select('id, duracion_minutos, fecha, ninos!inner(alias)')
-        .eq('voluntario_id', userId)
-        .gte('fecha', inicioMes.toISOString())
-        .order('fecha', { ascending: false });
+      const sesionesMes = (misSesiones || []).filter(
+        (s: any) => new Date(s.fecha) >= inicioMes
+      );
 
-      if (sesionesError2) throw sesionesError2;
-
-      const horasTotales = (sesionesMes || []).reduce(
+      const horasTotales = sesionesMes.reduce(
         (acc: number, s: any) => acc + (s.duracion_minutos || 0),
         0
       );
 
-      setEstadisticas({
-        total_ninos: ninosConDetalles.length,
-        sesiones_este_mes: sesionesMes?.length || 0,
+      const estadisticas: EstadisticasVoluntario = {
+        total_ninos: ninosArray.length,
+        sesiones_este_mes: sesionesMes.length,
         horas_este_mes: Math.round(horasTotales / 60 * 10) / 10,
-        ultima_sesion: sesionesMes?.[0]
+        ultima_sesion: misSesiones?.[0]
           ? {
-              id: sesionesMes[0].id,
-              nino_alias: sesionesMes[0].ninos.alias,
-              fecha: sesionesMes[0].fecha,
-              duracion_minutos: sesionesMes[0].duracion_minutos || 0
+              id: misSesiones[0].id,
+              nino_alias: (misSesiones[0] as any).ninos.alias,
+              fecha: misSesiones[0].fecha,
+              duracion_minutos: misSesiones[0].duracion_minutos || 0
             }
           : null
-      });
-    } catch (error) {
-      console.error('Error fetching datos:', error);
-    } finally {
-      setLoading(false);
-    }
+      };
+
+      return { ninos: ninosArray, estadisticas };
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const ninos = data?.ninos || [];
+  const estadisticas = data?.estadisticas || {
+    total_ninos: 0,
+    sesiones_este_mes: 0,
+    horas_este_mes: 0,
+    ultima_sesion: null
   };
 
   const formatearFecha = (fecha: string | null) => {

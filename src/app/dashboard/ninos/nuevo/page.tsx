@@ -121,7 +121,7 @@ export default function NuevoNinoPage() {
   const rangoCalculado = useMemo(() => edadARango(edadCalculada), [edadCalculada]);
 
   const rolActual = (perfil as any)?.rol as string | undefined;
-  const esProfesional = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajadora_social'].includes(
+  const esProfesional = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social'].includes(
     rolActual || ''
   );
 
@@ -217,9 +217,16 @@ export default function NuevoNinoPage() {
 
       // Auto-fill form fields from AI extraction
       if (datos_extraidos) {
-        if (datos_extraidos.alias && !alias) setAlias(datos_extraidos.alias);
-        // Also set nombre completo if AI found a full name
-        if (datos_extraidos.alias && !nombreCompleto) setNombreCompleto(datos_extraidos.alias);
+        if (datos_extraidos.alias) {
+          if (esProfesional) {
+            // For professionals: set nombreCompleto (which auto-syncs to alias)
+            if (!nombreCompleto) setNombreCompleto(datos_extraidos.alias);
+            if (!alias) setAlias(datos_extraidos.alias);
+          } else {
+            // For voluntarios: set alias directly
+            if (!alias) setAlias(datos_extraidos.alias);
+          }
+        }
         if (datos_extraidos.apellido && !apellido) setApellido(datos_extraidos.apellido);
         if (datos_extraidos.fecha_nacimiento && !fechaNacimiento) setFechaNacimiento(datos_extraidos.fecha_nacimiento);
         if (datos_extraidos.genero && !genero) setGenero(datos_extraidos.genero);
@@ -244,7 +251,7 @@ export default function NuevoNinoPage() {
             tipo: (['madre', 'padre', 'tutor', 'referente_escolar', 'otro'].includes(f.tipo) ? f.tipo : 'otro') as TipoFamiliar,
             nombre: f.nombre || '',
             telefono: f.telefono || '',
-            email: '',
+            email: f.email || '',
             relacion: f.relacion || FAMILIAR_LABELS[f.tipo as TipoFamiliar] || '',
             vive_con_nino: f.vive_con_nino ?? true,
             es_contacto_principal: false,
@@ -284,10 +291,20 @@ export default function NuevoNinoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!alias.trim()) {
-      alert('El alias es obligatorio.');
+
+    // For professionals: ensure alias is synced from nombre
+    const aliasFinal = esProfesional ? (nombreCompleto.trim() || alias.trim()) : alias.trim();
+
+    if (!aliasFinal) {
+      alert(esProfesional ? 'El nombre es obligatorio.' : 'El nombre del niño es obligatorio.');
       return;
     }
+
+    if (esProfesional && !apellido.trim()) {
+      alert('El apellido es obligatorio.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -295,7 +312,7 @@ export default function NuevoNinoPage() {
       const { data: nino, error: ninoError } = await supabase
         .from('ninos')
         .insert({
-          alias: alias.trim(),
+          alias: aliasFinal,
           fecha_nacimiento: fechaNacimiento || null,
           rango_etario: rangoCalculado ?? null,
           genero: genero || null,
@@ -346,7 +363,7 @@ export default function NuevoNinoPage() {
           .from('ninos_sensibles')
           .insert({
             nino_id: ninoId,
-            nombre_completo_encrypted: nombreCompleto.trim() || alias.trim(),
+            nombre_completo_encrypted: nombreCompleto.trim() || aliasFinal,
             apellido_encrypted: apellido.trim(),
           });
         if (sensibleError) console.error('Error guardando datos sensibles:', sensibleError);
@@ -497,59 +514,64 @@ export default function NuevoNinoPage() {
               Datos del niño
             </h2>
 
-            {/* Alias */}
-            <div>
-              <label className={labelClass}>
-                {esProfesional ? 'Alias / Nombre operativo *' : 'Nombre del niño *'}
-              </label>
-              <input
-                type="text"
-                required
-                value={alias}
-                onChange={(e) => setAlias(e.target.value)}
-                className={inputClass}
-                placeholder="Ej: Juan, María, Luisito..."
-              />
-              <p className="mt-1.5 text-xs text-neutro-piedra font-outfit">
-                {esProfesional
-                  ? 'Este es el nombre visible para los voluntarios (sin apellido).'
-                  : 'No uses el nombre completo por privacidad.'}
-              </p>
-            </div>
-
-            {/* Nombre completo + Apellido (solo profesionales) */}
-            {esProfesional && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1.5">
-                      🔒 Nombre completo
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    value={nombreCompleto}
-                    onChange={(e) => setNombreCompleto(e.target.value)}
-                    className={inputClass}
-                    placeholder="Nombre completo del niño"
-                  />
+            {/* ── Campos de nombre según rol ────────────────── */}
+            {esProfesional ? (
+              <>
+                {/* Profesionales: Nombre + Apellido (el nombre se usa como alias automáticamente) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>
+                      <span className="flex items-center gap-1.5">
+                        🔒 Nombre *
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={nombreCompleto}
+                      onChange={(e) => {
+                        setNombreCompleto(e.target.value);
+                        // Auto-sync: el nombre se convierte en el alias (visible para voluntarios)
+                        setAlias(e.target.value);
+                      }}
+                      className={inputClass}
+                      placeholder="Nombre del niño"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      <span className="flex items-center gap-1.5">
+                        🔒 Apellido *
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={apellido}
+                      onChange={(e) => setApellido(e.target.value)}
+                      className={inputClass}
+                      placeholder="Apellido del niño"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className={labelClass}>
-                    <span className="flex items-center gap-1.5">
-                      🔒 Apellido
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    value={apellido}
-                    onChange={(e) => setApellido(e.target.value)}
-                    className={inputClass}
-                    placeholder="Apellido del niño"
-                  />
-                </div>
-                <p className="sm:col-span-2 -mt-2 text-xs text-amber-600 font-outfit">
-                  Datos sensibles — solo visible para el equipo profesional y dirección.
+                <p className="-mt-3 text-xs text-amber-600 font-outfit">
+                  🔒 Datos sensibles — el apellido solo será visible para el equipo profesional. Los voluntarios verán únicamente el nombre.
+                </p>
+              </>
+            ) : (
+              /* Voluntarios: solo Nombre (se guarda como alias) */
+              <div>
+                <label className={labelClass}>Nombre del niño *</label>
+                <input
+                  type="text"
+                  required
+                  value={alias}
+                  onChange={(e) => setAlias(e.target.value)}
+                  className={inputClass}
+                  placeholder="Ej: Juan, María, Luisito..."
+                />
+                <p className="mt-1.5 text-xs text-neutro-piedra font-outfit">
+                  Solo el nombre, sin apellido. Los datos completos los cargará el equipo profesional.
                 </p>
               </div>
             )}
@@ -801,25 +823,31 @@ export default function NuevoNinoPage() {
             </div>
           </div>
 
-          {/* ── SECTION 4: Observaciones (professional roles only) */}
-          {esProfesional && (
-            <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8 space-y-5">
-              <h2 className={sectionTitleClass}>
-                <Heart size={20} className="text-impulso-400" />
-                Observaciones iniciales
-              </h2>
-              <div>
-                <label className={labelClass}>Notas u observaciones al momento del ingreso</label>
-                <textarea
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                  rows={4}
-                  className={inputClass + ' min-h-[120px] resize-y'}
-                  placeholder="Contexto familiar, situación particular, derivación, etc."
-                />
-              </div>
+          {/* ── SECTION 4: Observaciones / Comentarios (todos los roles) */}
+          <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8 space-y-5">
+            <h2 className={sectionTitleClass}>
+              <Heart size={20} className="text-impulso-400" />
+              {esProfesional ? 'Observaciones iniciales' : 'Comentarios'}
+            </h2>
+            <div>
+              <label className={labelClass}>
+                {esProfesional
+                  ? 'Notas u observaciones al momento del ingreso'
+                  : 'Comentarios o notas sobre el niño'}
+              </label>
+              <textarea
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                rows={4}
+                className={inputClass + ' min-h-[120px] resize-y'}
+                placeholder={
+                  esProfesional
+                    ? 'Contexto familiar, situación particular, derivación, etc.'
+                    : 'Algo que quieras anotar sobre el niño...'
+                }
+              />
             </div>
-          )}
+          </div>
 
           {/* ── SECTION 5: Grabación de reunión (professional) ── */}
           {esProfesional && (
@@ -895,7 +923,10 @@ export default function NuevoNinoPage() {
           </h3>
           <ul className="text-sm text-sol-700 space-y-2 font-outfit">
             {!esProfesional && (
-              <li>• Los datos sensibles (nombre completo, DNI) los cargará el equipo profesional desde el perfil del niño</li>
+              <li>• Los datos sensibles (apellido, DNI) los cargará el equipo profesional desde el perfil del niño</li>
+            )}
+            {esProfesional && (
+              <li>• El nombre se usará como identificador visible para los voluntarios (sin apellido)</li>
             )}
             <li>• El nivel de alfabetización se establece mediante evaluación, no al registrar</li>
             {rolActual === 'voluntario' && (
