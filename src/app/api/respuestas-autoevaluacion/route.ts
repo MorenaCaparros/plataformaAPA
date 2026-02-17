@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     if (perfil.rol === 'voluntario') {
       query = query.eq('voluntario_id', perfil.id);
-    } else if (['psicopedagogia', 'coordinador', 'director'].includes(perfil.rol)) {
+    } else if (['psicopedagogia', 'coordinador', 'director', 'trabajador_social', 'admin'].includes(perfil.rol)) {
       if (estado) {
         // Map old estados to new ones
         const estadoMap: Record<string, string> = {

@@ -43,9 +43,9 @@ export async function PATCH(
       );
     }
 
-    if (!['director', 'psicopedagogia', 'coordinador'].includes(perfil.rol)) {
+    if (!['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'].includes(perfil.rol)) {
       return NextResponse.json(
-        { error: 'No autorizado. Solo director, psicopedagogía o coordinador pueden evaluar' },
+        { error: 'No autorizado. Solo director, psicopedagogía, coordinador, trabajo social o admin pueden evaluar' },
         { status: 403 }
       );
     }

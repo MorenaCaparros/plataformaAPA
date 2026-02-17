@@ -30,7 +30,7 @@ export default function AutoevaluacionesPage() {
   const { perfil } = useAuth();
 
   // Roles que pueden gestionar plantillas (no deben completar autoevaluaciones)
-  const rolesAdministrativos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social'];
+  const rolesAdministrativos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
   const puedeGestionarPlantillas = perfil?.rol ? rolesAdministrativos.includes(perfil.rol) : false;
 
   useEffect(() => {
@@ -142,12 +142,20 @@ export default function AutoevaluacionesPage() {
               {puedeGestionarPlantillas ? 'Plantillas de Autoevaluación' : 'Mis Autoevaluaciones'}
             </h1>
             {puedeGestionarPlantillas && (
-              <Link
-                href="/dashboard/autoevaluaciones/gestionar"
-                className="px-6 py-3 min-h-[48px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(164,198,57,0.15)] active:scale-95 flex items-center gap-2"
-              >
-                Gestionar Plantillas
-              </Link>
+              <div className="flex gap-3">
+                <Link
+                  href="/dashboard/autoevaluaciones/gestionar/banco-preguntas"
+                  className="px-5 py-3 min-h-[48px] bg-white/80 backdrop-blur-sm border border-sol-200/40 text-sol-700 rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all font-outfit font-semibold active:scale-95 flex items-center gap-2"
+                >
+                  Banco de Preguntas
+                </Link>
+                <Link
+                  href="/dashboard/autoevaluaciones/gestionar"
+                  className="px-6 py-3 min-h-[48px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(164,198,57,0.15)] active:scale-95 flex items-center gap-2"
+                >
+                  Gestionar Plantillas
+                </Link>
+              </div>
             )}
           </div>
           <p className="text-neutro-piedra font-outfit text-lg">

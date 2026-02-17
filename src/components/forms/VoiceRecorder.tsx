@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ConsentimientoGrabacionModal, {
+  type ConsentimientoData,
+} from './ConsentimientoGrabacionModal';
 
 type VoiceRecorderProps = {
-  onRecordingComplete: (audioBlob: Blob) => void;
+  onRecordingComplete: (audioBlob: Blob, consentimiento: ConsentimientoData | null) => void;
   onError?: (error: string) => void;
 };
 
@@ -12,10 +15,13 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
   const [isPaused, setIsPaused] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioURL, setAudioURL] = useState<string | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentimientoData, setConsentimientoData] = useState<ConsentimientoData | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
 
   useEffect(() => {
     // Cleanup al desmontar
@@ -28,6 +34,20 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
       }
     };
   }, [audioURL]);
+
+  const requestRecording = () => {
+    if (consentimientoData) {
+      startRecording();
+    } else {
+      setShowConsentModal(true);
+    }
+  };
+
+  const handleConsentConfirm = (data: ConsentimientoData) => {
+    setConsentimientoData(data);
+    setShowConsentModal(false);
+    startRecording();
+  };
 
   const startRecording = async () => {
     try {
@@ -42,12 +62,12 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
           audioChunksRef.current.push(event.data);
         }
       };
-
+      
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
         setAudioURL(url);
-        onRecordingComplete(audioBlob);
+        onRecordingComplete(audioBlob, consentimientoData);
         
         // Detener todas las pistas de audio
         stream.getTracks().forEach(track => track.stop());
@@ -132,6 +152,7 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
     }
     setAudioURL(null);
     setRecordingTime(0);
+    setConsentimientoData(null);
     audioChunksRef.current = [];
   };
 
@@ -156,6 +177,21 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
         </div>
       </div>
 
+      {/* Consent badge */}
+      {consentimientoData && (
+        <div className="mb-4 flex items-center gap-2 bg-crecimiento-50 border border-crecimiento-200 rounded-lg px-4 py-2.5">
+          <span className="text-crecimiento-600 text-base">🛡️</span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-crecimiento-800 truncate">
+              Autorizado por: {consentimientoData.nombre_firmante} ({consentimientoData.relacion_con_nino})
+            </p>
+            <p className="text-[10px] text-crecimiento-600">
+              DNI: {consentimientoData.dni_firmante} • {new Date(consentimientoData.fecha_consentimiento).toLocaleString('es-AR')}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Display de tiempo */}
       {(isRecording || audioURL) && (
         <div className="mb-4 text-center">
@@ -174,13 +210,13 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
       <div className="flex flex-wrap gap-3 justify-center">
         {!isRecording && !audioURL && (
           <button
-            onClick={startRecording}
+            onClick={requestRecording}
             className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium shadow-md transition"
           >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
               <circle cx="10" cy="10" r="8" />
             </svg>
-            Iniciar Grabación
+            {consentimientoData ? 'Iniciar Grabación' : 'Solicitar Autorización y Grabar'}
           </button>
         )}
 
@@ -260,7 +296,7 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
                 🗑️ Eliminar
               </button>
               <button
-                onClick={startRecording}
+                onClick={requestRecording}
                 className="flex-1 px-4 py-2 bg-crecimiento-500 text-white rounded-lg hover:bg-crecimiento-600 font-medium transition"
               >
                 🔄 Grabar de nuevo
@@ -272,8 +308,15 @@ export default function VoiceRecorder({ onRecordingComplete, onError }: VoiceRec
 
       {/* Advertencia de permisos */}
       <div className="mt-4 text-xs text-gray-600 text-center">
-        💡 Necesitás permitir el acceso al micrófono en tu navegador
+        💡 Se pedirá autorización firmada antes de grabar. El audio y la transcripción se guardan de forma segura.
       </div>
+
+      {/* Consent modal */}
+      <ConsentimientoGrabacionModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConfirm={handleConsentConfirm}
+      />
     </div>
   );
 }

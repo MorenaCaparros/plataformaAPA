@@ -159,7 +159,11 @@ export async function POST(request: Request) {
       acciones_pendientes,
       // Audio
       audio_url,
+      transcripcion,
+      duracion_grabacion,
       created_offline,
+      // Consentimiento de grabación
+      consentimiento_grabacion,
     } = body;
 
     // Validaciones
@@ -178,8 +182,9 @@ export async function POST(request: Request) {
         entrevistador_id: session.user.id,
         tipo: tipo_entrevista || 'inicial',
         fecha: new Date().toISOString().split('T')[0],
+        duracion_minutos: duracion_grabacion > 0 ? Math.ceil(duracion_grabacion / 60) : null,
         participantes: personas_presentes?.map((p: any) => `${p.nombre} (${p.relacion})`) || [],
-        observaciones: observaciones_trabajadora_social || null,
+        observaciones: transcripcion || observaciones_trabajadora_social || null,
         conclusiones: [
           situacion_riesgo ? `Situación de riesgo: ${tipo_riesgo}` : null,
           derivaciones_sugeridas ? `Derivaciones: ${derivaciones_sugeridas}` : null,
@@ -265,6 +270,36 @@ export async function POST(request: Request) {
 
     // Note: alertas_sociales table was removed in the new schema.
     // Risk situations are now tracked in the entrevista conclusiones field.
+
+    // Save grabaciones_voz record with consent data if audio was provided
+    if (audio_url) {
+      const { error: grabError } = await supabase
+        .from('grabaciones_voz')
+        .insert({
+          entrevista_id: entrevista.id,
+          nino_id,
+          usuario_id: session.user.id,
+          storage_path: audio_url,
+          duracion_segundos: duracion_grabacion || null,
+          formato: 'webm',
+          transcripcion: transcripcion || null,
+          procesada: !!transcripcion,
+          consentimiento_nombre: consentimiento_grabacion?.nombre_firmante || null,
+          consentimiento_relacion: consentimiento_grabacion?.relacion_con_nino || null,
+          consentimiento_dni: consentimiento_grabacion?.dni_firmante || null,
+          consentimiento_firma: consentimiento_grabacion?.firma_imagen_base64 || null,
+          consentimiento_fecha: consentimiento_grabacion?.fecha_consentimiento || null,
+          consentimiento_texto: consentimiento_grabacion?.texto_consentimiento || null,
+          consentimiento_acepta_grabacion: consentimiento_grabacion?.acepta_grabacion ?? false,
+          consentimiento_acepta_transcripcion: consentimiento_grabacion?.acepta_transcripcion ?? false,
+          consentimiento_acepta_almacenamiento: consentimiento_grabacion?.acepta_almacenamiento ?? false,
+        });
+
+      if (grabError) {
+        console.error('Error guardando grabacion_voz con consentimiento:', grabError);
+        // Don't fail the whole request, the entrevista was already created
+      }
+    }
 
     return NextResponse.json({
       success: true,

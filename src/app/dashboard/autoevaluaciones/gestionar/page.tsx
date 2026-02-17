@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Loader2, BookOpen, Shuffle } from 'lucide-react';
 import Link from 'next/link';
 
 interface Plantilla {
@@ -27,7 +27,7 @@ function GestionarPlantillasContent() {
   const plantillaId = searchParams.get('plantilla');
 
   // Verificar permisos
-  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social'];
+  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
   const tienePermiso = perfil?.rol ? rolesPermitidos.includes(perfil.rol) : false;
 
   useEffect(() => {
@@ -157,17 +157,50 @@ function GestionarPlantillasContent() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {/* Acciones principales */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <Link
+            href="/dashboard/autoevaluaciones/gestionar/banco-preguntas"
+            className="flex-1 flex items-center justify-center gap-3 px-6 py-4 min-h-[56px] bg-white/60 backdrop-blur-md border border-sol-200/40 rounded-2xl hover:shadow-[0_8px_24px_rgba(242,201,76,0.15)] transition-all active:scale-95"
+          >
+            <BookOpen className="w-5 h-5 text-sol-600" />
+            <div className="text-left">
+              <span className="font-outfit font-semibold text-neutro-carbon text-sm">Banco de Preguntas</span>
+              <p className="text-xs text-neutro-piedra font-outfit">Gestionar el banco temático de preguntas</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/autoevaluaciones/gestionar/crear"
+            className="flex-1 flex items-center justify-center gap-3 px-6 py-4 min-h-[56px] bg-white/60 backdrop-blur-md border border-crecimiento-200/40 rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.15)] transition-all active:scale-95"
+          >
+            <Plus className="w-5 h-5 text-crecimiento-600" />
+            <div className="text-left">
+              <span className="font-outfit font-semibold text-neutro-carbon text-sm">Crear Plantilla Manual</span>
+              <p className="text-xs text-neutro-piedra font-outfit">Escribir preguntas manualmente</p>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/autoevaluaciones/gestionar/crear-desde-banco"
+            className="flex-1 flex items-center justify-center gap-3 px-6 py-4 min-h-[56px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all active:scale-95 shadow-[0_4px_16px_rgba(164,198,57,0.15)]"
+          >
+            <Shuffle className="w-5 h-5 text-white" />
+            <div className="text-left">
+              <span className="font-outfit font-semibold text-white text-sm">Crear desde Banco</span>
+              <p className="text-xs text-white/80 font-outfit">Asignar preguntas aleatorias por área</p>
+            </div>
+          </Link>
+        </div>
+
         {/* Lista de plantillas */}
         {plantillas.length === 0 ? (
           <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-8 sm:p-12 text-center">
-            <p className="text-neutro-carbon font-outfit text-lg mb-6">No hay plantillas creadas todavía.</p>
-            <Link
-              href="/dashboard/autoevaluaciones/gestionar/crear"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[56px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(164,198,57,0.15)] active:scale-95"
-            >
-              <Plus className="w-6 h-6" />
-              Crear Primera Plantilla
-            </Link>
+            <BookOpen className="w-12 h-12 text-neutro-piedra/40 mx-auto mb-4" />
+            <p className="text-neutro-carbon font-outfit text-lg mb-2">No hay plantillas creadas todavía.</p>
+            <p className="text-neutro-piedra font-outfit text-sm">
+              Usá las opciones de arriba para crear tu primera plantilla de autoevaluación.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

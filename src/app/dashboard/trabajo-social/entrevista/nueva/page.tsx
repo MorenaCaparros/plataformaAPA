@@ -3,14 +3,18 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import SelectorNino from '@/components/forms/SelectorNino';
-import VoiceRecorder from '@/components/forms/VoiceRecorder';
+import MeetingRecorder from '@/components/forms/MeetingRecorder';
+import type { MeetingRecordingResult } from '@/components/forms/MeetingRecorder';
+import type { ConsentimientoData } from '@/components/forms/ConsentimientoGrabacionModal';
 
 export default function NuevaEntrevistaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [ninoId, setNinoId] = useState<string | null>(null);
-  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [transcripcion, setTranscripcion] = useState('');
+  const [duracionGrabacion, setDuracionGrabacion] = useState(0);
+  const [consentimientoGrabacion, setConsentimientoGrabacion] = useState<ConsentimientoData | null>(null);
 
   const [formData, setFormData] = useState({
     // Básicos
@@ -70,14 +74,11 @@ export default function NuevaEntrevistaPage() {
     acciones_pendientes: '',
   });
 
-  const handleRecordingComplete = (blob: Blob) => {
-    setAudioBlob(blob);
-    setRecordingError(null);
-  };
-
-  const handleRecordingError = (error: string) => {
-    setRecordingError(error);
-    setAudioBlob(null);
+  const handleRecordingComplete = (result: MeetingRecordingResult) => {
+    setAudioBlob(result.audioBlob);
+    setTranscripcion(result.transcripcion);
+    setDuracionGrabacion(result.duracionSegundos);
+    setConsentimientoGrabacion(result.consentimiento);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,7 +123,10 @@ export default function NuevaEntrevistaPage() {
           nino_id: ninoId,
           ...formData,
           audio_url: audioUrl,
-          created_offline: !navigator.onLine, // Detectar si está offline
+          transcripcion: transcripcion.trim() || null,
+          duracion_grabacion: duracionGrabacion,
+          created_offline: !navigator.onLine,
+          consentimiento_grabacion: consentimientoGrabacion || null,
         }),
       });
 
@@ -169,25 +173,14 @@ export default function NuevaEntrevistaPage() {
           </p>
         </div>
 
-        {/* Grabación de audio */}
-        <VoiceRecorder 
-          onRecordingComplete={handleRecordingComplete}
-          onError={handleRecordingError}
-        />
-        
-        {recordingError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-700">❌ {recordingError}</p>
-          </div>
-        )}
-
-        {audioBlob && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-sm text-green-700">
-              ✅ Audio listo para subir ({(audioBlob.size / 1024 / 1024).toFixed(2)} MB)
-            </p>
-          </div>
-        )}
+        {/* Grabación de audio con transcripción */}
+        <div className="mb-6">
+          <MeetingRecorder
+            onRecordingComplete={handleRecordingComplete}
+            onTranscripcionChange={setTranscripcion}
+            disabled={loading}
+          />
+        </div>
 
         {/* Selector de Niño */}
         <SelectorNino onSelect={setNinoId} />

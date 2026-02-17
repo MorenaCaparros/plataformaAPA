@@ -3,8 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Mic, MicOff, Square, Pause, Play, Trash2, Loader2,
-  Sparkles, FileText, Volume2, ChevronDown, ChevronUp
+  Sparkles, FileText, Volume2, ChevronDown, ChevronUp, ShieldCheck
 } from 'lucide-react';
+import ConsentimientoGrabacionModal, {
+  type ConsentimientoData,
+} from './ConsentimientoGrabacionModal';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -12,6 +15,7 @@ export interface MeetingRecordingResult {
   audioBlob: Blob | null;
   transcripcion: string;
   duracionSegundos: number;
+  consentimiento: ConsentimientoData | null;
 }
 
 interface MeetingRecorderProps {
@@ -48,6 +52,10 @@ export default function MeetingRecorder({
   const [interimText, setInterimText] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
+  // Consent state
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentimientoData, setConsentimientoData] = useState<ConsentimientoData | null>(null);
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -146,7 +154,25 @@ export default function MeetingRecorder({
 
   // ─── Recording controls ────────────────────────────────
 
-  const startRecording = useCallback(async () => {
+  /** Show the consent modal. If consent was already given, start recording directly. */
+  const requestRecording = useCallback(() => {
+    if (consentimientoData) {
+      // Already consented in this session – start directly
+      startRecordingInternal();
+    } else {
+      setShowConsentModal(true);
+    }
+  }, [consentimientoData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Called when the user signs and confirms consent */
+  const handleConsentConfirm = useCallback((data: ConsentimientoData) => {
+    setConsentimientoData(data);
+    setShowConsentModal(false);
+    // Start recording immediately after consent
+    startRecordingInternal();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startRecordingInternal = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
@@ -239,9 +265,10 @@ export default function MeetingRecorder({
         audioBlob: blob,
         transcripcion,
         duracionSegundos: duracion,
+        consentimiento: consentimientoData,
       });
     }, 300);
-  }, [transcripcion, duracion, onRecordingComplete]);
+  }, [transcripcion, duracion, onRecordingComplete, consentimientoData]);
 
   const discardRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -256,6 +283,7 @@ export default function MeetingRecorder({
     setInterimText('');
     setAudioURL(null);
     setAudioBlob(null);
+    setConsentimientoData(null);
     if (timerRef.current) clearInterval(timerRef.current);
     recognitionRef.current?.stop();
     onTranscripcionChange?.('');
@@ -302,6 +330,11 @@ export default function MeetingRecorder({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {consentimientoData && !isRecording && (
+            <span className="flex items-center gap-1 text-[10px] text-crecimiento-600 bg-crecimiento-50 px-2 py-1 rounded-full font-outfit font-medium">
+              <ShieldCheck size={12} /> Autorizado
+            </span>
+          )}
           {isRecording && (
             <span className="w-3 h-3 bg-impulso-500 rounded-full animate-pulse" />
           )}
@@ -311,17 +344,32 @@ export default function MeetingRecorder({
 
       {expanded && (
         <div className="px-6 pb-6 space-y-4">
+          {/* Consent badge */}
+          {consentimientoData && (
+            <div className="flex items-center gap-2 bg-crecimiento-50/60 border border-crecimiento-200/40 rounded-2xl px-4 py-2.5">
+              <ShieldCheck size={16} className="text-crecimiento-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-crecimiento-800 font-outfit truncate">
+                  Autorizado por: {consentimientoData.nombre_firmante} ({consentimientoData.relacion_con_nino})
+                </p>
+                <p className="text-[10px] text-crecimiento-600 font-outfit">
+                  DNI: {consentimientoData.dni_firmante} • {new Date(consentimientoData.fecha_consentimiento).toLocaleString('es-AR')}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Recording controls */}
           <div className="flex flex-wrap items-center gap-3">
             {!isRecording && !audioURL && (
               <button
                 type="button"
-                onClick={startRecording}
+                onClick={requestRecording}
                 disabled={disabled}
                 className="flex items-center gap-2 px-5 py-3 bg-impulso-500 text-white rounded-2xl hover:bg-impulso-600 font-medium font-outfit shadow-md transition-all active:scale-95 min-h-[48px] disabled:opacity-50"
               >
                 <Mic size={18} />
-                Iniciar grabación
+                {consentimientoData ? 'Iniciar grabación' : 'Solicitar autorización y grabar'}
               </button>
             )}
 
@@ -384,7 +432,7 @@ export default function MeetingRecorder({
               <>
                 <button
                   type="button"
-                  onClick={startRecording}
+                  onClick={requestRecording}
                   disabled={disabled}
                   className="flex items-center gap-2 px-4 py-3 bg-impulso-500 text-white rounded-2xl hover:bg-impulso-600 font-medium font-outfit transition-all min-h-[48px] disabled:opacity-50"
                 >
@@ -479,13 +527,21 @@ export default function MeetingRecorder({
             <div className="text-xs text-neutro-piedra font-outfit flex items-start gap-2 bg-white/40 rounded-xl p-3">
               <span className="shrink-0">💡</span>
               <span>
-                Al grabar la reunión, la transcripción en vivo se usará para completar los campos del formulario
-                automáticamente con IA. El audio y la transcripción se guardarán en el perfil del niño.
+                Al grabar la reunión se pedirá autorización a la persona presente. La transcripción
+                en vivo se usará para completar campos automáticamente con IA. El audio, la
+                transcripción y el consentimiento firmado se guardarán en el perfil del niño.
               </span>
             </div>
           )}
         </div>
       )}
+
+      {/* Consent modal */}
+      <ConsentimientoGrabacionModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConfirm={handleConsentConfirm}
+      />
     </div>
   );
 }

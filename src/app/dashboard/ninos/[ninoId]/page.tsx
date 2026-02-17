@@ -53,7 +53,16 @@ interface GrabacionReunion {
   autor_nombre: string;
 }
 
-const TIPOS_TERAPIA = [
+const TIPOS_PROFESIONAL_SALUD = [
+  { value: 'psicologo_psicopedagogo', label: 'Psicólogo / Psicopedagogo' },
+  { value: 'fonoaudiologo', label: 'Fonoaudiólogo/a' },
+  { value: 'terapista_ocupacional', label: 'Terapista ocupacional' },
+  { value: 'neurologo', label: 'Neurólogo/a' },
+  { value: 'psiquiatra', label: 'Psiquiatra' },
+  { value: 'kinesiologo', label: 'Kinesiólogo/a' },
+  { value: 'nutricionista', label: 'Nutricionista' },
+  { value: 'otro', label: 'Otro profesional' },
+  // Legacy values for backward compatibility
   { value: 'psicologica', label: 'Psicológica' },
   { value: 'fonoaudiologica', label: 'Fonoaudiológica' },
   { value: 'psicopedagogica', label: 'Psicopedagógica' },
@@ -108,7 +117,7 @@ export default function NinoPerfilPage() {
     try {
       setLoading(true);
 
-      // 1. Niño with relations
+      // 1. Niño with relations (CRITICAL — if this fails, redirect)
       const selectFields = tieneAccesoCompleto
         ? `*, zonas(id, nombre), escuelas(id, nombre), ninos_sensibles(*)`
         : `*, zonas(id, nombre), escuelas(id, nombre)`;
@@ -126,148 +135,179 @@ export default function NinoPerfilPage() {
       // Init editable fields from nino data
       setEditPermanencia(ninoCompleto.activo);
       setEditAnoPermanencia(new Date().getFullYear());
-      // terapia is stored as a JSON array in the ninos_sensibles or as a separate column; 
-      // we'll use a convention: stored in nino's metadata-free approach
 
-      // 2. Active assignment
-      const { data: asignacionData } = await supabase
-        .from('asignaciones')
-        .select(`
-          id, fecha_asignacion, score_matching,
-          perfiles!asignaciones_voluntario_id_fkey (id, nombre, apellido)
-        `)
-        .eq('nino_id', ninoId)
-        .eq('activa', true)
-        .limit(1)
-        .single();
-
-      if (asignacionData) {
-        setAsignacionActiva({
-          id: asignacionData.id,
-          fecha_asignacion: asignacionData.fecha_asignacion,
-          score_matching: asignacionData.score_matching,
-          voluntario: (asignacionData as any).perfiles || null,
-        });
-      }
-
-      // 3. Familiares / contacts (only for full-access roles)
-      if (tieneAccesoCompleto) {
-        const { data: familiaresData } = await supabase
-          .from('familiares_apoyo')
-          .select('*')
+      // 2. Active assignment (non-critical)
+      try {
+        const { data: asignacionData } = await supabase
+          .from('asignaciones')
+          .select('id, fecha_asignacion, score_matching, voluntario_id')
           .eq('nino_id', ninoId)
-          .order('tipo', { ascending: true });
-        setFamiliares(familiaresData || []);
+          .eq('activa', true)
+          .limit(1)
+          .maybeSingle();
+
+        if (asignacionData) {
+          // Fetch volunteer name separately to avoid FK hint issues
+          let voluntario = null;
+          if (asignacionData.voluntario_id) {
+            const { data: volData } = await supabase
+              .from('perfiles')
+              .select('id, nombre, apellido')
+              .eq('id', asignacionData.voluntario_id)
+              .single();
+            voluntario = volData;
+          }
+          setAsignacionActiva({
+            id: asignacionData.id,
+            fecha_asignacion: asignacionData.fecha_asignacion,
+            score_matching: asignacionData.score_matching,
+            voluntario,
+          });
+        }
+      } catch (e) {
+        console.warn('No se pudieron cargar asignaciones:', e);
       }
 
-      // 4. Sessions
-      let sesionesQuery = supabase
-        .from('sesiones')
-        .select('id, fecha, duracion_minutos, observaciones_libres, voluntario_id')
-        .eq('nino_id', ninoId)
-        .order('fecha', { ascending: false });
-
-      if (isVoluntario) {
-        sesionesQuery = sesionesQuery.eq('voluntario_id', user?.id);
-      }
-
-      const { data: sesionesData, error: sesionesError } = await sesionesQuery;
-      if (sesionesError) throw sesionesError;
-      setSesiones(sesionesData || []);
-
-      // 5. Stats
-      const { count: totalSesiones } = await supabase
-        .from('sesiones')
-        .select('*', { count: 'exact', head: true })
-        .eq('nino_id', ninoId);
-
-      const { count: misSesiones } = await supabase
-        .from('sesiones')
-        .select('*', { count: 'exact', head: true })
-        .eq('nino_id', ninoId)
-        .eq('voluntario_id', user?.id);
-
-      const horasTotales = (sesionesData || []).reduce(
-        (acc: number, s: any) => acc + (s.duracion_minutos || 0), 0
-      );
-      const fechaOrdenada = [...(sesionesData || [])].sort(
-        (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
-      );
-
-      setEstadisticas({
-        total_sesiones: totalSesiones || 0,
-        mis_sesiones: misSesiones || 0,
-        horas_totales: Math.round((horasTotales / 60) * 10) / 10,
-        primera_sesion: fechaOrdenada[0]?.fecha || null,
-        ultima_sesion: fechaOrdenada[fechaOrdenada.length - 1]?.fecha || null,
-      });
-
-      // 6. Asistencia %
-      const { count: totalAsistencias } = await supabase
-        .from('asistencias')
-        .select('*', { count: 'exact', head: true })
-        .eq('nino_id', ninoId);
-      const { count: presentes } = await supabase
-        .from('asistencias')
-        .select('*', { count: 'exact', head: true })
-        .eq('nino_id', ninoId)
-        .eq('presente', true);
-
-      if (totalAsistencias && totalAsistencias > 0) {
-        setAsistenciaPorcentaje(Math.round(((presentes || 0) / totalAsistencias) * 100));
-      }
-
-      // 7. Notas / bitácora — we store them as entrevistas with tipo='nota_bitacora' 
-      //    or a dedicated light-weight approach. For now query entrevistas with tipo note.
+      // 3. Familiares / contacts (only for full-access roles, non-critical)
       if (tieneAccesoCompleto) {
-        const { data: notasData } = await supabase
-          .from('entrevistas')
-          .select('id, observaciones, fecha, entrevistador_id, perfiles:entrevistador_id(nombre, apellido)')
-          .eq('nino_id', ninoId)
-          .eq('tipo', 'nota_bitacora')
-          .order('fecha', { ascending: false })
-          .limit(20);
+        try {
+          const { data: familiaresData } = await supabase
+            .from('familiares_apoyo')
+            .select('*')
+            .eq('nino_id', ninoId)
+            .order('tipo', { ascending: true });
+          setFamiliares(familiaresData || []);
+        } catch (e) {
+          console.warn('No se pudieron cargar familiares:', e);
+        }
+      }
 
-        if (notasData) {
-          setNotas(
-            notasData.map((n: any) => ({
-              id: n.id,
-              texto: n.observaciones || '',
-              fecha: n.fecha,
-              autor_nombre: n.perfiles
-                ? `${n.perfiles.nombre} ${n.perfiles.apellido}`
-                : 'Desconocido',
-            }))
+      // 4. Sessions (non-critical — table may not exist yet)
+      try {
+        let sesionesQuery = supabase
+          .from('sesiones')
+          .select('id, fecha, duracion_minutos, observaciones_libres, voluntario_id')
+          .eq('nino_id', ninoId)
+          .order('fecha', { ascending: false });
+
+        if (isVoluntario) {
+          sesionesQuery = sesionesQuery.eq('voluntario_id', user?.id);
+        }
+
+        const { data: sesionesData, error: sesionesError } = await sesionesQuery;
+        
+        if (!sesionesError) {
+          setSesiones(sesionesData || []);
+
+          // 5. Stats
+          const { count: totalSesiones } = await supabase
+            .from('sesiones')
+            .select('*', { count: 'exact', head: true })
+            .eq('nino_id', ninoId);
+
+          const { count: misSesiones } = await supabase
+            .from('sesiones')
+            .select('*', { count: 'exact', head: true })
+            .eq('nino_id', ninoId)
+            .eq('voluntario_id', user?.id);
+
+          const horasTotales = (sesionesData || []).reduce(
+            (acc: number, s: any) => acc + (s.duracion_minutos || 0), 0
           );
+          const fechaOrdenada = [...(sesionesData || [])].sort(
+            (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+          );
+
+          setEstadisticas({
+            total_sesiones: totalSesiones || 0,
+            mis_sesiones: misSesiones || 0,
+            horas_totales: Math.round((horasTotales / 60) * 10) / 10,
+            primera_sesion: fechaOrdenada[0]?.fecha || null,
+            ultima_sesion: fechaOrdenada[fechaOrdenada.length - 1]?.fecha || null,
+          });
+        } else {
+          console.warn('Tabla sesiones no disponible:', sesionesError.message);
+        }
+      } catch (e) {
+        console.warn('No se pudieron cargar sesiones:', e);
+      }
+
+      // 6. Asistencia % (non-critical)
+      try {
+        const { count: totalAsistencias } = await supabase
+          .from('asistencias')
+          .select('*', { count: 'exact', head: true })
+          .eq('nino_id', ninoId);
+        const { count: presentes } = await supabase
+          .from('asistencias')
+          .select('*', { count: 'exact', head: true })
+          .eq('nino_id', ninoId)
+          .eq('presente', true);
+
+        if (totalAsistencias && totalAsistencias > 0) {
+          setAsistenciaPorcentaje(Math.round(((presentes || 0) / totalAsistencias) * 100));
+        }
+      } catch (e) {
+        console.warn('No se pudieron cargar asistencias:', e);
+      }
+
+      // 7. Notas / bitácora + Grabaciones (non-critical)
+      if (tieneAccesoCompleto) {
+        try {
+          const { data: notasData } = await supabase
+            .from('entrevistas')
+            .select('id, observaciones, fecha, entrevistador_id, perfiles:entrevistador_id(nombre, apellido)')
+            .eq('nino_id', ninoId)
+            .order('fecha', { ascending: false })
+            .limit(20);
+
+          if (notasData) {
+            setNotas(
+              notasData.map((n: any) => ({
+                id: n.id,
+                texto: n.observaciones || '',
+                fecha: n.fecha,
+                autor_nombre: n.perfiles
+                  ? `${n.perfiles.nombre} ${n.perfiles.apellido}`
+                  : 'Desconocido',
+              }))
+            );
+          }
+        } catch (e) {
+          console.warn('No se pudieron cargar notas:', e);
         }
 
         // 8. Grabaciones de reuniones
-        const { data: grabacionesData } = await supabase
-          .from('grabaciones_voz')
-          .select('id, storage_path, transcripcion, duracion_segundos, fecha_grabacion, entrevista_id, perfiles:usuario_id(nombre, apellido), entrevistas:entrevista_id(conclusiones)')
-          .eq('nino_id', ninoId)
-          .order('fecha_grabacion', { ascending: false })
-          .limit(20);
+        try {
+          const { data: grabacionesData } = await supabase
+            .from('grabaciones_voz')
+            .select('id, storage_path, transcripcion, duracion_segundos, fecha_grabacion, entrevista_id, perfiles:usuario_id(nombre, apellido), entrevistas:entrevista_id(conclusiones)')
+            .eq('nino_id', ninoId)
+            .order('fecha_grabacion', { ascending: false })
+            .limit(20);
 
-        if (grabacionesData) {
-          setGrabaciones(
-            grabacionesData.map((g: any) => ({
-              id: g.id,
-              storage_path: g.storage_path,
-              transcripcion: g.transcripcion,
-              duracion_segundos: g.duracion_segundos,
-              fecha_grabacion: g.fecha_grabacion,
-              entrevista_conclusiones: g.entrevistas?.conclusiones || null,
-              autor_nombre: g.perfiles
-                ? `${g.perfiles.nombre} ${g.perfiles.apellido}`
-                : 'Desconocido',
-            }))
-          );
+          if (grabacionesData) {
+            setGrabaciones(
+              grabacionesData.map((g: any) => ({
+                id: g.id,
+                storage_path: g.storage_path,
+                transcripcion: g.transcripcion,
+                duracion_segundos: g.duracion_segundos,
+                fecha_grabacion: g.fecha_grabacion,
+                entrevista_conclusiones: g.entrevistas?.conclusiones || null,
+                autor_nombre: g.perfiles
+                  ? `${g.perfiles.nombre} ${g.perfiles.apellido}`
+                  : 'Desconocido',
+              }))
+            );
+          }
+        } catch (e) {
+          console.warn('No se pudieron cargar grabaciones:', e);
         }
       }
     } catch (error) {
-      console.error('Error fetching datos:', error);
-      alert('Error al cargar los datos del niño');
+      console.error('Error fetching datos del niño:', error);
+      alert('Error al cargar los datos del niño. Verificá que el niño existe.');
       router.push('/dashboard/ninos');
     } finally {
       setLoading(false);
@@ -725,15 +765,15 @@ export default function NinoPerfilPage() {
           </div>
         )}
 
-        {/* ═══ Terapia (solo full access) ═══ */}
+        {/* ═══ Salud — Profesionales (solo full access) ═══ */}
         {tieneAccesoCompleto && (
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
               <Stethoscope className="w-5 h-5 text-impulso-500" />
-              Asiste a terapia
+              Salud — Profesionales
             </h2>
             <div className="flex flex-wrap gap-2">
-              {TIPOS_TERAPIA.map((t) => {
+              {TIPOS_PROFESIONAL_SALUD.map((t) => {
                 const isSelected = editTerapia.includes(t.value);
                 return (
                   <button
@@ -754,7 +794,7 @@ export default function NinoPerfilPage() {
                 );
               })}
               {editTerapia.length === 0 && (
-                <p className="text-sm text-gray-400 italic py-2">No asiste a terapia (o no especificado)</p>
+                <p className="text-sm text-gray-400 italic py-2">No asiste a profesionales de salud (o no especificado)</p>
               )}
             </div>
           </div>

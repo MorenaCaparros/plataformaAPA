@@ -28,7 +28,7 @@ export default function EditarPlantillaPage() {
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
   const [guardando, setGuardando] = useState(false);
 
-  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social'];
+  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
   const tienePermiso = perfil && rolesPermitidos.includes(perfil.rol);
 
   useEffect(() => {

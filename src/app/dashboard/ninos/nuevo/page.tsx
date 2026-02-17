@@ -7,15 +7,16 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { calcularEdad } from '@/lib/utils/date-helpers';
 import MeetingRecorder from '@/components/forms/MeetingRecorder';
+import VoiceToText from '@/components/forms/VoiceToText';
 import type { MeetingRecordingResult } from '@/components/forms/MeetingRecorder';
+import type { ConsentimientoData } from '@/components/forms/ConsentimientoGrabacionModal';
 import {
   ArrowLeft, UserPlus, Calendar, Users, GraduationCap,
-  Phone, Trash2, Plus, MapPin, Baby, Heart, CheckCircle, AlertTriangle,
-  Camera
+  Phone, Trash2, Plus, MapPin, Baby, Heart, CheckCircle,
+  Camera, X, Stethoscope, UtensilsCrossed, AlertTriangle, FileText
 } from 'lucide-react';
 import type { Zona, Escuela, RangoEtario, Genero, TurnoEscolar } from '@/types/database';
-
-// ─── Helpers ───────────────────────────────────────────────
+import { jsPDF } from "jspdf";// ─── Helpers ───────────────────────────────────────────────
 
 /** Derive rango_etario from age in years */
 function edadARango(edad: number | null): RangoEtario | null {
@@ -35,6 +36,7 @@ interface FamiliarForm {
   key: string;
   tipo: TipoFamiliar;
   nombre: string;
+  apellido: string;
   telefono: string;
   email: string;
   relacion: string;
@@ -55,11 +57,41 @@ function createFamiliar(tipo: TipoFamiliar): FamiliarForm {
     key: crypto.randomUUID(),
     tipo,
     nombre: '',
+    apellido: '',
     telefono: '',
     email: '',
     relacion: tipo === 'otro' ? '' : FAMILIAR_LABELS[tipo],
     vive_con_nino: tipo !== 'referente_escolar',
     es_contacto_principal: false,
+  };
+}
+
+// ─── Salud: Tipos de profesional ──────────────────────────
+
+const TIPOS_PROFESIONAL_SALUD = [
+  { value: 'psicologo_psicopedagogo', label: 'Psicólogo / Psicopedagogo' },
+  { value: 'fonoaudiologo', label: 'Fonoaudiólogo/a' },
+  { value: 'terapista_ocupacional', label: 'Terapista ocupacional' },
+  { value: 'neurologo', label: 'Neurólogo/a' },
+  { value: 'psiquiatra', label: 'Psiquiatra' },
+  { value: 'kinesiologo', label: 'Kinesiólogo/a' },
+  { value: 'nutricionista', label: 'Nutricionista' },
+  { value: 'otro', label: 'Otro profesional' },
+];
+
+interface ProblematicaSalud {
+  key: string;
+  descripcion: string;
+  profesional_tratante: string; // valor de TIPOS_PROFESIONAL_SALUD
+  activo: boolean;
+}
+
+function createProblematicaSalud(): ProblematicaSalud {
+  return {
+    key: crypto.randomUUID(),
+    descripcion: '',
+    profesional_tratante: '',
+    activo: true,
   };
 }
 
@@ -97,6 +129,19 @@ export default function NuevoNinoPage() {
   const [zonaId, setZonaId] = useState('');
   const [observaciones, setObservaciones] = useState('');
 
+  // "¿Permanece en algún curso?"
+  const [permaneceCurso, setPermaneceCurso] = useState<boolean | null>(null);
+  const [cualCurso, setCualCurso] = useState('');
+
+  // Modal state for creating new zona / escuela
+  const [showZonaModal, setShowZonaModal] = useState(false);
+  const [nuevaZonaNombre, setNuevaZonaNombre] = useState('');
+  const [creandoZona, setCreandoZona] = useState(false);
+
+  const [showEscuelaModal, setShowEscuelaModal] = useState(false);
+  const [nuevaEscuelaNombre, setNuevaEscuelaNombre] = useState('');
+  const [creandoEscuela, setCreandoEscuela] = useState(false);
+
   // Foto de perfil (upload at registration for professionals)
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
@@ -107,10 +152,32 @@ export default function NuevoNinoPage() {
     createFamiliar('padre'),
   ]);
 
+  // ─── Salud ─────────────────────────────────────────────────
+  const [profesionalesSalud, setProfesionalesSalud] = useState<string[]>([]);
+  const [problematicasSalud, setProblematicasSalud] = useState<ProblematicaSalud[]>([]);
+  const [obraSocial, setObraSocial] = useState('');
+  const [medicacionHabitual, setMedicacionHabitual] = useState('');
+  const [usaLentes, setUsaLentes] = useState(false);
+  const [usaAudifono, setUsaAudifono] = useState(false);
+  const [requiereAcompanamiento, setRequiereAcompanamiento] = useState(false);
+  const [observacionesSalud, setObservacionesSalud] = useState('');
+
+  // ─── Alimentación ──────────────────────────────────────────
+  const [alergias, setAlergias] = useState('');
+  const [restriccionesAlimentarias, setRestriccionesAlimentarias] = useState('');
+  const [recibeAlimentacionEscolar, setRecibeAlimentacionEscolar] = useState<boolean | null>(null);
+  const [cantidadComidasDiarias, setCantidadComidasDiarias] = useState('');
+  const [tipoAlimentacion, setTipoAlimentacion] = useState<'completa' | 'incompleta' | 'insuficiente' | 'desconocido' | ''>('');
+  const [observacionesAlimentacion, setObservacionesAlimentacion] = useState('');
+
+  // ─── Notas profesionales / IA ──────────────────────────────
+  const [notasProfesional, setNotasProfesional] = useState('');
+
   // ─── Recording / Transcription state ───────────────────────
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [transcripcion, setTranscripcion] = useState('');
   const [duracionGrabacion, setDuracionGrabacion] = useState(0);
+  const [consentimientoGrabacion, setConsentimientoGrabacion] = useState<ConsentimientoData | null>(null);
   const [resumenIA, setResumenIA] = useState('');
   const [analizando, setAnalizando] = useState(false);
   const [camposAutocompletados, setCamposAutocompletados] = useState(false);
@@ -156,6 +223,99 @@ export default function NuevoNinoPage() {
     setEscuelas(data || []);
   };
 
+  // ─── Create new Zona / Escuela from modal ─────────────────
+
+  const handleCrearZona = async () => {
+    const nombre = nuevaZonaNombre.trim();
+    if (!nombre) return;
+    setCreandoZona(true);
+    try {
+      const { data, error } = await supabase
+        .from('zonas')
+        .insert({ nombre, activa: true })
+        .select('id, nombre')
+        .single();
+      if (error) throw error;
+      setZonas((prev) => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setZonaId(data.id);
+      setShowZonaModal(false);
+      setNuevaZonaNombre('');
+    } catch (err: any) {
+      console.error('Error creando zona:', err);
+      alert('Error al crear zona: ' + err.message);
+    } finally {
+      setCreandoZona(false);
+    }
+  };
+
+  const handleCrearEscuela = async () => {
+    const nombre = nuevaEscuelaNombre.trim();
+    if (!nombre) return;
+    setCreandoEscuela(true);
+    try {
+      const { data, error } = await supabase
+        .from('escuelas')
+        .insert({ nombre, activa: true })
+        .select('id, nombre')
+        .single();
+      if (error) throw error;
+      setEscuelas((prev) => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setEscuelaId(data.id);
+      setShowEscuelaModal(false);
+      setNuevaEscuelaNombre('');
+    } catch (err: any) {
+      console.error('Error creando escuela:', err);
+      alert('Error al crear escuela: ' + err.message);
+    } finally {
+      setCreandoEscuela(false);
+    }
+  };
+
+
+  // Función helper para subir a Drive
+const subirADrive = async (archivo: File | Blob, nombre: string, carpetaId: string) => {
+  const formData = new FormData();
+  formData.append('file', archivo);
+  formData.append('fileName', nombre);
+  formData.append('folderId', carpetaId); 
+
+  const res = await fetch('/api/drive/subir', {
+    method: 'POST',
+    body: formData,
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Error al subir a Drive');
+  
+  return data.url; // Retorna el enlace web de Drive
+};
+
+// Función específica para guardar Audio + PDF en carpetas organizadas
+  const guardarEntrevistaOrganizada = async (
+    audio: Blob, 
+    pdf: Blob, 
+    nombreNino: string,
+    rootId: string
+  ) => {
+    const formData = new FormData();
+    const fechaHoy = new Date().toISOString().split('T')[0]; // 2026-02-17
+
+    formData.append('audio', audio, `audio-${fechaHoy}.webm`);
+    formData.append('pdf', pdf, `consentimiento-${fechaHoy}.pdf`);
+    formData.append('nombreNino', nombreNino);
+    formData.append('fecha', fechaHoy);
+    formData.append('rootFolderId', rootId);
+
+    const res = await fetch('/api/drive/guardar-entrevista', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Error al guardar entrevista');
+    
+    return data; // Retorna { audioUrl, pdfUrl }
+  };
   // ─── Foto handler ───────────────────────────────────────
 
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,12 +349,35 @@ export default function NuevoNinoPage() {
     );
   };
 
+  // ─── Salud helpers ────────────────────────────────────────
+
+  const toggleProfesionalSalud = (value: string) => {
+    setProfesionalesSalud((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    );
+  };
+
+  const addProblematicaSalud = () => {
+    setProblematicasSalud((prev) => [...prev, createProblematicaSalud()]);
+  };
+
+  const removeProblematicaSalud = (key: string) => {
+    setProblematicasSalud((prev) => prev.filter((p) => p.key !== key));
+  };
+
+  const updateProblematicaSalud = (key: string, field: keyof ProblematicaSalud, value: any) => {
+    setProblematicasSalud((prev) =>
+      prev.map((p) => (p.key === key ? { ...p, [field]: value } : p))
+    );
+  };
+
   // ─── Recording callbacks ──────────────────────────────────
 
   const handleRecordingComplete = useCallback((result: MeetingRecordingResult) => {
     setAudioBlob(result.audioBlob);
     setTranscripcion(result.transcripcion);
     setDuracionGrabacion(result.duracionSegundos);
+    setConsentimientoGrabacion(result.consentimiento);
   }, []);
 
   const handleAnalizar = useCallback(async (textoTranscripcion: string) => {
@@ -250,6 +433,7 @@ export default function NuevoNinoPage() {
             key: crypto.randomUUID(),
             tipo: (['madre', 'padre', 'tutor', 'referente_escolar', 'otro'].includes(f.tipo) ? f.tipo : 'otro') as TipoFamiliar,
             nombre: f.nombre || '',
+            apellido: f.apellido || '',
             telefono: f.telefono || '',
             email: f.email || '',
             relacion: f.relacion || FAMILIAR_LABELS[f.tipo as TipoFamiliar] || '',
@@ -257,13 +441,13 @@ export default function NuevoNinoPage() {
             es_contacto_principal: false,
           }));
           // Replace empty familiares or merge
-          const familiaresLlenos = familiares.filter((f) => f.nombre.trim());
+          const familiaresLlenos = familiares.filter((f) => f.nombre.trim() || f.apellido.trim());
           if (familiaresLlenos.length === 0) {
             setFamiliares(nuevosFamiliares);
           } else {
             // Add new ones that don't already exist
-            const existingNames = new Set(familiaresLlenos.map((f) => f.nombre.toLowerCase()));
-            const nuevos = nuevosFamiliares.filter((f: FamiliarForm) => !existingNames.has(f.nombre.toLowerCase()));
+            const existingNames = new Set(familiaresLlenos.map((f) => `${f.nombre} ${f.apellido}`.toLowerCase().trim()));
+            const nuevos = nuevosFamiliares.filter((f: FamiliarForm) => !existingNames.has(`${f.nombre} ${f.apellido}`.toLowerCase().trim()));
             if (nuevos.length > 0) setFamiliares([...familiaresLlenos, ...nuevos]);
           }
         }
@@ -330,35 +514,29 @@ export default function NuevoNinoPage() {
 
       const ninoId = nino.id;
 
-      // 1b. Upload profile photo if provided
+      // 1b. Subir FOTO a Google Drive (si está configurado)
       if (fotoFile) {
         try {
           const ext = fotoFile.name.split('.').pop();
-          const filePath = `ninos/${ninoId}/perfil.${ext}`;
+          const fileName = `perfil-${ninoId}.${ext}`;
+          const driveFolderId = process.env.NEXT_PUBLIC_DRIVE_FOLDER_FOTOS; 
 
-          const { error: uploadFotoError } = await supabase.storage
-            .from('fotos-perfil')
-            .upload(filePath, fotoFile, { upsert: true });
-
-          if (!uploadFotoError) {
-            const { data: urlData } = supabase.storage
-              .from('fotos-perfil')
-              .getPublicUrl(filePath);
-
+          if (driveFolderId) {
+            const driveUrl = await subirADrive(fotoFile, fileName, driveFolderId);
             await supabase
               .from('ninos')
-              .update({ foto_perfil_url: urlData.publicUrl })
+              .update({ foto_perfil_url: driveUrl })
               .eq('id', ninoId);
-          } else {
-            console.error('Error subiendo foto de perfil:', uploadFotoError);
           }
+          // Si no hay carpeta de Drive configurada, simplemente no se sube la foto
         } catch (fotoErr) {
           console.error('Error procesando foto:', fotoErr);
+          // No bloquear el registro — la foto se puede subir después desde el perfil
         }
       }
 
-      // 1c. Insert ninos_sensibles if professional provided nombre/apellido
-      if (esProfesional && (nombreCompleto.trim() || apellido.trim())) {
+      // 1c. Insert ninos_sensibles if nombre/apellido provided
+      if (nombreCompleto.trim() || apellido.trim()) {
         const { error: sensibleError } = await supabase
           .from('ninos_sensibles')
           .insert({
@@ -383,32 +561,104 @@ export default function NuevoNinoPage() {
       }
 
       // 3. Insert familiares (only those with a name filled in)
-      const familiaresConNombre = familiares.filter((f) => f.nombre.trim());
+      const familiaresConNombre = familiares.filter((f) => f.nombre.trim() || f.apellido.trim());
       if (familiaresConNombre.length > 0) {
-        const rows = familiaresConNombre.map((f) => ({
-          nino_id: ninoId,
-          tipo: f.tipo,
-          nombre: f.nombre.trim(),
-          telefono: f.telefono.trim() || null,
-          email: f.email.trim() || null,
-          relacion: f.relacion.trim() || null,
-          vive_con_nino: f.vive_con_nino,
-          es_contacto_principal: f.es_contacto_principal,
-        }));
+        const rows = familiaresConNombre.map((f) => {
+          const nombreCompleto = [f.nombre.trim(), f.apellido.trim()].filter(Boolean).join(' ');
+          return {
+            nino_id: ninoId,
+            tipo: f.tipo,
+            nombre: nombreCompleto,
+            telefono: f.telefono.trim() || null,
+            email: f.email.trim() || null,
+            relacion: f.relacion.trim() || null,
+            vive_con_nino: f.vive_con_nino,
+            es_contacto_principal: f.es_contacto_principal,
+          };
+        });
         const { error: famError } = await supabase
           .from('familiares_apoyo')
           .insert(rows);
         if (famError) console.error('Error guardando familiares:', famError);
       }
 
+      // 3b. Insert salud_ninos
+      const tieneDatosSalud = profesionalesSalud.length > 0 || problematicasSalud.some(p => p.descripcion.trim()) || obraSocial.trim() || medicacionHabitual.trim() || usaLentes || usaAudifono || requiereAcompanamiento || observacionesSalud.trim();
+      if (tieneDatosSalud) {
+        try {
+          const condicionesTexto = [
+            profesionalesSalud.length > 0
+              ? `Profesionales: ${profesionalesSalud.map(v => TIPOS_PROFESIONAL_SALUD.find(t => t.value === v)?.label || v).join(', ')}`
+              : '',
+            ...problematicasSalud
+              .filter(p => p.descripcion.trim())
+              .map(p => {
+                const prof = p.profesional_tratante
+                  ? TIPOS_PROFESIONAL_SALUD.find(t => t.value === p.profesional_tratante)?.label || p.profesional_tratante
+                  : '';
+                return `• ${p.descripcion.trim()}${prof ? ` (${prof})` : ''}${!p.activo ? ' [resuelto]' : ''}`;
+              }),
+          ].filter(Boolean).join('\n');
+
+          const { error: saludError } = await supabase
+            .from('salud_ninos')
+            .insert({
+              nino_id: ninoId,
+              obra_social: obraSocial.trim() || null,
+              alergias: alergias.trim() || null, // alergias shared with alimentación
+              medicacion_habitual: medicacionHabitual.trim() || null,
+              condiciones_preexistentes: condicionesTexto || null,
+              usa_lentes: usaLentes,
+              usa_audifono: usaAudifono,
+              requiere_acompanamiento_especial: requiereAcompanamiento,
+              observaciones: observacionesSalud.trim() || null,
+            });
+          if (saludError) console.error('Error guardando salud:', saludError);
+        } catch (saludErr) {
+          console.error('Error guardando datos de salud:', saludErr);
+        }
+      }
+
+      // 3c. Insert alimentacion_ninos
+      const tieneDatosAlimentacion = alergias.trim() || restriccionesAlimentarias.trim() || recibeAlimentacionEscolar !== null || cantidadComidasDiarias || tipoAlimentacion || observacionesAlimentacion.trim();
+      if (tieneDatosAlimentacion) {
+        try {
+          const obsAlimentacion = [
+            restriccionesAlimentarias.trim() ? `Restricciones: ${restriccionesAlimentarias.trim()}` : '',
+            observacionesAlimentacion.trim() || '',
+          ].filter(Boolean).join('\n');
+
+          const { error: alimentacionError } = await supabase
+            .from('alimentacion_ninos')
+            .insert({
+              nino_id: ninoId,
+              recibe_alimentacion_escolar: recibeAlimentacionEscolar,
+              cantidad_comidas_diarias: cantidadComidasDiarias ? parseInt(cantidadComidasDiarias) : null,
+              tipo_alimentacion: tipoAlimentacion || null,
+              alergias: alergias.trim() || null,
+              observaciones: obsAlimentacion || null,
+            });
+          if (alimentacionError) console.error('Error guardando alimentación:', alimentacionError);
+        } catch (alimErr) {
+          console.error('Error guardando datos de alimentación:', alimErr);
+        }
+      }
+
       // 4. Create entrevista inicial (with observations + AI summary)
       let entrevistaId: string | null = null;
-      const tieneContenido = observaciones.trim() || resumenIA.trim() || transcripcion.trim();
+      const cursoInfo = permaneceCurso === true
+        ? `Permanece en curso: Sí${cualCurso.trim() ? ` — ${cualCurso.trim()}` : ''}`
+        : permaneceCurso === false
+          ? 'Permanece en curso: No'
+          : '';
+      const tieneContenido = observaciones.trim() || resumenIA.trim() || transcripcion.trim() || cursoInfo || notasProfesional.trim();
 
       if (tieneContenido) {
         const conclusiones = [
           resumenIA ? `--- Resumen generado por IA ---\n${resumenIA}` : '',
           observaciones.trim() ? `--- Observaciones manuales ---\n${observaciones.trim()}` : '',
+          cursoInfo ? `--- Curso ---\n${cursoInfo}` : '',
+          notasProfesional.trim() ? `--- Notas de la trabajadora social ---\n${notasProfesional.trim()}` : '',
         ].filter(Boolean).join('\n\n');
 
         const { data: entrevista, error: entrevistaError } = await supabase
@@ -434,35 +684,88 @@ export default function NuevoNinoPage() {
 
       // 5. Upload audio + save grabacion_voz record
       if (audioBlob && audioBlob.size > 0) {
-        const timestamp = Date.now();
-        const storagePath = `grabaciones-reuniones/${ninoId}/${timestamp}.webm`;
+        let audioUrl: string | null = null;
+        let pdfUrl: string | null = null;
 
-        const { error: uploadError } = await supabase.storage
-          .from('grabaciones-reuniones')
-          .upload(storagePath, audioBlob, {
-            contentType: 'audio/webm',
-            upsert: false,
+        // A. Intentar subir a Drive (si está configurado)
+        const driveRootAudios = process.env.NEXT_PUBLIC_DRIVE_FOLDER_AUDIOS;
+        
+        if (driveRootAudios) {
+          try {
+            // Generar PDF con jsPDF
+            const doc = new jsPDF();
+            doc.setFontSize(16);
+            doc.text("Consentimiento Informado", 10, 20);
+            doc.setFontSize(12);
+            doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 10, 30);
+            doc.text(`Niño/a: ${esProfesional ? (nombreCompleto || alias) : alias}`, 10, 40);
+            
+            if (consentimientoGrabacion) {
+              doc.text(`Firmante: ${consentimientoGrabacion.nombre_firmante} (DNI: ${consentimientoGrabacion.dni_firmante})`, 10, 50);
+              doc.setFontSize(10);
+              const legalText = doc.splitTextToSize(consentimientoGrabacion.texto_consentimiento, 180);
+              doc.text(legalText, 10, 70);
+              
+              if (consentimientoGrabacion.firma_imagen_base64) {
+                doc.text("Firma:", 10, 130);
+                doc.addImage(consentimientoGrabacion.firma_imagen_base64, 'PNG', 10, 135, 60, 30);
+              }
+            }
+
+            if (transcripcion) {
+              doc.addPage();
+              doc.setFontSize(14);
+              doc.text("Transcripción", 10, 20);
+              doc.setFontSize(10);
+              const lines = doc.splitTextToSize(transcripcion, 180);
+              doc.text(lines, 10, 30);
+            }
+
+            const pdfBlob = doc.output('blob');
+
+            const driveResult = await guardarEntrevistaOrganizada(
+              audioBlob, 
+              pdfBlob, 
+              esProfesional ? (nombreCompleto || alias) : alias,
+              driveRootAudios
+            );
+            audioUrl = driveResult.audioUrl;
+            pdfUrl = driveResult.pdfUrl;
+          } catch (driveErr) {
+            console.error('Error subiendo a Drive (se guardará sin enlace):', driveErr);
+            // No bloquear — guardamos la grabación sin links de Drive
+          }
+        }
+
+        // B. Guardar en Supabase SIEMPRE (con o sin links de Drive)
+        try {
+          const transcripcionFinal = [
+            pdfUrl ? `PDF Respaldo: ${pdfUrl}` : null,
+            transcripcion,
+          ].filter(Boolean).join('\n\n');
+
+          await supabase.from('grabaciones_voz').insert({
+            entrevista_id: entrevistaId,
+            nino_id: ninoId,
+            usuario_id: user?.id,
+            storage_path: audioUrl || 'pendiente-drive',
+            transcripcion: transcripcionFinal || null,
+            duracion_segundos: duracionGrabacion,
+            formato: 'webm',
+            tamanio_bytes: audioBlob.size,
+            procesada: true,
+            consentimiento_nombre: consentimientoGrabacion?.nombre_firmante || null,
+            consentimiento_relacion: consentimientoGrabacion?.relacion_con_nino || null,
+            consentimiento_dni: consentimientoGrabacion?.dni_firmante || null,
+            consentimiento_firma: consentimientoGrabacion?.firma_imagen_base64 || null,
+            consentimiento_fecha: consentimientoGrabacion?.fecha_consentimiento || null,
+            consentimiento_texto: consentimientoGrabacion?.texto_consentimiento || null,
+            consentimiento_acepta_grabacion: consentimientoGrabacion?.acepta_grabacion ?? false,
+            consentimiento_acepta_transcripcion: consentimientoGrabacion?.acepta_transcripcion ?? false,
+            consentimiento_acepta_almacenamiento: consentimientoGrabacion?.acepta_almacenamiento ?? false,
           });
-
-        if (uploadError) {
-          console.error('Error subiendo audio:', uploadError);
-        } else {
-          // Save metadata in grabaciones_voz
-          const { error: grabError } = await supabase
-            .from('grabaciones_voz')
-            .insert({
-              entrevista_id: entrevistaId,
-              nino_id: ninoId,
-              usuario_id: user?.id ?? null,
-              storage_path: storagePath,
-              duracion_segundos: duracionGrabacion || null,
-              formato: 'webm',
-              tamanio_bytes: audioBlob.size,
-              transcripcion: transcripcion.trim() || null,
-              procesada: true,
-            });
-
-          if (grabError) console.error('Error guardando metadata de grabación:', grabError);
+        } catch (dbErr) {
+          console.error('Error guardando grabación en base de datos:', dbErr);
         }
       }
 
@@ -559,21 +862,36 @@ export default function NuevoNinoPage() {
                 </p>
               </>
             ) : (
-              /* Voluntarios: solo Nombre (se guarda como alias) */
-              <div>
-                <label className={labelClass}>Nombre del niño *</label>
-                <input
-                  type="text"
-                  required
-                  value={alias}
-                  onChange={(e) => setAlias(e.target.value)}
-                  className={inputClass}
-                  placeholder="Ej: Juan, María, Luisito..."
-                />
+              /* Voluntarios: Nombre y Apellido en dos campos separados */
+              <>
+                <p className="text-sm font-medium text-neutro-carbon font-outfit -mb-1">Nombre y Apellido</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Nombre *</label>
+                    <input
+                      type="text"
+                      required
+                      value={alias}
+                      onChange={(e) => setAlias(e.target.value)}
+                      className={inputClass}
+                      placeholder="Ej: Juan, María..."
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Apellido</label>
+                    <input
+                      type="text"
+                      value={apellido}
+                      onChange={(e) => setApellido(e.target.value)}
+                      className={inputClass}
+                      placeholder="Ej: García, López..."
+                    />
+                  </div>
+                </div>
                 <p className="mt-1.5 text-xs text-neutro-piedra font-outfit">
-                  Solo el nombre, sin apellido. Los datos completos los cargará el equipo profesional.
+                  Los datos completos los podrá verificar el equipo profesional desde el perfil del niño.
                 </p>
-              </div>
+              </>
             )}
 
             {/* Foto de perfil (profesionales) */}
@@ -679,18 +997,27 @@ export default function NuevoNinoPage() {
                   Equipo / Zona
                 </span>
               </label>
-              <select
-                value={zonaId}
-                onChange={(e) => setZonaId(e.target.value)}
-                className={inputClass}
-              >
-                <option value="">Sin asignar</option>
-                {zonas.map((z) => (
-                  <option key={z.id} value={z.id}>
-                    {z.nombre}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={zonaId}
+                  onChange={(e) => {
+                    if (e.target.value === '__nueva__') {
+                      setShowZonaModal(true);
+                    } else {
+                      setZonaId(e.target.value);
+                    }
+                  }}
+                  className={inputClass + ' flex-1'}
+                >
+                  <option value="">Sin asignar</option>
+                  {zonas.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.nombre}
+                    </option>
+                  ))}
+                  <option value="__nueva__">＋ Agregar zona...</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -733,18 +1060,27 @@ export default function NuevoNinoPage() {
                 {/* Escuela */}
                 <div>
                   <label className={labelClass}>Escuela</label>
-                  <select
-                    value={escuelaId}
-                    onChange={(e) => setEscuelaId(e.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="">Sin especificar</option>
-                    {escuelas.map((esc) => (
-                      <option key={esc.id} value={esc.id}>
-                        {esc.nombre}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={escuelaId}
+                      onChange={(e) => {
+                        if (e.target.value === '__nueva__') {
+                          setShowEscuelaModal(true);
+                        } else {
+                          setEscuelaId(e.target.value);
+                        }
+                      }}
+                      className={inputClass + ' flex-1'}
+                    >
+                      <option value="">Sin especificar</option>
+                      {escuelas.map((esc) => (
+                        <option key={esc.id} value={esc.id}>
+                          {esc.nombre}
+                        </option>
+                      ))}
+                      <option value="__nueva__">＋ Agregar escuela...</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Grado + Turno */}
@@ -752,11 +1088,23 @@ export default function NuevoNinoPage() {
                   <div>
                     <label className={labelClass}>Grado escolar</label>
                     <input
-                      type="text"
+                      type="number"
+                      min="1"
+                      max="7"
+                      step="1"
                       value={gradoEscolar}
-                      onChange={(e) => setGradoEscolar(e.target.value)}
+                      onChange={(e) => setGradoEscolar(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={(e) => {
+                        // Block non-numeric keys (allow backspace, delete, arrows, tab)
+                        if (
+                          !/[0-9]/.test(e.key) &&
+                          !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                        ) {
+                          e.preventDefault();
+                        }
+                      }}
                       className={inputClass}
-                      placeholder="Ej: 3° grado"
+                      placeholder="Ej: 3"
                     />
                   </div>
                   <div>
@@ -774,6 +1122,46 @@ export default function NuevoNinoPage() {
                   </div>
                 </div>
               </>
+            )}
+
+            {/* ¿Permanece en algún curso? */}
+            <div>
+              <label className={labelClass}>¿Permaneció o permanece en algún curso?</label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                  <input
+                    type="radio"
+                    name="permaneceCurso"
+                    checked={permaneceCurso === true}
+                    onChange={() => setPermaneceCurso(true)}
+                    className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
+                  />
+                  <span className="text-neutro-carbon font-outfit">Sí</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                  <input
+                    type="radio"
+                    name="permaneceCurso"
+                    checked={permaneceCurso === false}
+                    onChange={() => { setPermaneceCurso(false); setCualCurso(''); }}
+                    className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
+                  />
+                  <span className="text-neutro-carbon font-outfit">No</span>
+                </label>
+              </div>
+            </div>
+
+            {permaneceCurso && (
+              <div>
+                <label className={labelClass}>¿Cuál?</label>
+                <input
+                      type="text"
+                      value={cualCurso}
+                      onChange={(e) => setCualCurso(e.target.value)}
+                      className={inputClass}
+                      placeholder="Ej: Apoyo escolar, Fútbol, Catequesis..."
+                />
+              </div>
             )}
           </div>
 
@@ -823,18 +1211,318 @@ export default function NuevoNinoPage() {
             </div>
           </div>
 
-          {/* ── SECTION 4: Observaciones / Comentarios (todos los roles) */}
+          {/* ── SECTION 4: Salud ─────────────────────────────── */}
+          <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8 space-y-5">
+            <h2 className={sectionTitleClass}>
+              <Stethoscope size={20} className="text-impulso-500" />
+              Salud
+            </h2>
+            <p className="text-xs text-neutro-piedra font-outfit -mt-2">
+              Información sobre profesionales de salud, complicaciones y condiciones relevantes.
+            </p>
+
+            {/* Profesionales de salud que asiste / asistió */}
+            <div>
+              <label className={labelClass}>
+                ¿Asiste o asistió a algún profesional de salud?
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {TIPOS_PROFESIONAL_SALUD.map((t) => {
+                  const isSelected = profesionalesSalud.includes(t.value);
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => toggleProfesionalSalud(t.value)}
+                      className={`px-4 py-2.5 rounded-2xl text-sm font-medium font-outfit transition-all touch-manipulation ${
+                        isSelected
+                          ? 'bg-impulso-500 text-white shadow-md'
+                          : 'bg-white/80 border border-white/60 text-neutro-carbon hover:shadow-md'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {profesionalesSalud.length === 0 && (
+                <p className="text-xs text-neutro-piedra/70 font-outfit mt-2 italic">
+                  No se indicaron profesionales (o no especificado)
+                </p>
+              )}
+            </div>
+
+            {/* Problemáticas / complicaciones de salud */}
+            <div>
+              <label className={labelClass}>
+                <span className="flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-sol-600" />
+                  Problemáticas o complicaciones de salud
+                </span>
+              </label>
+              {problematicasSalud.map((prob) => (
+                <div key={prob.key} className="flex flex-col sm:flex-row gap-2 mb-3 p-3 bg-white/50 rounded-2xl border border-white/60">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={prob.descripcion}
+                      onChange={(e) => updateProblematicaSalud(prob.key, 'descripcion', e.target.value)}
+                      className={inputClass + ' !min-h-[44px] !py-2 text-sm'}
+                      placeholder="Descripción del problema o complicación"
+                    />
+                  </div>
+                  <div className="sm:w-48">
+                    <select
+                      value={prob.profesional_tratante}
+                      onChange={(e) => updateProblematicaSalud(prob.key, 'profesional_tratante', e.target.value)}
+                      className={inputClass + ' !min-h-[44px] !py-2 text-sm'}
+                    >
+                      <option value="">Profesional…</option>
+                      {TIPOS_PROFESIONAL_SALUD.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs font-outfit text-neutro-carbon min-h-[44px]">
+                      <input
+                        type="checkbox"
+                        checked={prob.activo}
+                        onChange={(e) => updateProblematicaSalud(prob.key, 'activo', e.target.checked)}
+                        className="w-4 h-4 rounded text-crecimiento-500 focus:ring-crecimiento-400"
+                      />
+                      Activo
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeProblematicaSalud(prob.key)}
+                      className="p-2 text-neutro-piedra hover:text-impulso-500 transition-colors rounded-xl"
+                      title="Quitar"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addProblematicaSalud}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-white/80 border border-white/60 text-sm font-outfit text-neutro-carbon hover:shadow-md transition-all min-h-[44px]"
+              >
+                <Plus size={14} /> Agregar problemática
+              </button>
+            </div>
+
+            {/* Obra social y medicación */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Obra social</label>
+                <input
+                  type="text"
+                  value={obraSocial}
+                  onChange={(e) => setObraSocial(e.target.value)}
+                  className={inputClass}
+                  placeholder="Ej: OSDE, IOMA, sin cobertura..."
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Medicación habitual</label>
+                <input
+                  type="text"
+                  value={medicacionHabitual}
+                  onChange={(e) => setMedicacionHabitual(e.target.value)}
+                  className={inputClass}
+                  placeholder="Ej: Ritalina, Risperidona..."
+                />
+              </div>
+            </div>
+
+            {/* Checkboxes de salud */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
+                <input
+                  type="checkbox"
+                  checked={usaLentes}
+                  onChange={(e) => setUsaLentes(e.target.checked)}
+                  className="w-4 h-4 rounded text-impulso-500 focus:ring-impulso-400"
+                />
+                Usa lentes
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
+                <input
+                  type="checkbox"
+                  checked={usaAudifono}
+                  onChange={(e) => setUsaAudifono(e.target.checked)}
+                  className="w-4 h-4 rounded text-impulso-500 focus:ring-impulso-400"
+                />
+                Usa audífono
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
+                <input
+                  type="checkbox"
+                  checked={requiereAcompanamiento}
+                  onChange={(e) => setRequiereAcompanamiento(e.target.checked)}
+                  className="w-4 h-4 rounded text-impulso-500 focus:ring-impulso-400"
+                />
+                Requiere acompañamiento especial
+              </label>
+            </div>
+
+            {/* Observaciones de salud */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className={labelClass + ' !mb-0'}>Observaciones de salud</label>
+                <VoiceToText
+                  currentText={observacionesSalud}
+                  onTranscript={setObservacionesSalud}
+                  disabled={loading}
+                />
+              </div>
+              <textarea
+                value={observacionesSalud}
+                onChange={(e) => setObservacionesSalud(e.target.value)}
+                rows={3}
+                className={inputClass + ' min-h-[80px] resize-y'}
+                placeholder="Detalles adicionales sobre la salud del niño/a..."
+              />
+            </div>
+          </div>
+
+          {/* ── SECTION 5: Alimentación ──────────────────────── */}
+          <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8 space-y-5">
+            <h2 className={sectionTitleClass}>
+              <UtensilsCrossed size={20} className="text-sol-600" />
+              Alimentación
+            </h2>
+            <p className="text-xs text-neutro-piedra font-outfit -mt-2">
+              Alergias, restricciones y situación alimentaria.
+            </p>
+
+            {/* Alergias */}
+            <div>
+              <label className={labelClass}>
+                <span className="flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-impulso-500" />
+                  Alergias alimentarias
+                </span>
+              </label>
+              <input
+                type="text"
+                value={alergias}
+                onChange={(e) => setAlergias(e.target.value)}
+                className={inputClass}
+                placeholder="Ej: Gluten, lácteos, maní... (dejar vacío si no hay)"
+              />
+            </div>
+
+            {/* Restricciones alimentarias */}
+            <div>
+              <label className={labelClass}>Restricciones alimentarias</label>
+              <input
+                type="text"
+                value={restriccionesAlimentarias}
+                onChange={(e) => setRestriccionesAlimentarias(e.target.value)}
+                className={inputClass}
+                placeholder="Ej: Vegetariano, celíaco, sin cerdo..."
+              />
+            </div>
+
+            {/* ¿Recibe alimentación escolar? */}
+            <div>
+              <label className={labelClass}>¿Recibe alimentación escolar?</label>
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                  <input
+                    type="radio"
+                    name="recibeAlimentacionEscolar"
+                    checked={recibeAlimentacionEscolar === true}
+                    onChange={() => setRecibeAlimentacionEscolar(true)}
+                    className="w-5 h-5 text-sol-500 focus:ring-sol-400"
+                  />
+                  <span className="text-neutro-carbon font-outfit">Sí</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                  <input
+                    type="radio"
+                    name="recibeAlimentacionEscolar"
+                    checked={recibeAlimentacionEscolar === false}
+                    onChange={() => setRecibeAlimentacionEscolar(false)}
+                    className="w-5 h-5 text-sol-500 focus:ring-sol-400"
+                  />
+                  <span className="text-neutro-carbon font-outfit">No</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Cantidad de comidas + Tipo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Comidas diarias (aprox.)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  value={cantidadComidasDiarias}
+                  onChange={(e) => setCantidadComidasDiarias(e.target.value.replace(/\D/g, ''))}
+                  className={inputClass}
+                  placeholder="Ej: 3"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Tipo de alimentación</label>
+                <select
+                  value={tipoAlimentacion}
+                  onChange={(e) => setTipoAlimentacion(e.target.value as typeof tipoAlimentacion)}
+                  className={inputClass}
+                >
+                  <option value="">Sin especificar</option>
+                  <option value="completa">Completa</option>
+                  <option value="incompleta">Incompleta</option>
+                  <option value="insuficiente">Insuficiente</option>
+                  <option value="desconocido">Desconocido</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Observaciones alimentación */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className={labelClass + ' !mb-0'}>Observaciones sobre alimentación</label>
+                <VoiceToText
+                  currentText={observacionesAlimentacion}
+                  onTranscript={setObservacionesAlimentacion}
+                  disabled={loading}
+                />
+              </div>
+              <textarea
+                value={observacionesAlimentacion}
+                onChange={(e) => setObservacionesAlimentacion(e.target.value)}
+                rows={2}
+                className={inputClass + ' min-h-[70px] resize-y'}
+                placeholder="Detalles adicionales sobre la alimentación..."
+              />
+            </div>
+          </div>
+
+          {/* ── SECTION 6: Observaciones / Comentarios (todos los roles) */}
           <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8 space-y-5">
             <h2 className={sectionTitleClass}>
               <Heart size={20} className="text-impulso-400" />
               {esProfesional ? 'Observaciones iniciales' : 'Comentarios'}
             </h2>
             <div>
-              <label className={labelClass}>
-                {esProfesional
-                  ? 'Notas u observaciones al momento del ingreso'
-                  : 'Comentarios o notas sobre el niño'}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className={labelClass + ' !mb-0'}>
+                  {esProfesional
+                    ? 'Notas u observaciones al momento del ingreso'
+                    : 'Comentarios o notas sobre el niño'}
+                </label>
+                <VoiceToText
+                  currentText={observaciones}
+                  onTranscript={setObservaciones}
+                  disabled={loading}
+                />
+              </div>
               <textarea
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
@@ -842,14 +1530,44 @@ export default function NuevoNinoPage() {
                 className={inputClass + ' min-h-[120px] resize-y'}
                 placeholder={
                   esProfesional
-                    ? 'Contexto familiar, situación particular, derivación, etc.'
-                    : 'Algo que quieras anotar sobre el niño...'
+                    ? 'Contexto familiar, situación particular, derivación, etc. (también podés dictar con el micrófono 🎤)'
+                    : 'Algo que quieras anotar sobre el niño... (también podés dictar con el micrófono 🎤)'
                 }
               />
             </div>
           </div>
 
-          {/* ── SECTION 5: Grabación de reunión (professional) ── */}
+          {/* ── SECTION 7: Notas profesionales (solo profesionales) ── */}
+          {esProfesional && (
+            <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8 space-y-5">
+              <h2 className={sectionTitleClass}>
+                <FileText size={20} className="text-crecimiento-600" />
+                Notas de la trabajadora social / IA
+              </h2>
+              <p className="text-xs text-neutro-piedra font-outfit -mt-2">
+                Espacio para anotaciones profesionales, conclusiones o análisis generado por IA.
+              </p>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className={labelClass + ' !mb-0'}>Notas o comentarios profesionales</label>
+                  <VoiceToText
+                    currentText={notasProfesional}
+                    onTranscript={setNotasProfesional}
+                    disabled={loading}
+                  />
+                </div>
+                <textarea
+                  value={notasProfesional}
+                  onChange={(e) => setNotasProfesional(e.target.value)}
+                  rows={4}
+                  className={inputClass + ' min-h-[120px] resize-y'}
+                  placeholder="Análisis, conclusiones, derivaciones sugeridas, contexto importante... (también podés dictar con el micrófono 🎤)"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── SECTION 8: Grabación de reunión (professional) ── */}
           {esProfesional && (
             <div className="space-y-4">
               <MeetingRecorder
@@ -937,6 +1655,104 @@ export default function NuevoNinoPage() {
           </ul>
         </div>
       </main>
+
+      {/* ── Modal: Agregar Zona ─────────────────────────────── */}
+      {showZonaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutro-carbon font-quicksand">
+                Agregar nueva zona
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setShowZonaModal(false); setNuevaZonaNombre(''); }}
+                className="p-2 text-neutro-piedra hover:text-neutro-carbon transition-colors rounded-xl"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div>
+              <label className={labelClass}>Nombre de la zona *</label>
+              <input
+                type="text"
+                value={nuevaZonaNombre}
+                onChange={(e) => setNuevaZonaNombre(e.target.value)}
+                className={inputClass}
+                placeholder="Ej: Zona Norte, Barrio Centro..."
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCrearZona(); } }}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowZonaModal(false); setNuevaZonaNombre(''); }}
+                className="px-4 py-2.5 rounded-2xl bg-white border border-neutro-200 text-neutro-carbon font-outfit text-sm hover:shadow-md transition-all min-h-[44px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCrearZona}
+                disabled={!nuevaZonaNombre.trim() || creandoZona}
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white font-outfit text-sm font-semibold hover:shadow-lg disabled:opacity-50 transition-all min-h-[44px]"
+              >
+                {creandoZona ? 'Creando...' : 'Crear zona'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Agregar Escuela ──────────────────────────── */}
+      {showEscuelaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutro-carbon font-quicksand">
+                Agregar nueva escuela
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setShowEscuelaModal(false); setNuevaEscuelaNombre(''); }}
+                className="p-2 text-neutro-piedra hover:text-neutro-carbon transition-colors rounded-xl"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div>
+              <label className={labelClass}>Nombre de la escuela *</label>
+              <input
+                type="text"
+                value={nuevaEscuelaNombre}
+                onChange={(e) => setNuevaEscuelaNombre(e.target.value)}
+                className={inputClass}
+                placeholder="Ej: Escuela N° 12, Instituto San Martín..."
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCrearEscuela(); } }}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowEscuelaModal(false); setNuevaEscuelaNombre(''); }}
+                className="px-4 py-2.5 rounded-2xl bg-white border border-neutro-200 text-neutro-carbon font-outfit text-sm hover:shadow-md transition-all min-h-[44px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCrearEscuela}
+                disabled={!nuevaEscuelaNombre.trim() || creandoEscuela}
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white font-outfit text-sm font-semibold hover:shadow-lg disabled:opacity-50 transition-all min-h-[44px]"
+              >
+                {creandoEscuela ? 'Creando...' : 'Crear escuela'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1013,6 +1829,22 @@ function FamiliarCard({
         </div>
         <div>
           <label className="block text-xs font-medium text-neutro-piedra font-outfit mb-1">
+            Apellido
+          </label>
+          <input
+            type="text"
+            value={familiar.apellido}
+            onChange={(e) => onChange('apellido', e.target.value)}
+            className={inputClass + ' !min-h-[44px] !py-2 text-sm'}
+            placeholder={`Apellido del/la ${FAMILIAR_LABELS[familiar.tipo].toLowerCase()}`}
+          />
+        </div>
+      </div>
+
+      {/* Teléfono + Email */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-neutro-piedra font-outfit mb-1">
             <span className="flex items-center gap-1">
               <Phone size={12} /> Teléfono
             </span>
@@ -1025,10 +1857,6 @@ function FamiliarCard({
             placeholder="Ej: 11-2345-6789"
           />
         </div>
-      </div>
-
-      {/* Extra row for email + flags */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-neutro-piedra font-outfit mb-1">
             Email (opcional)
@@ -1041,7 +1869,10 @@ function FamiliarCard({
             placeholder="email@ejemplo.com"
           />
         </div>
-        <div className="flex items-end gap-4 pb-1">
+      </div>
+
+      {/* Flags */}
+      <div className="flex items-end gap-4 pb-1">
           <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
             <input
               type="checkbox"
@@ -1061,7 +1892,6 @@ function FamiliarCard({
             Contacto principal
           </label>
         </div>
-      </div>
     </div>
   );
 }

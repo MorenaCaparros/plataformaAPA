@@ -148,38 +148,50 @@ function MisNinosPageContent() {
         ninosData = (data || []).map((item: any) => item.ninos).filter(Boolean);
       }
 
-      // Para cada niño, obtener conteo de sesiones (optimizado con count)
-      const ninosConSesiones: NinoListado[] = await Promise.all(
-        ninosData.map(async (nino: any) => {
-          const { count } = await supabase
+      // Para cada niño, obtener conteo de sesiones — EN UNA SOLA QUERY
+      const ninoIds = ninosData.map((n: any) => n.id);
+      
+      // Traer todas las sesiones relevantes de una sola vez (resiliente si tabla no existe)
+      let sesionesData: any[] = [];
+      if (ninoIds.length > 0) {
+        try {
+          const { data: allSesiones, error: sesError } = await supabase
             .from('sesiones')
-            .select('*', { count: 'exact', head: true })
-            .eq('nino_id', nino.id);
+            .select('nino_id, fecha')
+            .in('nino_id', ninoIds)
+            .order('fecha', { ascending: false });
+          if (!sesError) sesionesData = allSesiones || [];
+        } catch (e) {
+          console.warn('Tabla sesiones no disponible aún');
+        }
+      }
 
-          const { data: ultimaSesion } = await supabase
-            .from('sesiones')
-            .select('fecha')
-            .eq('nino_id', nino.id)
-            .order('fecha', { ascending: false })
-            .limit(1)
-            .single();
+      // Agrupar en memoria: conteo y última fecha por niño
+      const sesionesMap: Record<string, { count: number; ultima: string | null }> = {};
+      sesionesData.forEach((s: any) => {
+        if (!sesionesMap[s.nino_id]) {
+          sesionesMap[s.nino_id] = { count: 0, ultima: s.fecha }; // primera = más reciente (ya viene DESC)
+        }
+        sesionesMap[s.nino_id].count++;
+      });
 
-          return {
-            id: nino.id,
-            alias: nino.alias,
-            legajo: nino.legajo,
-            rango_etario: nino.rango_etario,
-            nivel_alfabetizacion: nino.nivel_alfabetizacion,
-            escolarizado: nino.escolarizado,
-            grado_escolar: nino.grado_escolar,
-            activo: nino.activo,
-            zonas: nino.zonas || null,
-            ninos_sensibles: nino.ninos_sensibles || null,
-            total_sesiones: count || 0,
-            ultima_sesion: ultimaSesion?.fecha || null
-          };
-        })
-      );
+      const ninosConSesiones: NinoListado[] = ninosData.map((nino: any) => {
+        const info = sesionesMap[nino.id] || { count: 0, ultima: null };
+        return {
+          id: nino.id,
+          alias: nino.alias,
+          legajo: nino.legajo,
+          rango_etario: nino.rango_etario,
+          nivel_alfabetizacion: nino.nivel_alfabetizacion,
+          escolarizado: nino.escolarizado,
+          grado_escolar: nino.grado_escolar,
+          activo: nino.activo,
+          zonas: nino.zonas || null,
+          ninos_sensibles: nino.ninos_sensibles || null,
+          total_sesiones: info.count,
+          ultima_sesion: info.ultima
+        };
+      });
 
       setNinos(ninosConSesiones);
     } catch (error) {

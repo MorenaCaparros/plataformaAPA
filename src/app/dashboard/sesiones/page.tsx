@@ -102,8 +102,8 @@ export default function HistorialPage() {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error cargando sesiones:', error);
-        throw error;
+        console.warn('Error cargando sesiones (la tabla puede no existir aún):', error.message);
+        return [];
       }
       return (data || []) as unknown as Sesion[];
     },
