@@ -359,20 +359,27 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
         <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3">
           Acciones Rápidas
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <button
             onClick={() => router.push('/dashboard/sesiones')}
             className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
             style={{ minHeight: '44px' }}
           >
-            📋 Ver Mis Sesiones
+            📋 Mis Sesiones
+          </button>
+          <button
+            onClick={() => router.push('/dashboard/asistencia')}
+            className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
+            style={{ minHeight: '44px' }}
+          >
+            ✅ Asistencia
           </button>
           <button
             onClick={() => router.push('/dashboard/ninos')}
             className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
             style={{ minHeight: '44px' }}
           >
-            👦 Ver Todos los Niños
+            👦 Ver Niños
           </button>
           <button
             onClick={() => router.push('/dashboard/metricas')}

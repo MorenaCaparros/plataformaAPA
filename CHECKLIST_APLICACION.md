@@ -93,10 +93,12 @@
 
 ## 2. 🔴 Sesiones — Bugs y mejoras
 - [x] **Bug: no se puede seleccionar un niño al crear sesión** — fix: dashboard y listado ahora consultan tabla `asignaciones` primero, niños sin sesiones aparecen correctamente
-- [ ] Agregar opción "No completó el campo" en ítems de sesión (no afectar promedio)
+- [x] Agregar opción "No completó el campo" en ítems de sesión (N/C, no afecta promedio) — ya implementado
 - [x] Cronómetro de duración de sesión (auto-start, persistente al navegar, pausa persiste, banner de sesión activa en dashboard/listado)
-- [ ] Ítem de permanencia y año (solo sí/no — si permanece en el programa)
-- [ ] Porcentaje de asistencia acumulado visible en perfil del niño
+- [x] Ítem de permanencia y año (solo sí/no — se registra en perfil del niño) — ya implementado
+- [x] Porcentaje de asistencia acumulado visible en perfil del niño — ya implementado + nueva página /dashboard/asistencia para registro masivo
+- [x] Fecha seleccionable al registrar sesión (default hoy, permite seleccionar días anteriores)
+- [x] Registro de asistencia masivo: voluntarios y coordinadores pueden marcar presentes/ausentes a múltiples niños de una vez
 
 ## 3. 🔴 Autoevaluaciones — Refactorización completa
 - [ ] **Equipo profesional puede editar y agregar preguntas** al banco de preguntas

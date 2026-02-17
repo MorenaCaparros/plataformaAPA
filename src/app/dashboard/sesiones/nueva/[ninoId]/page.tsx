@@ -14,7 +14,7 @@ import {
   contarItemsCompletados,
   type Categoria
 } from '@/lib/constants/items-observacion';
-import { ArrowLeft, Save, FileText, Check, AlertTriangle, Timer, X } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Check, AlertTriangle, Timer, X, Calendar } from 'lucide-react';
 
 interface Nino {
   id: string;
@@ -27,6 +27,7 @@ interface FormData {
   duracion_minutos: number;
   items: Record<string, number>;
   observaciones_libres: string;
+  fecha: string; // YYYY-MM-DD, default today
 }
 
 // ─── Session Chronometer Hook ──────────────────────────────────
@@ -206,7 +207,8 @@ export default function NuevaSesionPage() {
   const [formData, setFormData] = useState<FormData>({
     duracion_minutos: 45,
     items: {},
-    observaciones_libres: ''
+    observaciones_libres: '',
+    fecha: new Date().toISOString().slice(0, 10)
   });
 
   // Cargar borrador guardado al iniciar
@@ -219,7 +221,8 @@ export default function NuevaSesionPage() {
           setFormData({
             duracion_minutos: draft.duracion_minutos,
             items: draft.items,
-            observaciones_libres: draft.observaciones_libres
+            observaciones_libres: draft.observaciones_libres,
+            fecha: draft.fecha || new Date().toISOString().slice(0, 10)
           });
           setHasDraft(true);
         } catch (e) {
@@ -337,7 +340,9 @@ export default function NuevaSesionPage() {
         .insert({
           nino_id: ninoId,
           voluntario_id: user?.id,
-          fecha: new Date().toISOString(),
+          fecha: formData.fecha === new Date().toISOString().slice(0, 10)
+            ? new Date().toISOString()
+            : new Date(formData.fecha + 'T12:00:00').toISOString(),
           duracion_minutos: duracionReal,
           items: itemsArray,
           observaciones_libres: formData.observaciones_libres,
@@ -366,7 +371,8 @@ export default function NuevaSesionPage() {
       setFormData({
         duracion_minutos: 45,
         items: {},
-        observaciones_libres: ''
+        observaciones_libres: '',
+        fecha: new Date().toISOString().slice(0, 10)
       });
       setHasDraft(false);
       chrono.reset();
@@ -461,6 +467,27 @@ export default function NuevaSesionPage() {
             <span>La sesión lleva más de 1h30m. Recordá guardar tu progreso.</span>
           </div>
         )}
+
+        {/* Date picker — defaults to today */}
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mb-4">
+          <label className="text-sm font-medium mb-2 flex items-center gap-2 text-neutro-carbon font-outfit">
+            <Calendar className="w-4 h-4" />
+            Fecha de la sesión
+          </label>
+          <input
+            type="date"
+            value={formData.fecha}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setFormData(prev => ({ ...prev, fecha: e.target.value }))}
+            className="w-full px-3 py-3 text-base border border-gray-200 rounded-xl font-outfit focus:ring-2 focus:ring-crecimiento-300 focus:border-crecimiento-400 transition-all"
+          />
+          {formData.fecha !== new Date().toISOString().slice(0, 10) && (
+            <p className="text-xs text-sol-600 mt-2 font-outfit flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Registrando sesión de otro día ({new Date(formData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })})
+            </p>
+          )}
+        </div>
 
         {/* Acordeón */}
         <div className="space-y-3">
