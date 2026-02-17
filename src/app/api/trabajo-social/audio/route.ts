@@ -1,31 +1,36 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { uploadAudio, deleteAudioFromDrive, extractDriveFileId } from '@/lib/google/drive-storage';
 
 export const dynamic = 'force-dynamic';
 
-// POST - Subir audio de entrevista
+// Helper to get authenticated supabase client (for auth + role check only)
+async function getSupabaseClient() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set(name, value, options);
+        },
+        remove(name: string, options: any) {
+          cookieStore.set(name, '', { ...options, maxAge: 0 });
+        },
+      },
+    }
+  );
+}
+
+// POST - Subir audio de entrevista a Google Drive
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set(name, value, options);
-          },
-          remove(name: string, options: any) {
-            cookieStore.set(name, '', { ...options, maxAge: 0 });
-          },
-        },
-      }
-    );
+    const supabase = await getSupabaseClient();
 
     // Verificar autenticación
     const {
@@ -71,42 +76,19 @@ export async function POST(request: Request) {
     // Generar nombre único para el archivo
     const timestamp = Date.now();
     const fileName = `entrevista_${ninoId}_${timestamp}.webm`;
-    const filePath = `entrevistas/${ninoId}/${fileName}`;
 
-    // Subir a Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('audios-entrevistas')
-      .upload(filePath, audioFile, {
-        contentType: 'audio/webm',
-        upsert: false,
-      });
+    const arrayBuffer = await audioFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    if (uploadError) {
-      console.error('Error al subir audio:', uploadError);
-      return NextResponse.json(
-        { error: 'Error al subir el archivo de audio' },
-        { status: 500 }
-      );
-    }
-
-    // Obtener URL pública (con firma temporal de 1 año)
-    const { data: urlData, error: urlError } = await supabase.storage
-      .from('audios-entrevistas')
-      .createSignedUrl(filePath, 31536000); // 1 año en segundos
-
-    if (urlError || !urlData) {
-      console.error('Error al generar URL del audio:', urlError);
-      return NextResponse.json(
-        { error: 'Error al generar URL del audio' },
-        { status: 500 }
-      );
-    }
+    // Subir a Google Drive (NOT Supabase Storage)
+    const result = await uploadAudio(buffer, 'audio/webm', ninoId, fileName);
 
     return NextResponse.json({
       success: true,
-      audio_url: urlData.signedUrl,
-      path: filePath,
-      message: 'Audio subido exitosamente',
+      audio_url: result.url,
+      fileId: result.fileId,
+      path: fileName, // kept for backwards compatibility
+      message: 'Audio subido exitosamente a Google Drive',
     });
   } catch (error) {
     console.error('Error en POST /api/trabajo-social/audio:', error);
@@ -117,28 +99,10 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE - Eliminar audio
+// DELETE - Eliminar audio de Google Drive
 export async function DELETE(request: Request) {
   try {
-    const cookieStore = await cookies();
-    
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set(name, value, options);
-          },
-          remove(name: string, options: any) {
-            cookieStore.set(name, '', { ...options, maxAge: 0 });
-          },
-        },
-      }
-    );
+    const supabase = await getSupabaseClient();
 
     // Verificar autenticación
     const {
@@ -150,26 +114,17 @@ export async function DELETE(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const filePath = searchParams.get('path');
+    // Accept either ?fileId=xxx or ?path=xxx (extract fileId from URL if needed)
+    const fileId = searchParams.get('fileId') || extractDriveFileId(searchParams.get('path') || '');
 
-    if (!filePath) {
+    if (!fileId) {
       return NextResponse.json(
-        { error: 'Path del archivo es requerido' },
+        { error: 'fileId del archivo es requerido' },
         { status: 400 }
       );
     }
 
-    const { error: deleteError } = await supabase.storage
-      .from('audios-entrevistas')
-      .remove([filePath]);
-
-    if (deleteError) {
-      console.error('Error al eliminar audio:', deleteError);
-      return NextResponse.json(
-        { error: 'Error al eliminar el archivo' },
-        { status: 500 }
-      );
-    }
+    await deleteAudioFromDrive(fileId);
 
     return NextResponse.json({
       success: true,

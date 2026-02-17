@@ -32,15 +32,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
     }
 
-    // Verificar que sea director (antes admin)
+    // Verificar que sea director o admin
     const { data: perfil } = await supabaseAdmin
       .from('perfiles')
       .select('rol')
       .eq('id', user.id)
       .single();
 
-    if (perfil?.rol !== 'director') {
-      return NextResponse.json({ error: 'Requiere rol director' }, { status: 403 });
+    if (perfil?.rol !== 'director' && perfil?.rol !== 'admin') {
+      return NextResponse.json({ error: 'Requiere rol director o admin' }, { status: 403 });
     }
 
     // Si hay parámetro 'id', devolver solo ese usuario
@@ -59,39 +59,31 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Obtener todos los perfiles con sus datos de auth.users
+    // Obtener todos los perfiles con datos completos
     const { data: perfiles, error: perfilesError } = await supabaseAdmin
       .from('perfiles')
       .select(`
-        id,
-        nombre,
-        apellido,
-        rol,
-        zona_id,
-        created_at,
-        zonas (
-          nombre
-        )
+        id, nombre, apellido, rol, zona_id,
+        fecha_nacimiento, telefono, email, direccion,
+        foto_perfil_url, fecha_ingreso, max_ninos_asignados,
+        activo, password_temporal, ultima_conexion, notas,
+        created_at, updated_at,
+        zonas ( id, nombre )
       `)
       .order('created_at', { ascending: false });
 
     if (perfilesError) throw perfilesError;
 
-    // Para cada perfil, obtener el email de auth.users
+    // Para cada perfil, obtener el email de auth.users (email en perfiles puede estar vacío)
     const usuariosConEmail = await Promise.all(
       (perfiles || []).map(async (perfil: any) => {
         const { data: authData } = await supabaseAdmin.auth.admin.getUserById(perfil.id);
         
         return {
-          id: perfil.id,
-          email: authData?.user?.email || 'Sin email',
-          rol: perfil.rol,
-          zona_id: perfil.zona_id,
+          ...perfil,
+          email: perfil.email || authData?.user?.email || 'Sin email',
           zona_nombre: perfil.zonas?.nombre || 'Sin equipo',
-          created_at: perfil.created_at,
-          nombre: perfil.nombre || '',
-          apellido: perfil.apellido || '',
-          // Keep backward compat for any frontend reading metadata
+          // Keep backward compat
           metadata: { nombre_completo: [perfil.nombre, perfil.apellido].filter(Boolean).join(' ') }
         };
       })

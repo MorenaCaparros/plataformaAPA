@@ -49,11 +49,35 @@ export async function POST(req: NextRequest) {
       supportsAllDrives: true,
     });
 
-    // 6. Responder con éxito
+    const fileId = response.data.id!;
+
+    // 6. Si es una imagen, hacer pública para que se pueda mostrar en <img>
+    const isImage = archivo.type.startsWith('image/');
+    if (isImage) {
+      try {
+        await drive.permissions.create({
+          fileId,
+          requestBody: { role: 'reader', type: 'anyone' },
+          supportsAllDrives: true,
+        });
+      } catch (permErr) {
+        console.warn('No se pudo hacer público el archivo:', permErr);
+      }
+    }
+
+    // 7. Generar URLs
+    // thumbnailUrl funciona como <img src> para imágenes públicas
+    const thumbnailUrl = isImage
+      ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`
+      : null;
+
+    // 8. Responder con éxito
     return NextResponse.json({ 
       success: true,
-      fileId: response.data.id,
-      url: response.data.webViewLink 
+      fileId,
+      url: thumbnailUrl || response.data.webViewLink,
+      webViewLink: response.data.webViewLink,
+      thumbnailUrl,
     });
 
   } catch (error: any) {

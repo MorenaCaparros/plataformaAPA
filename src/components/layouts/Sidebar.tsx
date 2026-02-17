@@ -13,7 +13,9 @@ import {
   Cog6ToothIcon,
   ChevronLeftIcon,
   Bars3Icon,
-  XMarkIcon
+  XMarkIcon,
+  UserCircleIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -29,7 +31,9 @@ const navigation: NavItem[] = [
   { name: 'Sesiones', href: '/dashboard/sesiones', icon: DocumentTextIcon },
   { name: 'Autoevaluaciones', href: '/dashboard/autoevaluaciones', icon: AcademicCapIcon },
   { name: 'Biblioteca', href: '/dashboard/biblioteca', icon: BookOpenIcon },
-  { name: 'Configuración', href: '/dashboard/configuracion', icon: Cog6ToothIcon },
+  { name: 'Usuarios', href: '/dashboard/usuarios', icon: UserGroupIcon, roles: ['director', 'admin', 'psicopedagogia'] },
+  { name: 'Mi Perfil', href: '/dashboard/mi-perfil', icon: UserCircleIcon },
+  { name: 'Configuración', href: '/dashboard/configuracion', icon: Cog6ToothIcon, roles: ['director', 'admin'] },
 ];
 
 export default function Sidebar() {
@@ -146,7 +150,16 @@ export default function Sidebar() {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-3 overflow-y-auto">
-            {navigation.map((item) => {
+            {navigation
+              .filter((item) => {
+                // If item has roles restriction, check user role
+                if (item.roles && perfil?.rol) {
+                  return item.roles.includes(perfil.rol);
+                }
+                // No restriction = show to all
+                return !item.roles;
+              })
+              .map((item) => {
               const isActive = pathname === item.href || (pathname.startsWith(`${item.href}/`) && item.href !== '/dashboard');
               const Icon = item.icon;
 
@@ -177,25 +190,27 @@ export default function Sidebar() {
           </nav>
 
           {/* User Section */}
-          <div
+          <Link
+            href="/dashboard/mi-perfil"
             className={`
               mt-4 p-4 lg:p-3 rounded-2xl bg-sol-400/10 border border-sol-400/20
+              hover:bg-sol-400/20 transition-colors cursor-pointer block
               ${collapsed && !isMobile ? 'lg:text-center' : ''}
             `}
           >
             {(isMobile || !collapsed) ? (
               <div>
                 <p className="text-base lg:text-sm font-medium text-neutro-carbon truncate">
-                  {user?.email || 'Usuario'}
+                  {(perfil as any)?.nombre || user?.email || 'Usuario'}
                 </p>
                 <p className="text-sm lg:text-xs text-neutro-piedra font-semibold">
-                  {rolDisplay}
+                  {rolDisplay} · Mi Perfil →
                 </p>
               </div>
             ) : (
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sol-400 to-crecimiento-400 mx-auto" />
             )}
-          </div>
+          </Link>
         </div>
       </aside>
 

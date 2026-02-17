@@ -13,6 +13,21 @@ import {
 } from 'lucide-react';
 import type { Nino, NinoSensible, Zona, Escuela, Perfil, FamiliarApoyo } from '@/types/database';
 
+// ─── Helper: Drive URL → thumbnail URL for <img> tags ────────
+function getDriveImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  // Already a thumbnail URL — use as-is
+  if (url.includes('drive.google.com/thumbnail')) return url;
+  // webViewLink format: https://drive.google.com/file/d/{fileId}/view...
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w800`;
+  // lh3 format
+  const lh3Match = url.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+  if (lh3Match) return `https://drive.google.com/thumbnail?id=${lh3Match[1]}&sz=w800`;
+  // Not a Drive URL (could be Supabase or other) — return as-is
+  return url;
+}
+
 // ─── Types ───────────────────────────────────────────────────
 
 interface NinoCompleto extends Nino {
@@ -333,32 +348,34 @@ export default function NinoPerfilPage() {
     try {
       setSubiendoFoto(true);
       const ext = file.name.split('.').pop();
-      const filePath = `ninos/${ninoId}/perfil.${ext}`;
+      const path = `ninos/${ninoId}/perfil.${ext}`;
 
-      // Upload to Supabase storage
-      const { error: uploadError } = await supabase.storage
-        .from('fotos-perfil')
-        .upload(filePath, file, { upsert: true });
+      // Get auth token for API call
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        alert('Sesión expirada. Recargá la página.');
+        return;
+      }
 
-      if (uploadError) throw uploadError;
+      const formData = new FormData();
+      formData.append('file', file);
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('fotos-perfil')
-        .getPublicUrl(filePath);
+      const res = await fetch(
+        `/api/storage/upload?bucket=fotos-perfil&path=${encodeURIComponent(path)}&table=ninos&id=${ninoId}&column=foto_perfil_url`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: formData,
+        }
+      );
 
-      // Update nino record
-      const { error: updateError } = await supabase
-        .from('ninos')
-        .update({ foto_perfil_url: urlData.publicUrl })
-        .eq('id', ninoId);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al subir foto');
 
-      if (updateError) throw updateError;
-
-      setNino({ ...nino, foto_perfil_url: urlData.publicUrl });
-    } catch (error) {
+      setNino({ ...nino, foto_perfil_url: data.url });
+    } catch (error: any) {
       console.error('Error subiendo foto:', error);
-      alert('Error al subir la foto');
+      alert(error.message || 'Error al subir la foto');
     } finally {
       setSubiendoFoto(false);
     }
@@ -477,9 +494,10 @@ export default function NinoPerfilPage() {
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-gradient-to-br from-sol-200 to-crecimiento-200 flex items-center justify-center shadow-lg">
                 {nino.foto_perfil_url ? (
                   <img
-                    src={nino.foto_perfil_url}
+                    src={getDriveImageUrl(nino.foto_perfil_url) || nino.foto_perfil_url}
                     alt={nino.alias}
                     className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <span className="text-3xl sm:text-4xl font-bold text-white">
@@ -1108,13 +1126,13 @@ function GrabacionCard({
     if (audioUrl) return;
     setLoadingAudio(true);
     try {
-      const { data } = await supabase.storage
-        .from('grabaciones-reuniones')
-        .createSignedUrl(grabacion.storage_path, 3600);
-
-      if (data?.signedUrl) {
-        setAudioUrl(data.signedUrl);
+      const path = grabacion.storage_path;
+      // If the stored path is already a full URL (Drive link), use it directly
+      if (path?.startsWith('http')) {
+        setAudioUrl(path);
       }
+      // Otherwise it's a legacy Supabase storage path — no longer supported
+      // (old audios before Drive migration won't play)
     } catch (err) {
       console.error('Error getting audio URL:', err);
     } finally {
