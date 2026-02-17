@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -37,10 +38,35 @@ interface VoluntarioDashboardProps {
 export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps) {
   const router = useRouter();
 
+  const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
+
   const { data, isLoading: loading } = useQuery({
     queryKey: ['voluntario-dashboard', userId],
     queryFn: async () => {
-      // 1. Traer TODAS las sesiones del voluntario con datos del niño en UNA query
+      // 1. Traer niños asignados al voluntario desde la tabla asignaciones
+      //    (esto incluye niños SIN sesiones)
+      const { data: asignaciones, error: asignError } = await supabase
+        .from('asignaciones')
+        .select('nino_id, ninos (id, alias, rango_etario, fecha_nacimiento, nivel_alfabetizacion)')
+        .eq('voluntario_id', userId)
+        .eq('activa', true);
+
+      if (asignError) throw asignError;
+
+      // Mapa de niños asignados
+      const ninosMap = new Map<string, any>();
+      (asignaciones || []).forEach((a: any) => {
+        if (a.ninos && !ninosMap.has(a.ninos.id)) {
+          ninosMap.set(a.ninos.id, {
+            ...a.ninos,
+            mis_sesiones: 0,
+            total_sesiones: 0,
+            ultima_sesion: null,
+          });
+        }
+      });
+
+      // 2. Traer TODAS las sesiones del voluntario
       const { data: misSesiones, error: sesionesError } = await supabase
         .from('sesiones')
         .select('id, nino_id, fecha, duracion_minutos, ninos!inner(id, alias, rango_etario, fecha_nacimiento, nivel_alfabetizacion)')
@@ -49,22 +75,26 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
       if (sesionesError) throw sesionesError;
 
-      // 2. Agrupar por niño
-      const ninosMap = new Map<string, any>();
+      // 3. Merge session data into niños map
       (misSesiones || []).forEach((sesion: any) => {
         const nino = sesion.ninos;
         if (!ninosMap.has(nino.id)) {
+          // Niño with sessions but no active assignment (edge case) — still show
           ninosMap.set(nino.id, {
             ...nino,
             mis_sesiones: 0,
-            ultima_sesion: sesion.fecha, // ya están ordenadas DESC
+            total_sesiones: 0,
+            ultima_sesion: null,
           });
         }
-        ninosMap.get(nino.id).mis_sesiones++;
+        const entry = ninosMap.get(nino.id);
+        entry.mis_sesiones++;
+        if (!entry.ultima_sesion) {
+          entry.ultima_sesion = sesion.fecha; // already DESC order
+        }
       });
 
-      // 3. Para total de sesiones por niño (incluye las de otros voluntarios), 
-      //    traer en UNA sola query todos los nino_ids que nos importan
+      // 4. Get total session counts (all volunteers) for relevant niños
       const ninoIds = Array.from(ninosMap.keys());
       let totalSesionesPorNino: Record<string, number> = {};
       
@@ -74,7 +104,6 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
           .select('nino_id')
           .in('nino_id', ninoIds);
 
-        // Contar por niño
         (todasSesiones || []).forEach((s: any) => {
           totalSesionesPorNino[s.nino_id] = (totalSesionesPorNino[s.nino_id] || 0) + 1;
         });
@@ -82,10 +111,10 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
       const ninosArray: NinoAsignado[] = Array.from(ninosMap.values()).map((nino) => ({
         ...nino,
-        total_sesiones: totalSesionesPorNino[nino.id] || nino.mis_sesiones,
+        total_sesiones: totalSesionesPorNino[nino.id] || nino.total_sesiones,
       }));
 
-      // 4. Estadísticas del mes — filtrar en memoria (ya tenemos las sesiones)
+      // 5. Estadísticas del mes
       const inicioMes = new Date();
       inicioMes.setDate(1);
       inicioMes.setHours(0, 0, 0, 0);
@@ -127,6 +156,39 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
     ultima_sesion: null
   };
 
+  // Check for active session timer (runs after data is available)
+  useEffect(() => {
+    const checkActiveSession = () => {
+      const activeNinoId = localStorage.getItem('sesion_timer_active');
+      if (!activeNinoId) {
+        setActiveSession(null);
+        return;
+      }
+      const start = localStorage.getItem(`sesion_timer_${activeNinoId}_start`);
+      if (!start) {
+        setActiveSession(null);
+        return;
+      }
+      const paused = parseInt(localStorage.getItem(`sesion_timer_${activeNinoId}_paused`) || '0', 10);
+      const pauseAt = localStorage.getItem(`sesion_timer_${activeNinoId}_pauseAt`);
+      let totalPaused = paused;
+      if (pauseAt) totalPaused += Date.now() - parseInt(pauseAt, 10);
+      const elapsed = Math.max(0, Date.now() - parseInt(start, 10) - totalPaused);
+      const minutes = Math.round(elapsed / 60000);
+
+      const ninoData = ninos.find((n) => n.id === activeNinoId);
+      setActiveSession({
+        ninoId: activeNinoId,
+        alias: ninoData?.alias || 'Niño',
+        minutes,
+      });
+    };
+
+    checkActiveSession();
+    const interval = setInterval(checkActiveSession, 30000);
+    return () => clearInterval(interval);
+  }, [ninos]);
+
   const formatearFecha = (fecha: string | null) => {
     if (!fecha) return 'Nunca';
     const date = new Date(fecha);
@@ -153,6 +215,27 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* 🔴 Active Session Banner */}
+      {activeSession && (
+        <button
+          onClick={() => router.push(`/dashboard/sesiones/nueva/${activeSession.ninoId}`)}
+          className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl p-4 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] animate-pulse-slow"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⏱️</span>
+              <div className="text-left">
+                <p className="font-bold text-sm sm:text-base">Sesión en curso con {activeSession.alias}</p>
+                <p className="text-xs sm:text-sm opacity-90">
+                  {activeSession.minutes} min transcurridos — Tocá para volver
+                </p>
+              </div>
+            </div>
+            <span className="text-2xl">→</span>
+          </div>
+        </button>
+      )}
+
       {/* Estadísticas Rápidas - Mobile First */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-xl p-4 text-white shadow-lg">

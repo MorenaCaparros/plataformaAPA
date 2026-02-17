@@ -30,32 +30,80 @@ interface FormData {
 }
 
 // ─── Session Chronometer Hook ──────────────────────────────────
-function useChronometer() {
+// Persists timer per niño. If the user navigates away, the timer keeps
+// counting (based on wall-clock diff). Accumulated paused time is also
+// stored so pauses survive page reloads.
+//
+// localStorage keys (scoped by ninoId):
+//   sesion_timer_{ninoId}_start   – epoch ms when the timer started
+//   sesion_timer_{ninoId}_paused  – total ms spent paused so far
+//   sesion_timer_{ninoId}_pauseAt – epoch ms when current pause began (only while paused)
+//   sesion_timer_active           – the ninoId of the currently active session (global)
+
+function useChronometer(ninoId: string) {
+  const keyStart = `sesion_timer_${ninoId}_start`;
+  const keyPaused = `sesion_timer_${ninoId}_paused`;
+  const keyPauseAt = `sesion_timer_${ninoId}_pauseAt`;
+  const keyActive = 'sesion_timer_active';
+
   const [seconds, setSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(Date.now());
+  const pausedMsRef = useRef<number>(0);
 
+  // Calculate elapsed seconds accounting for paused time
+  const calcElapsed = useCallback(() => {
+    const now = Date.now();
+    let totalPaused = pausedMsRef.current;
+    // If currently paused, add the ongoing pause duration
+    const pauseAt = localStorage.getItem(keyPauseAt);
+    if (pauseAt) {
+      totalPaused += now - parseInt(pauseAt, 10);
+    }
+    return Math.max(0, Math.floor((now - startTimeRef.current - totalPaused) / 1000));
+  }, [keyPauseAt]);
+
+  // Init: restore or create timer
   useEffect(() => {
-    // Restore start time from localStorage if available
-    const savedStart = localStorage.getItem('sesion_timer_start');
+    const savedStart = localStorage.getItem(keyStart);
+    const savedPaused = localStorage.getItem(keyPaused);
+    const savedPauseAt = localStorage.getItem(keyPauseAt);
+
     if (savedStart) {
       startTimeRef.current = parseInt(savedStart, 10);
-      setSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      pausedMsRef.current = savedPaused ? parseInt(savedPaused, 10) : 0;
+
+      if (savedPauseAt) {
+        // Was paused when user left — stay paused
+        setIsRunning(false);
+      } else {
+        setIsRunning(true);
+      }
     } else {
+      // Brand new session timer
       startTimeRef.current = Date.now();
-      localStorage.setItem('sesion_timer_start', String(startTimeRef.current));
+      pausedMsRef.current = 0;
+      localStorage.setItem(keyStart, String(startTimeRef.current));
+      localStorage.setItem(keyPaused, '0');
+      setIsRunning(true);
     }
+
+    // Mark this niño as the active session
+    localStorage.setItem(keyActive, ninoId);
+
+    setSeconds(calcElapsed());
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, []);
+  }, [ninoId, keyStart, keyPaused, keyPauseAt, keyActive, calcElapsed]);
 
+  // Tick interval
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
-        setSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+        setSeconds(calcElapsed());
       }, 1000);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -63,21 +111,50 @@ function useChronometer() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning]);
+  }, [isRunning, calcElapsed]);
+
+  const toggle = useCallback(() => {
+    setIsRunning(prev => {
+      if (prev) {
+        // Running → Pause: record pause start
+        localStorage.setItem(keyPauseAt, String(Date.now()));
+      } else {
+        // Paused → Resume: accumulate paused duration, clear pauseAt
+        const pauseAt = localStorage.getItem(keyPauseAt);
+        if (pauseAt) {
+          const pausedDelta = Date.now() - parseInt(pauseAt, 10);
+          pausedMsRef.current += pausedDelta;
+          localStorage.setItem(keyPaused, String(pausedMsRef.current));
+          localStorage.removeItem(keyPauseAt);
+        }
+      }
+      return !prev;
+    });
+  }, [keyPauseAt, keyPaused]);
 
   const reset = useCallback(() => {
     startTimeRef.current = Date.now();
-    localStorage.setItem('sesion_timer_start', String(startTimeRef.current));
+    pausedMsRef.current = 0;
+    localStorage.setItem(keyStart, String(startTimeRef.current));
+    localStorage.setItem(keyPaused, '0');
+    localStorage.removeItem(keyPauseAt);
+    localStorage.setItem(keyActive, ninoId);
     setSeconds(0);
     setIsRunning(true);
-  }, []);
+  }, [keyStart, keyPaused, keyPauseAt, keyActive, ninoId]);
 
   const stop = useCallback(() => {
     setIsRunning(false);
-    localStorage.removeItem('sesion_timer_start');
-  }, []);
-
-  const toggle = useCallback(() => setIsRunning(prev => !prev), []);
+    // Clean up all timer keys for this niño
+    localStorage.removeItem(keyStart);
+    localStorage.removeItem(keyPaused);
+    localStorage.removeItem(keyPauseAt);
+    // Clear active session marker
+    const active = localStorage.getItem(keyActive);
+    if (active === ninoId) {
+      localStorage.removeItem(keyActive);
+    }
+  }, [keyStart, keyPaused, keyPauseAt, keyActive, ninoId]);
 
   const formatTime = useCallback((totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -92,13 +169,33 @@ function useChronometer() {
   return { seconds, isRunning, formatTime, toggle, reset, stop };
 }
 
+// Helper: check if there's an active session timer for ANY niño
+function getActiveSessionInfo(): { ninoId: string; elapsedMinutes: number } | null {
+  if (typeof window === 'undefined') return null;
+  const activeNinoId = localStorage.getItem('sesion_timer_active');
+  if (!activeNinoId) return null;
+
+  const start = localStorage.getItem(`sesion_timer_${activeNinoId}_start`);
+  if (!start) return null;
+
+  const paused = parseInt(localStorage.getItem(`sesion_timer_${activeNinoId}_paused`) || '0', 10);
+  const pauseAt = localStorage.getItem(`sesion_timer_${activeNinoId}_pauseAt`);
+  let totalPaused = paused;
+  if (pauseAt) totalPaused += Date.now() - parseInt(pauseAt, 10);
+
+  const elapsed = Math.max(0, Date.now() - parseInt(start, 10) - totalPaused);
+  return { ninoId: activeNinoId, elapsedMinutes: Math.round(elapsed / 60000) };
+}
+
+export { getActiveSessionInfo };
+
 export default function NuevaSesionPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
   
   const ninoId = params.ninoId as string;
-  const chrono = useChronometer();
+  const chrono = useChronometer(ninoId);
   
   const [nino, setNino] = useState<Nino | null>(null);
   const [loading, setLoading] = useState(true);
@@ -250,9 +347,8 @@ export default function NuevaSesionPage() {
 
       if (error) throw error;
 
-      // Limpiar borrador y timer después de guardar exitosamente
+      // Limpiar borrador después de guardar exitosamente (timer ya se limpió en chrono.stop())
       localStorage.removeItem(`draft_sesion_${ninoId}`);
-      localStorage.removeItem('sesion_timer_start');
       
       alert('✅ Sesión registrada correctamente (' + duracionReal + ' min)');
       router.push('/dashboard/ninos');

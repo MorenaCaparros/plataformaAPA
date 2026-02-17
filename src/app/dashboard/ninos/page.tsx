@@ -32,6 +32,7 @@ function MisNinosPageContent() {
   const [loading, setLoading] = useState(true);
   const [filtroZona, setFiltroZona] = useState<string>(zonaParam || 'todas');
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
+  const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
 
   // Determinar si el usuario tiene acceso completo (ve datos sensibles)
   const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social'];
@@ -54,6 +55,26 @@ function MisNinosPageContent() {
       setFiltroZona(zonaParam);
     }
   }, [zonaParam]);
+
+  // Detect active session timer
+  useEffect(() => {
+    const check = () => {
+      const activeNinoId = localStorage.getItem('sesion_timer_active');
+      if (!activeNinoId) { setActiveSession(null); return; }
+      const start = localStorage.getItem(`sesion_timer_${activeNinoId}_start`);
+      if (!start) { setActiveSession(null); return; }
+      const paused = parseInt(localStorage.getItem(`sesion_timer_${activeNinoId}_paused`) || '0', 10);
+      const pauseAt = localStorage.getItem(`sesion_timer_${activeNinoId}_pauseAt`);
+      let totalPaused = paused;
+      if (pauseAt) totalPaused += Date.now() - parseInt(pauseAt, 10);
+      const elapsed = Math.max(0, Date.now() - parseInt(start, 10) - totalPaused);
+      const ninoData = ninos.find(n => n.id === activeNinoId);
+      setActiveSession({ ninoId: activeNinoId, alias: ninoData?.alias || 'Niño', minutes: Math.round(elapsed / 60000) });
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => clearInterval(interval);
+  }, [ninos]);
 
   const fetchZonas = async () => {
     try {
@@ -261,6 +282,27 @@ function MisNinosPageContent() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        {/* 🔴 Active Session Banner */}
+        {activeSession && (
+          <button
+            onClick={() => router.push(`/dashboard/sesiones/nueva/${activeSession.ninoId}`)}
+            className="w-full mb-6 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-2xl p-4 shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏱️</span>
+                <div className="text-left">
+                  <p className="font-bold text-sm sm:text-base">Sesión en curso con {activeSession.alias}</p>
+                  <p className="text-xs sm:text-sm opacity-90">
+                    {activeSession.minutes} min transcurridos — Tocá para volver
+                  </p>
+                </div>
+              </div>
+              <span className="text-2xl">→</span>
+            </div>
+          </button>
+        )}
+
         {/* Botón para registrar nuevo niño + Filtros */}
         <div className="mb-6 flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
           <Link
