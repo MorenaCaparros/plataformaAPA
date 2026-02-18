@@ -286,10 +286,12 @@ export default function NuevaSesionPage() {
   };
 
   const handleItemChange = (itemId: string, valor: number) => {
-    setFormData(prev => ({
-      ...prev,
-      items: { ...prev.items, [itemId]: valor }
-    }));
+    setFormData(prev => {
+      const newItems = { ...prev.items, [itemId]: valor };
+      // Auto-collapse category if now complete
+      autoCollapseIfComplete(itemId, newItems);
+      return { ...prev, items: newItems };
+    });
   };
 
   const handleMarkNC = (itemId: string) => {
@@ -300,11 +302,30 @@ export default function NuevaSesionPage() {
         const { [itemId]: _, ...rest } = prev.items;
         return { ...prev, items: rest };
       }
-      return {
-        ...prev,
-        items: { ...prev.items, [itemId]: VALOR_NO_COMPLETADO }
-      };
+      const newItems = { ...prev.items, [itemId]: VALOR_NO_COMPLETADO };
+      // Auto-collapse category if now complete
+      autoCollapseIfComplete(itemId, newItems);
+      return { ...prev, items: newItems };
     });
+  };
+
+  // Auto-collapse a category when all its items are touched, then open next incomplete
+  const autoCollapseIfComplete = (itemId: string, items: Record<string, number>) => {
+    const item = ITEMS_OBSERVACION.find(i => i.id === itemId);
+    if (!item) return;
+    const catItems = itemsPorCategoria[item.categoria];
+    const allTouched = catItems.every(ci => items[ci.id] !== undefined);
+    if (allTouched && expandedCategoria === item.categoria) {
+      // Find next incomplete category to auto-open
+      const categorias = Object.keys(itemsPorCategoria) as Categoria[];
+      const nextIncomplete = categorias.find(cat =>
+        cat !== item.categoria && itemsPorCategoria[cat].some(ci => items[ci.id] === undefined)
+      );
+      // Small delay so the user sees the "COMPLETO" badge before it collapses
+      setTimeout(() => {
+        setExpandedCategoria(nextIncomplete || null);
+      }, 400);
+    }
   };
 
   const toggleCategoria = (categoria: Categoria) => {
@@ -351,6 +372,22 @@ export default function NuevaSesionPage() {
         });
 
       if (error) throw error;
+
+      // Auto-registrar asistencia como presente (sesión = asistió)
+      try {
+        await supabase
+          .from('asistencias')
+          .upsert({
+            nino_id: ninoId,
+            fecha: formData.fecha,
+            presente: true,
+            motivo_ausencia: null,
+            registrado_por: user?.id,
+          }, { onConflict: 'nino_id,fecha' });
+      } catch (e) {
+        // No bloquear el flujo si falla la asistencia
+        console.warn('No se pudo registrar asistencia automática:', e);
+      }
 
       // Limpiar borrador después de guardar exitosamente (timer ya se limpió en chrono.stop())
       localStorage.removeItem(`draft_sesion_${ninoId}`);

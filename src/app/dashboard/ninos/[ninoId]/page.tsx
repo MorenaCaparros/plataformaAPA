@@ -103,6 +103,7 @@ export default function NinoPerfilPage() {
   const [grabaciones, setGrabaciones] = useState<GrabacionReunion[]>([]);
   const [nuevaNota, setNuevaNota] = useState('');
   const [asistenciaPorcentaje, setAsistenciaPorcentaje] = useState<number | null>(null);
+  const [asistenciaHistorial, setAsistenciaHistorial] = useState<{ fecha: string; presente: boolean; motivo_ausencia: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -247,7 +248,7 @@ export default function NinoPerfilPage() {
         console.warn('No se pudieron cargar sesiones:', e);
       }
 
-      // 6. Asistencia % (non-critical)
+      // 6. Asistencia % + historial reciente (non-critical)
       try {
         const { count: totalAsistencias } = await supabase
           .from('asistencias')
@@ -261,6 +262,18 @@ export default function NinoPerfilPage() {
 
         if (totalAsistencias && totalAsistencias > 0) {
           setAsistenciaPorcentaje(Math.round(((presentes || 0) / totalAsistencias) * 100));
+        }
+
+        // Historial reciente (últimos 20 registros)
+        const { data: historialData } = await supabase
+          .from('asistencias')
+          .select('fecha, presente, motivo_ausencia')
+          .eq('nino_id', ninoId)
+          .order('fecha', { ascending: false })
+          .limit(20);
+
+        if (historialData) {
+          setAsistenciaHistorial(historialData);
         }
       } catch (e) {
         console.warn('No se pudieron cargar asistencias:', e);
@@ -660,6 +673,45 @@ export default function NinoPerfilPage() {
             </div>
           )}
         </div>
+
+        {/* ═══ Historial de Asistencia ═══ */}
+        {asistenciaHistorial.length > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-crecimiento-500" />
+              Historial de Asistencia
+            </h2>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {asistenciaHistorial.map((reg, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                    reg.presente
+                      ? 'bg-crecimiento-50/60'
+                      : 'bg-impulso-50/60'
+                  }`}
+                >
+                  {reg.presente ? (
+                    <CheckCircle className="w-4 h-4 text-crecimiento-600 flex-shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-impulso-600 flex-shrink-0" />
+                  )}
+                  <span className="font-medium text-gray-700 min-w-[100px]">
+                    {new Date(reg.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  </span>
+                  <span className={`font-semibold ${reg.presente ? 'text-crecimiento-700' : 'text-impulso-700'}`}>
+                    {reg.presente ? 'Presente' : 'Ausente'}
+                  </span>
+                  {!reg.presente && reg.motivo_ausencia && (
+                    <span className="text-gray-500 text-xs ml-auto truncate max-w-[200px]" title={reg.motivo_ausencia}>
+                      — {reg.motivo_ausencia}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ═══ Datos sensibles (solo psico/director/admin) ═══ */}
         {tieneAccesoCompleto && nino.ninos_sensibles && (
