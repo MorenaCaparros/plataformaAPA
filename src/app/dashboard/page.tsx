@@ -77,9 +77,10 @@ export default function DashboardPage() {
           </>
         ) : perfil?.rol === 'director' || perfil?.rol === 'admin' ? (
           <AdminDashboard />
-        ) : perfil?.rol === 'psicopedagogia' || perfil?.rol === 'coordinador' || perfil?.rol === 'trabajador_social' ? (
+        ) : perfil?.rol === 'psicopedagogia' || perfil?.rol === 'coordinador' || perfil?.rol === 'trabajador_social' || perfil?.rol === 'equipo_profesional' ? (
           <EquipoProfesionalDashboard 
             title={
+              perfil?.rol === 'equipo_profesional' ? 'Panel de Profesionales 🎯' :
               perfil?.rol === 'psicopedagogia' ? 'Panel de Profesionales 🎯' :
               perfil?.rol === 'coordinador' ? 'Panel de Coordinación 📊' :
               'Panel de Trabajo Social 🤝'

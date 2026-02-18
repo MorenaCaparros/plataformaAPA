@@ -116,10 +116,10 @@
 - [ ] **Sistema de notificaciones** para recordar capacitaciones pendientes (intervalo configurable por admin)
 
 ## 5. 🔴 Gestión de Usuarios — Bugs y mejoras
-- [ ] **Agregar usuario individual** (formulario, no solo importación CSV)
-- [ ] **Bug CSV import**: los usuarios se crean en Supabase Auth pero NO en la tabla `perfiles` → deben crearse en ambos
-- [ ] **Roles desactualizados en CSV import** → actualizar a los 3 roles vigentes: `equipo_profesional`, `director`, `voluntario`
-- [ ] Asignación de zona durante importación (puede seguir siendo opcional)
+- [x] **Agregar usuario individual** (formulario en `/dashboard/usuarios/nuevo`, POST en `/api/usuarios`) — con generación de password temporal, copy credentials, asignación de zona
+- [x] **Bug CSV import**: los usuarios se crean en Supabase Auth pero NO en la tabla `perfiles` → fix: INSERT fallback si el trigger no crea el perfil
+- [x] **Roles desactualizados en CSV import** → actualizado a 3 roles vigentes: `equipo_profesional`, `director`, `voluntario` (con backward compat de roles legacy: coordinador→equipo_profesional, psicopedagogia→equipo_profesional, admin→director)
+- [x] Asignación de zona durante importación (sigue siendo opcional, funciona correctamente)
 
 ## 6. 🔴 Google Drive / Biblioteca — Acceso roto
 - [ ] **Bug: archivos de Biblioteca completamente inaccesibles** — los archivos de Drive no se pueden abrir/descargar

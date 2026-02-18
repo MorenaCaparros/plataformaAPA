@@ -100,10 +100,13 @@ export default function ImportarUsuariosPage() {
               <br />
               voluntario1@apa.org,Juan,Pérez,voluntario,Las Dalias,123456789,MiPassword123
               <br />
-              coord1@apa.org,María,González,coordinador,La Herradura,987654321,Segura456
+              profesional1@apa.org,María,González,equipo_profesional,La Herradura,987654321,Segura456
             </code>
             <div className="mt-3 text-sm text-sol-700 dark:text-sol-400 space-y-1">
-              <p><strong>Roles válidos:</strong> voluntario, coordinador, psicopedagogia, director</p>
+              <p><strong>Roles válidos:</strong> voluntario, equipo_profesional, director</p>
+              <p className="text-xs text-sol-600 dark:text-sol-500 italic">
+                (También acepta roles anteriores: coordinador, psicopedagogia, admin → se convierten automáticamente)
+              </p>
               <p><strong>Equipos válidos:</strong> Las Dalias, La Herradura, Parque Palermo, Villa de Paso</p>
               <p><strong>Password:</strong> Mínimo 8 caracteres. Si se deja vacío, se genera automáticamente.</p>
             </div>

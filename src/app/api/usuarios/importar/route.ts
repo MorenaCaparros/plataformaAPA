@@ -6,11 +6,24 @@ interface UsuarioCSV {
   email: string;
   nombre: string;
   apellido?: string;
-  rol: 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin';
+  rol: 'voluntario' | 'equipo_profesional' | 'director';
   equipo?: string; // Las Dalias, La Herradura, etc.
   telefono?: string;
   password?: string; // Contraseña opcional
 }
+
+// Mapeo de roles legacy a roles actuales
+const ROLES_MAPPING: Record<string, string> = {
+  'voluntario': 'voluntario',
+  'director': 'director',
+  'equipo_profesional': 'equipo_profesional',
+  // Backward compat: mapear roles viejos a los nuevos
+  'coordinador': 'equipo_profesional',
+  'psicopedagogia': 'equipo_profesional',
+  'admin': 'director',
+  'trabajador_social': 'equipo_profesional',
+  'trabajadora_social': 'equipo_profesional',
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -89,10 +102,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Normalizar rol a minúscula (acepta Voluntario, VOLUNTARIO, etc.)
-        const rolNormalizado = (usuario.rol || '').toLowerCase().trim();
-        const rolesValidos = ['voluntario', 'coordinador', 'psicopedagogia', 'admin'];
-        if (!rolesValidos.includes(rolNormalizado)) {
-          throw new Error(`Rol inválido: "${usuario.rol}". Debe ser: voluntario, coordinador, psicopedagogia, o admin`);
+        const rolInput = (usuario.rol || '').toLowerCase().trim();
+        const rolNormalizado = ROLES_MAPPING[rolInput];
+        if (!rolNormalizado) {
+          throw new Error(`Rol inválido: "${usuario.rol}". Debe ser: voluntario, equipo_profesional, o director`);
         }
 
         // Verificar si el usuario ya existe en auth.users
@@ -126,12 +139,13 @@ export async function POST(request: NextRequest) {
               .from('perfiles')
               .insert({
                 id: usuarioExistente.id,
-                rol: rolNormalizado as 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin',
+                rol: rolNormalizado,
                 zona_id,
                 nombre: usuario.nombre,
                 apellido: usuario.apellido || '',
                 telefono: usuario.telefono || '',
                 password_temporal: false,
+                activo: true,
               });
             
             if (perfilError) throw perfilError;
@@ -181,21 +195,39 @@ export async function POST(request: NextRequest) {
           zona_id = zona?.id;
         }
 
-        // 3. ACTUALIZAR perfil (el trigger ya lo creó con rol 'voluntario')
-        // En lugar de INSERT, hacemos UPDATE
-        const { error: perfilError } = await supabaseAdmin
+        // 3. UPDATE perfil si el trigger ya lo creó, sino INSERT
+        const { data: updated, error: updateError } = await supabaseAdmin
           .from('perfiles')
           .update({
-            rol: rolNormalizado as 'voluntario' | 'coordinador' | 'psicopedagogia' | 'admin',
+            rol: rolNormalizado,
             zona_id,
             nombre: usuario.nombre,
             apellido: usuario.apellido || '',
             telefono: usuario.telefono || '',
             password_temporal: passwordEsTemporal,
+            activo: true,
           })
-          .eq('id', authData.user!.id);
+          .eq('id', authData.user!.id)
+          .select('id')
+          .single();
 
-        if (perfilError) throw perfilError;
+        // Si UPDATE no encontró fila (trigger no creó perfil) → INSERT
+        if (updateError || !updated) {
+          const { error: insertError } = await supabaseAdmin
+            .from('perfiles')
+            .insert({
+              id: authData.user!.id,
+              rol: rolNormalizado,
+              zona_id,
+              nombre: usuario.nombre,
+              apellido: usuario.apellido || '',
+              telefono: usuario.telefono || '',
+              password_temporal: passwordEsTemporal,
+              activo: true,
+            });
+
+          if (insertError) throw insertError;
+        }
 
         resultados.exitosos.push(usuario.email);
       } catch (error: any) {

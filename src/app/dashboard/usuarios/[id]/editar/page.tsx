@@ -346,11 +346,12 @@ export default function EditarUsuarioPage() {
                   className="w-full px-4 py-3 bg-white/80 border border-white/60 rounded-2xl focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent text-neutro-carbon font-outfit min-h-[48px]"
                 >
                   <option value="voluntario">Voluntario</option>
-                  <option value="coordinador">Coordinador</option>
-                  <option value="psicopedagogia">Profesional</option>
-                  <option value="trabajador_social">Trabajador Social</option>
+                  <option value="equipo_profesional">Equipo Profesional</option>
                   <option value="director">Director</option>
-                  <option value="admin">Admin</option>
+                  <option value="coordinador">Coordinador (legacy)</option>
+                  <option value="psicopedagogia">Profesional (legacy)</option>
+                  <option value="trabajador_social">Trabajador Social (legacy)</option>
+                  <option value="admin">Admin (legacy)</option>
                 </select>
               </div>
               <div>

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Upload, Key, Search, LayoutGrid, List, Phone, Mail, MapPin, Eye } from 'lucide-react';
+import { Upload, Key, Search, LayoutGrid, List, Phone, Mail, MapPin, Eye, UserPlus } from 'lucide-react';
 
 // Helper: convert any Drive URL to a thumbnail URL that works in <img> tags
 function getDriveImageUrl(url: string | null): string | null {
@@ -52,7 +52,7 @@ function UsuariosPageContent() {
   const [vistaCards, setVistaCards] = useState(true);
   const [perfilExpandido, setPerfilExpandido] = useState<string | null>(null);
 
-  const rolesPermitidos = ['director', 'admin', 'psicopedagogia'];
+  const rolesPermitidos = ['director', 'admin', 'psicopedagogia', 'equipo_profesional'];
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -128,6 +128,7 @@ function UsuariosPageContent() {
     const map: Record<string, string> = {
       director: 'bg-red-100 text-red-700 border-red-200',
       admin: 'bg-red-100 text-red-700 border-red-200',
+      equipo_profesional: 'bg-purple-100 text-purple-700 border-purple-200',
       psicopedagogia: 'bg-purple-100 text-purple-700 border-purple-200',
       coordinador: 'bg-sol-100 text-sol-700 border-sol-200',
       voluntario: 'bg-crecimiento-50 text-crecimiento-700 border-crecimiento-200',
@@ -141,6 +142,7 @@ function UsuariosPageContent() {
     const map: Record<string, string> = {
       director: 'Director',
       admin: 'Admin',
+      equipo_profesional: 'Equipo Profesional',
       psicopedagogia: 'Profesional',
       coordinador: 'Coordinador',
       voluntario: 'Voluntario',
@@ -186,8 +188,15 @@ function UsuariosPageContent() {
         <div className="mb-6 flex flex-col sm:flex-row gap-3 justify-between">
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
-              href="/dashboard/usuarios/importar"
+              href="/dashboard/usuarios/nuevo"
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-medium font-outfit shadow-sm active:scale-95"
+            >
+              <UserPlus className="w-4 h-4" />
+              Agregar usuario
+            </Link>
+            <Link
+              href="/dashboard/usuarios/importar"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] bg-white/80 border border-white/60 text-neutro-carbon rounded-2xl hover:bg-white hover:shadow-sm transition-all font-medium font-outfit active:scale-95"
             >
               <Upload className="w-4 h-4" />
               Importar CSV
@@ -235,11 +244,12 @@ function UsuariosPageContent() {
             >
               <option value="todos">Todos los roles</option>
               <option value="director">Directores</option>
-              <option value="admin">Admin</option>
-              <option value="psicopedagogia">Profesionales</option>
-              <option value="coordinador">Coordinadores</option>
+              <option value="equipo_profesional">Equipo Profesional</option>
               <option value="voluntario">Voluntarios</option>
-              <option value="trabajador_social">Trabajadores Sociales</option>
+              <option value="admin">Admin</option>
+              <option value="psicopedagogia">Profesionales (legacy)</option>
+              <option value="coordinador">Coordinadores (legacy)</option>
+              <option value="trabajador_social">Trabajadores Sociales (legacy)</option>
             </select>
 
             <select

@@ -33,7 +33,7 @@ const navigation: NavItem[] = [
   { name: 'Asistencia', href: '/dashboard/asistencia', icon: ClipboardDocumentCheckIcon },
   { name: 'Autoevaluaciones', href: '/dashboard/autoevaluaciones', icon: AcademicCapIcon },
   { name: 'Biblioteca', href: '/dashboard/biblioteca', icon: BookOpenIcon },
-  { name: 'Usuarios', href: '/dashboard/usuarios', icon: UserGroupIcon, roles: ['director', 'admin', 'psicopedagogia'] },
+  { name: 'Usuarios', href: '/dashboard/usuarios', icon: UserGroupIcon, roles: ['director', 'admin', 'psicopedagogia', 'equipo_profesional'] },
   { name: 'Mi Perfil', href: '/dashboard/mi-perfil', icon: UserCircleIcon },
   { name: 'Configuración', href: '/dashboard/configuracion', icon: Cog6ToothIcon, roles: ['director', 'admin'] },
 ];
@@ -50,6 +50,7 @@ export default function Sidebar() {
     voluntario: 'Voluntario',
     coordinador: 'Coordinador',
     psicopedagogia: 'Profesional',
+    equipo_profesional: 'Equipo Profesional',
     director: 'Director',
     trabajador_social: 'Trabajador Social'
   };
