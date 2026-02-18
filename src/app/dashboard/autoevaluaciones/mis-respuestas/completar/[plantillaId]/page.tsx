@@ -5,13 +5,21 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
-import { ArrowLeft, Save, Send, Star, Check, X } from 'lucide-react';
+import { ArrowLeft, Save, Send, Star, Check, X, Clock, Users } from 'lucide-react';
+
+interface OpcionPregunta {
+  id: string;
+  texto_opcion: string;
+  es_correcta: boolean;
+  orden: number;
+}
 
 interface Pregunta {
   id: string;
   texto: string;
-  tipo: 'escala_1_5' | 'si_no' | 'texto_abierto';
+  tipo: 'escala_1_5' | 'si_no' | 'texto_abierto' | 'multiple_choice';
   categoria: string;
+  opciones: OpcionPregunta[];
 }
 
 interface Plantilla {
@@ -45,6 +53,10 @@ export default function CompletarAutoevaluacionPage() {
   const [guardando, setGuardando] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
+  // Special questions state
+  const [maxNinos, setMaxNinos] = useState<number>(3);
+  const [horasDisponibles, setHorasDisponibles] = useState<number>(4);
+
   const plantillaId = params.plantillaId as string;
 
   useEffect(() => {
@@ -55,12 +67,29 @@ export default function CompletarAutoevaluacionPage() {
 
   async function fetchData() {
     try {
+      // Load current profile values for special questions
+      if (perfil?.id) {
+        const { data: perfilData } = await supabase
+          .from('perfiles')
+          .select('max_ninos_asignados, horas_disponibles')
+          .eq('id', perfil.id)
+          .single();
+        
+        if (perfilData) {
+          if (perfilData.max_ninos_asignados != null) setMaxNinos(Math.min(perfilData.max_ninos_asignados, 3));
+          if (perfilData.horas_disponibles != null) setHorasDisponibles(perfilData.horas_disponibles);
+        }
+      }
+
       // Obtener capacitacion (replaces plantillas_autoevaluacion)
       const { data: capData, error: capError } = await supabase
         .from('capacitaciones')
         .select(`
           *,
-          preguntas_db:preguntas_capacitacion(id, orden, pregunta, tipo_pregunta, puntaje)
+          preguntas_db:preguntas_capacitacion(
+            id, orden, pregunta, tipo_pregunta, puntaje,
+            opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
+          )
         `)
         .eq('id', plantillaId)
         .single();
@@ -75,12 +104,19 @@ export default function CompletarAutoevaluacionPage() {
         descripcion: capData.descripcion || '',
         preguntas: (capData.preguntas_db || [])
           .sort((a: any, b: any) => a.orden - b.orden)
-          .map((p: any) => ({
-            id: p.id,
-            texto: p.pregunta,
-            tipo: p.tipo_pregunta === 'verdadero_falso' ? 'si_no' : p.tipo_pregunta === 'texto_libre' ? 'texto_abierto' : 'escala_1_5' as any,
-            categoria: '',
-          })),
+          .map((p: any) => {
+            let tipo: Pregunta['tipo'] = 'escala_1_5';
+            if (p.tipo_pregunta === 'verdadero_falso') tipo = 'si_no';
+            else if (p.tipo_pregunta === 'texto_libre') tipo = 'texto_abierto';
+            else if (p.tipo_pregunta === 'multiple_choice') tipo = 'multiple_choice';
+            return {
+              id: p.id,
+              texto: p.pregunta,
+              tipo,
+              categoria: '',
+              opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
+            };
+          }),
       };
       setPlantilla(mappedPlantilla);
 
@@ -294,6 +330,15 @@ export default function CompletarAutoevaluacionPage() {
         }
       }
 
+      // Save special questions to perfiles table
+      await supabase
+        .from('perfiles')
+        .update({
+          max_ninos_asignados: maxNinos,
+          horas_disponibles: horasDisponibles,
+        })
+        .eq('id', perfil.id);
+
       alert('🎉 ¡Autoevaluación completada con éxito!');
       router.push('/dashboard/autoevaluaciones/mis-respuestas');
     } catch (error) {
@@ -346,7 +391,10 @@ export default function CompletarAutoevaluacionPage() {
   }
 
   const preguntasRespondidas = Object.keys(respuestas).length;
-  const progresoPocentaje = (preguntasRespondidas / plantilla.preguntas.length) * 100;
+  // Only count actual scored questions in progress (max_ninos and horas don't affect the 10-point score)
+  const totalPreguntas = plantilla.preguntas.length;
+  const totalRespondidas = preguntasRespondidas;
+  const progresoPocentaje = totalPreguntas > 0 ? (totalRespondidas / totalPreguntas) * 100 : 0;
 
   return (
     <div className="min-h-screen pb-24">
@@ -361,13 +409,17 @@ export default function CompletarAutoevaluacionPage() {
             Volver
           </Link>
 
-          <div className={`bg-gradient-to-r ${areaColors[plantilla.area] || 'from-neutro-carbon to-neutro-piedra'} text-white rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.1)] mb-6`}>
+          <div className={`bg-gradient-to-r ${areaColors[plantilla.area] || 'from-sol-400 to-crecimiento-500'} text-white rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.1)] mb-6`}>
             <h1 className="text-3xl md:text-4xl font-bold font-quicksand mb-2">
               {plantilla.titulo}
             </h1>
-            <p className="text-white/90 font-outfit text-lg mb-4">
-              {areaLabels[plantilla.area] || plantilla.area}
-            </p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {Object.entries(areaLabels).map(([key, label]) => (
+                <span key={key} className="inline-block px-3 py-1 rounded-full bg-white/20 text-white/95 text-sm font-outfit font-medium">
+                  {label}
+                </span>
+              ))}
+            </div>
             <p className="text-white/80 font-outfit">
               {plantilla.descripcion}
             </p>
@@ -380,7 +432,7 @@ export default function CompletarAutoevaluacionPage() {
                 Progreso
               </span>
               <span className="text-sm font-outfit font-semibold text-neutro-carbon">
-                {preguntasRespondidas} / {plantilla.preguntas.length}
+                {totalRespondidas} / {totalPreguntas}
               </span>
             </div>
             <div className="w-full bg-neutro-nube rounded-full h-3 overflow-hidden">
@@ -479,9 +531,113 @@ export default function CompletarAutoevaluacionPage() {
                     className="w-full px-4 py-3 border border-neutro-nube rounded-2xl focus:outline-none focus:ring-2 focus:ring-crecimiento-400 font-outfit resize-none"
                   />
                 )}
+
+                {/* Tipo: Selección múltiple */}
+                {pregunta.tipo === 'multiple_choice' && pregunta.opciones && (
+                  <div className="space-y-2">
+                    {pregunta.opciones.map((opcion) => (
+                      <button
+                        key={opcion.id}
+                        type="button"
+                        onClick={() => handleRespuesta(pregunta.id, opcion.texto_opcion)}
+                        className={`w-full text-left px-5 py-4 min-h-[52px] rounded-2xl font-outfit transition-all flex items-center gap-3 ${
+                          respuestas[pregunta.id] === opcion.texto_opcion
+                            ? 'bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white shadow-lg'
+                            : 'bg-neutro-nube hover:bg-neutro-carbon/10 text-neutro-carbon'
+                        }`}
+                      >
+                        <div className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                          respuestas[pregunta.id] === opcion.texto_opcion
+                            ? 'border-white bg-white/20'
+                            : 'border-neutro-piedra/40'
+                        }`}>
+                          {respuestas[pregunta.id] === opcion.texto_opcion && (
+                            <div className="w-3 h-3 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <span className="font-medium">{opcion.texto_opcion}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
+        </div>
+
+        {/* Preguntas Especiales — Max niños y horas disponibles */}
+        <div className="space-y-6 mt-6">
+          <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-impulso-200/40 shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-impulso-100 text-impulso-600 flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-neutro-carbon font-outfit text-lg font-medium">
+                  ¿Cuántos niños podés acompañar como máximo?
+                </p>
+                <p className="text-xs text-neutro-piedra font-outfit">
+                  Seleccioná entre 1 y 3 niños
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-center">
+              {[1, 2, 3].map((valor) => (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => setMaxNinos(valor)}
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold font-quicksand transition-all ${
+                    maxNinos === valor
+                      ? 'bg-gradient-to-br from-impulso-400 to-impulso-500 text-white shadow-lg scale-110'
+                      : 'bg-neutro-nube hover:bg-neutro-carbon/10 text-neutro-piedra'
+                  }`}
+                >
+                  {valor}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-crecimiento-200/40 shadow-[0_8px_32px_rgba(164,198,57,0.1)] p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-crecimiento-100 text-crecimiento-600 flex items-center justify-center">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-neutro-carbon font-outfit text-lg font-medium">
+                  ¿Cuántas horas semanales podés dedicar?
+                </p>
+                <p className="text-xs text-neutro-piedra font-outfit">
+                  Indicá tus horas disponibles por semana
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => setHorasDisponibles(Math.max(1, horasDisponibles - 1))}
+                className="w-12 h-12 rounded-xl bg-neutro-nube hover:bg-neutro-piedra/20 text-neutro-carbon font-bold transition-all flex items-center justify-center text-xl"
+              >
+                −
+              </button>
+              <div className="text-center">
+                <span className="text-4xl font-bold text-crecimiento-600 font-quicksand">
+                  {horasDisponibles}
+                </span>
+                <p className="text-xs text-neutro-piedra font-outfit mt-1">
+                  {horasDisponibles === 1 ? 'hora' : 'horas'} / semana
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHorasDisponibles(Math.min(40, horasDisponibles + 1))}
+                className="w-12 h-12 rounded-xl bg-neutro-nube hover:bg-neutro-piedra/20 text-neutro-carbon font-bold transition-all flex items-center justify-center text-xl"
+              >
+                +
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Botones de acción fijos */}

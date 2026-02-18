@@ -52,8 +52,15 @@ export default function BibliotecaDrivePage() {
       } else if (data.error) {
         setError(data.error);
       } else {
+        let fetchedCarpetas = data.carpetas || [];
+        // Voluntarios no deben ver la carpeta "niños"
+        if (perfil?.rol === 'voluntario') {
+          fetchedCarpetas = fetchedCarpetas.filter(
+            (c: DriveFolder) => !c.name.toLowerCase().includes('niño') && !c.name.toLowerCase().includes('nino')
+          );
+        }
         setArchivos(data.archivos || []);
-        setCarpetas(data.carpetas || []);
+        setCarpetas(fetchedCarpetas);
         setConfigured(true);
       }
     } catch (err: any) {

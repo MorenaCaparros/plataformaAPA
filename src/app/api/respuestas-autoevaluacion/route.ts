@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     if (perfil.rol === 'voluntario') {
       query = query.eq('voluntario_id', perfil.id);
-    } else if (['psicopedagogia', 'coordinador', 'director', 'trabajador_social', 'admin'].includes(perfil.rol)) {
+    } else if (['psicopedagogia', 'coordinador', 'director', 'trabajador_social', 'admin', 'equipo_profesional'].includes(perfil.rol)) {
       if (estado) {
         // Map old estados to new ones
         const estadoMap: Record<string, string> = {
@@ -187,12 +187,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get capacitacion + preguntas
+    // Get capacitacion + preguntas + opciones
     const { data: capacitacion, error: capError } = await supabase
       .from('capacitaciones')
       .select(`
         *,
-        preguntas:preguntas_capacitacion(id, pregunta, tipo_pregunta, respuesta_correcta, puntaje)
+        preguntas:preguntas_capacitacion(
+          id, pregunta, tipo_pregunta, respuesta_correcta, puntaje,
+          opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
+        )
       `)
       .eq('id', plantilla_id)
       .eq('activa', true)
@@ -236,7 +239,16 @@ export async function POST(request: NextRequest) {
       
       if (!pregunta) continue;
 
-      const esCorrecta = checkRespuestaCorrecta(pregunta, respuesta.respuesta);
+      // For multiple_choice, if respuesta_correcta is empty, try to derive from opciones
+      let preguntaConCorrecta = { ...pregunta };
+      if (pregunta.tipo_pregunta === 'multiple_choice' && !pregunta.respuesta_correcta && pregunta.opciones) {
+        const opcionCorrecta = pregunta.opciones.find((o: any) => o.es_correcta);
+        if (opcionCorrecta) {
+          preguntaConCorrecta.respuesta_correcta = opcionCorrecta.texto_opcion;
+        }
+      }
+
+      const esCorrecta = checkRespuestaCorrecta(preguntaConCorrecta, respuesta.respuesta);
       const puntajeObtenido = esCorrecta ? (pregunta.puntaje || 10) : 0;
       
       puntajeTotal += puntajeObtenido;
@@ -293,17 +305,51 @@ export async function POST(request: NextRequest) {
 }
 
 function checkRespuestaCorrecta(pregunta: any, respuesta: any): boolean {
+  const respuestaStr = String(respuesta).trim().toLowerCase();
+  const correctaStr = String(pregunta.respuesta_correcta || '').trim().toLowerCase();
+
+  if (!correctaStr) {
+    // No correct answer configured — can't auto-correct
+    if (pregunta.tipo_pregunta === 'texto_libre') return false;
+    // For escala, default: any answer above half is "correct"
+    if (pregunta.tipo_pregunta === 'escala' || pregunta.tipo_pregunta === 'numero') {
+      const val = parseFloat(respuesta);
+      return !isNaN(val) && val >= 3;
+    }
+    return false;
+  }
+
   if (pregunta.tipo_pregunta === 'verdadero_falso') {
-    return String(respuesta).toLowerCase() === String(pregunta.respuesta_correcta).toLowerCase();
+    // Normalize: true/si/sí/verdadero → true; false/no/falso → false
+    const normalize = (v: string): string => {
+      const lc = v.toLowerCase().trim();
+      if (['true', 'si', 'sí', 'verdadero', '1'].includes(lc)) return 'true';
+      if (['false', 'no', 'falso', '0'].includes(lc)) return 'false';
+      return lc;
+    };
+    return normalize(respuestaStr) === normalize(correctaStr);
   }
+
   if (pregunta.tipo_pregunta === 'multiple_choice') {
-    return String(respuesta) === String(pregunta.respuesta_correcta);
+    // respuesta is the selected option text or id; correcta is the expected text/id
+    return respuestaStr === correctaStr;
   }
+
   if (pregunta.tipo_pregunta === 'escala' || pregunta.tipo_pregunta === 'numero') {
-    // For scales, any answer above half the puntaje is "correct"
-    const val = parseFloat(respuesta);
-    return !isNaN(val) && val >= 3;
+    const valRespuesta = parseFloat(respuesta);
+    const valCorrecta = parseFloat(pregunta.respuesta_correcta);
+    if (!isNaN(valRespuesta) && !isNaN(valCorrecta)) {
+      return valRespuesta === valCorrecta;
+    }
+    // Fallback: any answer >= 3 is "correct"
+    return !isNaN(valRespuesta) && valRespuesta >= 3;
   }
-  // texto_libre - needs manual review, mark as not auto-correct
+
+  // texto_libre with a configured answer — exact match (case-insensitive)
+  if (pregunta.tipo_pregunta === 'texto_libre' && correctaStr) {
+    return respuestaStr === correctaStr;
+  }
+
+  // Default: needs manual review
   return false;
 }

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { User, Camera, CheckCircle, AlertTriangle } from 'lucide-react';
+import { User, Camera, CheckCircle, AlertTriangle, Users, Clock } from 'lucide-react';
 
 // Helper: convert any Drive URL to a thumbnail URL that works in <img> tags
 function getDriveImageUrl(url: string | null): string | null {
@@ -32,6 +32,8 @@ interface PerfilCompleto {
   fecha_ingreso: string | null;
   activo: boolean;
   notas: string | null;
+  max_ninos_asignados: number | null;
+  horas_disponibles: number | null;
   zonas: { id: string; nombre: string } | null;
 }
 
@@ -52,6 +54,8 @@ export default function MiPerfilPage() {
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
   const [fechaNacimiento, setFechaNacimiento] = useState('');
+  const [maxNinos, setMaxNinos] = useState<number>(3);
+  const [horasDisponibles, setHorasDisponibles] = useState<number>(4);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -80,6 +84,8 @@ export default function MiPerfilPage() {
       setTelefono(data.telefono || '');
       setDireccion(data.direccion || '');
       setFechaNacimiento(data.fecha_nacimiento || '');
+      if (data.max_ninos_asignados != null) setMaxNinos(data.max_ninos_asignados);
+      if (data.horas_disponibles != null) setHorasDisponibles(data.horas_disponibles);
     } catch (error) {
       console.error('Error cargando perfil:', error);
       setMensaje({ tipo: 'error', texto: 'Error al cargar el perfil' });
@@ -114,6 +120,10 @@ export default function MiPerfilPage() {
           telefono: telefono.trim() || null,
           direccion: direccion.trim() || null,
           fecha_nacimiento: fechaNacimiento || null,
+          ...(perfilCompleto?.rol === 'voluntario' ? {
+            max_ninos_asignados: maxNinos,
+            horas_disponibles: horasDisponibles,
+          } : {}),
         })
       });
 
@@ -414,6 +424,78 @@ export default function MiPerfilPage() {
                   </p>
                 </div>
               </div>
+
+              {/* Sección voluntario: Max niños y horas disponibles */}
+              {perfilCompleto?.rol === 'voluntario' && (
+                <div className="mt-8 pt-6 border-t border-white/40">
+                  <h3 className="text-lg font-bold text-neutro-carbon mb-6 font-quicksand flex items-center gap-2">
+                    <Users className="w-6 h-6 text-impulso-500" />
+                    Disponibilidad
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Max niños */}
+                    <div className="bg-impulso-50/40 backdrop-blur-sm border border-impulso-200/30 rounded-2xl p-5">
+                      <label className="block text-sm font-medium text-neutro-piedra mb-1 font-outfit">
+                        Máximo de niños que podés acompañar
+                      </label>
+                      <p className="text-xs text-neutro-piedra/70 mb-3 font-outfit">
+                        Seleccioná entre 1 y 3
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        {[1, 2, 3].map((valor) => (
+                          <button
+                            key={valor}
+                            type="button"
+                            onClick={() => setMaxNinos(valor)}
+                            className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold font-quicksand transition-all ${
+                              maxNinos === valor
+                                ? 'bg-gradient-to-br from-impulso-400 to-impulso-500 text-white shadow-lg scale-110'
+                                : 'bg-white/80 hover:bg-neutro-carbon/5 text-neutro-piedra border border-white/60'
+                            }`}
+                          >
+                            {valor}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Horas disponibles */}
+                    <div className="bg-crecimiento-50/40 backdrop-blur-sm border border-crecimiento-200/30 rounded-2xl p-5">
+                      <label className="block text-sm font-medium text-neutro-piedra mb-1 font-outfit">
+                        Horas semanales disponibles
+                      </label>
+                      <p className="text-xs text-neutro-piedra/70 mb-3 font-outfit">
+                        ¿Cuántas horas por semana podés dedicar?
+                      </p>
+                      <div className="flex items-center justify-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setHorasDisponibles(Math.max(1, horasDisponibles - 1))}
+                          className="w-11 h-11 rounded-xl bg-white/80 hover:bg-neutro-carbon/5 text-neutro-carbon font-bold transition-all flex items-center justify-center text-xl border border-white/60"
+                        >
+                          −
+                        </button>
+                        <div className="text-center min-w-[60px]">
+                          <span className="text-3xl font-bold text-crecimiento-600 font-quicksand">
+                            {horasDisponibles}
+                          </span>
+                          <p className="text-xs text-neutro-piedra font-outfit mt-0.5">
+                            {horasDisponibles === 1 ? 'hora' : 'horas'} / semana
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHorasDisponibles(Math.min(40, horasDisponibles + 1))}
+                          className="w-11 h-11 rounded-xl bg-white/80 hover:bg-neutro-carbon/5 text-neutro-carbon font-bold transition-all flex items-center justify-center text-xl border border-white/60"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Botón guardar */}
               <div className="mt-8 flex justify-end">

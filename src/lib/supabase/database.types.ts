@@ -1267,6 +1267,7 @@ export type Database = {
           estudios: Json | null
           fecha_ingreso: string | null
           foto_perfil_url: string | null
+          horas_disponibles: number | null
           id: string
           max_ninos_asignados: number | null
           metadata: Json
@@ -1280,6 +1281,7 @@ export type Database = {
           estudios?: Json | null
           fecha_ingreso?: string | null
           foto_perfil_url?: string | null
+          horas_disponibles?: number | null
           id: string
           max_ninos_asignados?: number | null
           metadata?: Json
@@ -1293,6 +1295,7 @@ export type Database = {
           estudios?: Json | null
           fecha_ingreso?: string | null
           foto_perfil_url?: string | null
+          horas_disponibles?: number | null
           id?: string
           max_ninos_asignados?: number | null
           metadata?: Json

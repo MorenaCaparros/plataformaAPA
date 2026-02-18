@@ -373,13 +373,13 @@ function UsuariosPageContent() {
 
                 {/* Actions */}
                 <div className="mt-4 pt-3 border-t border-white/40 flex items-center gap-2">
-                  <button
-                    onClick={() => setPerfilExpandido(perfilExpandido === u.id ? null : u.id)}
+                  <Link
+                    href={`/dashboard/usuarios/${u.id}/perfil`}
                     className="flex items-center gap-1 px-3 py-1.5 text-xs font-outfit font-medium text-neutro-piedra hover:text-neutro-carbon bg-white/60 rounded-xl hover:bg-white/80 transition-all active:scale-95"
                   >
                     <Eye className="w-3.5 h-3.5" />
-                    {perfilExpandido === u.id ? 'Menos' : 'Más'}
-                  </button>
+                    Perfil
+                  </Link>
                   <Link
                     href={`/dashboard/usuarios/${u.id}/editar`}
                     className="flex-1 text-center px-3 py-1.5 text-xs font-outfit font-medium text-crecimiento-700 bg-crecimiento-50 rounded-xl hover:bg-crecimiento-100 transition-all active:scale-95 border border-crecimiento-200"
@@ -450,6 +450,12 @@ function UsuariosPageContent() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <Link
+                            href={`/dashboard/usuarios/${u.id}/perfil`}
+                            className="text-xs text-neutro-piedra hover:text-neutro-carbon font-medium font-outfit"
+                          >
+                            Perfil
+                          </Link>
                           <Link
                             href={`/dashboard/usuarios/${u.id}/editar`}
                             className="text-xs text-crecimiento-600 hover:text-crecimiento-700 font-medium font-outfit"

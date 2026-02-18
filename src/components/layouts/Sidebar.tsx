@@ -28,7 +28,7 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   { name: 'Inicio', href: '/dashboard', icon: HomeIcon },
-  { name: 'Niños', href: '/dashboard/ninos', icon: UsersIcon },
+  { name: 'Niños', href: '/dashboard/ninos', icon: UsersIcon, roles: ['coordinador', 'psicopedagogia', 'trabajadora_social', 'equipo_profesional', 'director', 'admin'] },
   { name: 'Sesiones', href: '/dashboard/sesiones', icon: DocumentTextIcon },
   { name: 'Asistencia', href: '/dashboard/asistencia', icon: ClipboardDocumentCheckIcon },
   { name: 'Autoevaluaciones', href: '/dashboard/autoevaluaciones', icon: AcademicCapIcon },

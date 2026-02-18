@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id, nombre, apellido, rol, zona_id, fecha_nacimiento,
         telefono, email, direccion, foto_perfil_url, fecha_ingreso,
-        max_ninos_asignados, activo, notas, ultima_conexion,
+        max_ninos_asignados, horas_disponibles, activo, notas, ultima_conexion,
         created_at, updated_at,
         zonas ( id, nombre )
       `)
@@ -60,7 +60,8 @@ export async function PATCH(request: NextRequest) {
     // Campos que un usuario puede actualizar de su propio perfil
     const camposPermitidos = [
       'nombre', 'apellido', 'telefono', 'direccion',
-      'fecha_nacimiento', 'foto_perfil_url'
+      'fecha_nacimiento', 'foto_perfil_url',
+      'max_ninos_asignados', 'horas_disponibles'
     ];
 
     const updateData: Record<string, any> = {};

@@ -3,13 +3,23 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, X } from 'lucide-react';
 import Link from 'next/link';
+
+type TipoPregunta = 'escala' | 'si_no' | 'texto_abierto' | 'multiple_choice';
+
+interface OpcionPregunta {
+  texto_opcion: string;
+  es_correcta: boolean;
+  orden: number;
+}
 
 interface Pregunta {
   id: string;
   texto: string;
-  tipo: 'escala' | 'si_no' | 'texto_abierto';
+  tipo: TipoPregunta;
+  respuesta_correcta: string;
+  opciones: OpcionPregunta[];
   min_caracteres?: number;
 }
 
@@ -25,7 +35,9 @@ export default function CrearPlantillaPage() {
     const nuevaPregunta: Pregunta = {
       id: `pregunta-${Date.now()}`,
       texto: '',
-      tipo: 'escala'
+      tipo: 'escala',
+      respuesta_correcta: '',
+      opciones: [],
     };
     setPreguntas([...preguntas, nuevaPregunta]);
   };
@@ -35,9 +47,48 @@ export default function CrearPlantillaPage() {
   };
 
   const actualizarPregunta = (id: string, campo: keyof Pregunta, valor: any) => {
-    setPreguntas(preguntas.map(p => 
-      p.id === id ? { ...p, [campo]: valor } : p
-    ));
+    setPreguntas(preguntas.map(p => {
+      if (p.id !== id) return p;
+      const updated = { ...p, [campo]: valor };
+      if (campo === 'tipo') {
+        updated.respuesta_correcta = '';
+        updated.opciones = valor === 'multiple_choice'
+          ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
+          : [];
+      }
+      return updated;
+    }));
+  };
+
+  const actualizarOpcion = (preguntaId: string, opcionIdx: number, campo: keyof OpcionPregunta, valor: any) => {
+    setPreguntas(preguntas.map(p => {
+      if (p.id !== preguntaId) return p;
+      const newOpciones = p.opciones.map((op, oi) => {
+        if (oi !== opcionIdx) {
+          if (campo === 'es_correcta' && valor === true) return { ...op, es_correcta: false };
+          return op;
+        }
+        return { ...op, [campo]: valor };
+      });
+      const correcta = newOpciones.find(o => o.es_correcta);
+      return { ...p, opciones: newOpciones, respuesta_correcta: correcta?.texto_opcion || '' };
+    }));
+  };
+
+  const agregarOpcion = (preguntaId: string) => {
+    setPreguntas(preguntas.map(p => {
+      if (p.id !== preguntaId) return p;
+      return { ...p, opciones: [...p.opciones, { texto_opcion: '', es_correcta: false, orden: p.opciones.length + 1 }] };
+    }));
+  };
+
+  const quitarOpcion = (preguntaId: string, opcionIdx: number) => {
+    setPreguntas(preguntas.map(p => {
+      if (p.id !== preguntaId || p.opciones.length <= 2) return p;
+      const newOpciones = p.opciones.filter((_, i) => i !== opcionIdx).map((o, i) => ({ ...o, orden: i + 1 }));
+      const correcta = newOpciones.find(o => o.es_correcta);
+      return { ...p, opciones: newOpciones, respuesta_correcta: correcta?.texto_opcion || '' };
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,10 +99,18 @@ export default function CrearPlantillaPage() {
       return;
     }
 
-    // Validar que todas las preguntas tengan texto
     if (preguntas.some(p => !p.texto.trim())) {
       alert('Todas las preguntas deben tener texto');
       return;
+    }
+
+    // Validate respuesta_correcta
+    for (const p of preguntas) {
+      if (p.tipo === 'multiple_choice') {
+        if (p.opciones.length < 2) { alert(`Pregunta "${p.texto.substring(0, 30)}..." necesita al menos 2 opciones`); return; }
+        if (!p.opciones.some(o => o.es_correcta)) { alert(`Pregunta "${p.texto.substring(0, 30)}..." necesita una opción correcta`); return; }
+        if (p.opciones.some(o => !o.texto_opcion.trim())) { alert(`Todas las opciones deben tener texto`); return; }
+      }
     }
 
     setSaving(true);
@@ -77,21 +136,35 @@ export default function CrearPlantillaPage() {
       // 2. Create preguntas
       for (let i = 0; i < preguntas.length; i++) {
         const p = preguntas[i];
-        const tipoDB = p.tipo === 'si_no' ? 'verdadero_falso' : p.tipo === 'texto_abierto' ? 'texto_libre' : 'escala';
+        const tipoDB = p.tipo === 'si_no' ? 'verdadero_falso' : p.tipo === 'texto_abierto' ? 'texto_libre' : p.tipo;
         
-        const { error: pregError } = await supabase
+        const { data: preguntaDB, error: pregError } = await supabase
           .from('preguntas_capacitacion')
           .insert({
             capacitacion_id: capacitacion.id,
             orden: i + 1,
             pregunta: p.texto,
             tipo_pregunta: tipoDB,
-            respuesta_correcta: '',
+            respuesta_correcta: p.respuesta_correcta || '',
             puntaje: 10,
-          });
+          })
+          .select()
+          .single();
 
         if (pregError) {
           console.error(`Error al crear pregunta ${i}:`, pregError);
+          continue;
+        }
+
+        // Insert opciones for multiple_choice
+        if (p.tipo === 'multiple_choice' && preguntaDB && p.opciones.length > 0) {
+          const opInserts = p.opciones.map((op, idx) => ({
+            pregunta_id: preguntaDB.id,
+            orden: idx + 1,
+            texto_opcion: op.texto_opcion.trim(),
+            es_correcta: op.es_correcta,
+          }));
+          await supabase.from('opciones_pregunta').insert(opInserts);
         }
       }
 
@@ -103,6 +176,84 @@ export default function CrearPlantillaPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const renderRespuestaCorrectaInput = (pregunta: Pregunta) => {
+    if (pregunta.tipo === 'texto_abierto') {
+      return (
+        <input
+          type="text"
+          value={pregunta.respuesta_correcta}
+          onChange={(e) => actualizarPregunta(pregunta.id, 'respuesta_correcta', e.target.value)}
+          placeholder="Respuesta esperada (opcional, revisión manual)"
+          className="w-full px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+        />
+      );
+    }
+    if (pregunta.tipo === 'si_no') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Respuesta correcta:</span>
+          {['true', 'false'].map(v => (
+            <button key={v} type="button" onClick={() => actualizarPregunta(pregunta.id, 'respuesta_correcta', v)}
+              className={`px-4 py-1.5 rounded-xl text-sm font-outfit font-medium transition-all ${
+                pregunta.respuesta_correcta === v
+                  ? v === 'true' ? 'bg-crecimiento-400 text-white' : 'bg-impulso-400 text-white'
+                  : 'bg-neutro-nube text-neutro-piedra'
+              }`}>
+              {v === 'true' ? 'Sí' : 'No'}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (pregunta.tipo === 'escala') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Correcta (1-5):</span>
+          {[1, 2, 3, 4, 5].map(v => (
+            <button key={v} type="button" onClick={() => actualizarPregunta(pregunta.id, 'respuesta_correcta', String(v))}
+              className={`w-9 h-9 rounded-lg text-sm font-bold font-outfit transition-all ${
+                pregunta.respuesta_correcta === String(v) ? 'bg-sol-400 text-white' : 'bg-neutro-nube text-neutro-piedra'
+              }`}>
+              {v}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (pregunta.tipo === 'multiple_choice') {
+      return (
+        <div className="space-y-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Opciones (marcá la correcta):</span>
+          {pregunta.opciones.map((op, opIdx) => (
+            <div key={opIdx} className="flex items-center gap-2">
+              <button type="button" onClick={() => actualizarOpcion(pregunta.id, opIdx, 'es_correcta', true)}
+                className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                  op.es_correcta ? 'bg-crecimiento-400 border-crecimiento-500 text-white' : 'border-neutro-piedra/30'
+                }`}>
+                {op.es_correcta && <CheckCircle2 className="w-4 h-4" />}
+              </button>
+              <input type="text" value={op.texto_opcion}
+                onChange={(e) => actualizarOpcion(pregunta.id, opIdx, 'texto_opcion', e.target.value)}
+                placeholder={`Opción ${opIdx + 1}`}
+                className="flex-1 px-3 py-1.5 bg-white border border-neutro-piedra/20 rounded-lg text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+              />
+              {pregunta.opciones.length > 2 && (
+                <button type="button" onClick={() => quitarOpcion(pregunta.id, opIdx)} className="p-1 text-impulso-500 hover:bg-impulso-50 rounded-lg">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button" onClick={() => agregarOpcion(pregunta.id)}
+            className="text-xs text-crecimiento-600 font-outfit font-medium flex items-center gap-1">
+            <Plus className="w-3.5 h-3.5" /> Agregar opción
+          </button>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -133,48 +284,30 @@ export default function CrearPlantillaPage() {
             
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
-                  Título *
-                </label>
-                <input
-                  type="text"
-                  value={titulo}
-                  onChange={(e) => setTitulo(e.target.value)}
+                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Título *</label>
+                <input type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)}
                   placeholder="Ej: Autoevaluación de Lenguaje Básico"
                   className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit min-h-[56px] placeholder:text-neutro-piedra/60"
-                  required
-                />
+                  required />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
-                  Área *
-                </label>
-                <select
-                  value={area}
-                  onChange={(e) => setArea(e.target.value)}
+                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Área *</label>
+                <select value={area} onChange={(e) => setArea(e.target.value)}
                   className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit min-h-[56px]"
-                  required
-                >
+                  required>
                   <option value="lenguaje">Lenguaje y Vocabulario</option>
                   <option value="grafismo">Grafismo y Motricidad Fina</option>
                   <option value="lectura_escritura">Lectura y Escritura</option>
                   <option value="matematicas">Nociones Matemáticas</option>
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
-                  Descripción *
-                </label>
-                <textarea
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
+                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Descripción *</label>
+                <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Describe el objetivo de esta autoevaluación..."
                   rows={3}
                   className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit resize-none placeholder:text-neutro-piedra/60"
-                  required
-                />
+                  required />
               </div>
             </div>
           </div>
@@ -185,11 +318,8 @@ export default function CrearPlantillaPage() {
               <h2 className="text-xl font-bold text-neutro-carbon font-quicksand">
                 Preguntas ({preguntas.length})
               </h2>
-              <button
-                type="button"
-                onClick={agregarPregunta}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold active:scale-95"
-              >
+              <button type="button" onClick={agregarPregunta}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold active:scale-95">
                 <Plus className="w-5 h-5" />
                 Agregar Pregunta
               </button>
@@ -207,34 +337,32 @@ export default function CrearPlantillaPage() {
                       <span className="text-sm font-semibold text-neutro-carbon font-outfit">
                         Pregunta {index + 1}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => eliminarPregunta(pregunta.id)}
-                        className="text-impulso-600 hover:text-impulso-700"
-                      >
+                      <button type="button" onClick={() => eliminarPregunta(pregunta.id)} className="text-impulso-600 hover:text-impulso-700">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
                     <div className="space-y-4">
-                      <textarea
-                        value={pregunta.texto}
+                      <textarea value={pregunta.texto}
                         onChange={(e) => actualizarPregunta(pregunta.id, 'texto', e.target.value)}
                         placeholder="Escribe la pregunta..."
                         rows={2}
                         className="w-full px-4 py-3 bg-white border border-neutro-piedra/20 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit resize-none placeholder:text-neutro-piedra/60"
-                        required
-                      />
+                        required />
 
-                      <select
-                        value={pregunta.tipo}
+                      <select value={pregunta.tipo}
                         onChange={(e) => actualizarPregunta(pregunta.id, 'tipo', e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm"
-                      >
-                        <option value="escala">Escala 1-10</option>
-                        <option value="si_no">Sí/No</option>
+                        className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm">
+                        <option value="escala">Escala 1-5 ⭐</option>
+                        <option value="si_no">Sí / No</option>
+                        <option value="multiple_choice">Selección múltiple</option>
                         <option value="texto_abierto">Texto abierto</option>
                       </select>
+
+                      {/* Respuesta correcta */}
+                      <div className="bg-crecimiento-50/30 rounded-xl p-3 border border-crecimiento-200/20">
+                        {renderRespuestaCorrectaInput(pregunta)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -244,17 +372,12 @@ export default function CrearPlantillaPage() {
 
           {/* Botones de acción */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <Link
-              href="/dashboard/autoevaluaciones/gestionar"
-              className="flex-1 px-6 py-4 min-h-[56px] bg-white/80 backdrop-blur-sm border border-white/60 text-neutro-carbon rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all font-outfit font-semibold text-center active:scale-95"
-            >
+            <Link href="/dashboard/autoevaluaciones/gestionar"
+              className="flex-1 px-6 py-4 min-h-[56px] bg-white/80 backdrop-blur-sm border border-white/60 text-neutro-carbon rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all font-outfit font-semibold text-center active:scale-95">
               Cancelar
             </Link>
-            <button
-              type="submit"
-              disabled={saving || preguntas.length === 0}
-              className="flex-1 px-6 py-4 min-h-[56px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-            >
+            <button type="submit" disabled={saving || preguntas.length === 0}
+              className="flex-1 px-6 py-4 min-h-[56px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
               {saving ? 'Guardando...' : 'Crear Plantilla'}
             </button>
           </div>

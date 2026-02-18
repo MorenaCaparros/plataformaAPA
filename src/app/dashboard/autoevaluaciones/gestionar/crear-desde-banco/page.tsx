@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -16,6 +16,7 @@ interface PreguntaBanco {
   area: string;
   puntaje: number;
   orden: number;
+  respuesta_correcta: string;
 }
 
 interface ConfigArea {
@@ -58,7 +59,10 @@ export default function CrearDesdeBancoPage() {
   const [preguntasSeleccionadas, setPreguntasSeleccionadas] = useState<PreguntaBanco[]>([]);
   const [mostrarPreview, setMostrarPreview] = useState(false);
 
-  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
+  // Ref to store opciones from banco for copying
+  const opcionesBancoRef = useRef<Record<string, any[]>>({});
+
+  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin', 'equipo_profesional'];
   const tienePermiso = perfil?.rol ? rolesPermitidos.includes(perfil.rol) : false;
 
   useEffect(() => {
@@ -73,7 +77,7 @@ export default function CrearDesdeBancoPage() {
     try {
       const { data, error } = await supabase
         .from('preguntas_capacitacion')
-        .select('*')
+        .select('*, opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)')
         .is('capacitacion_id', null)
         .gt('puntaje', 0) // Only active questions
         .order('area_especifica')
@@ -88,7 +92,17 @@ export default function CrearDesdeBancoPage() {
         area: p.area_especifica || 'lenguaje',
         puntaje: p.puntaje,
         orden: p.orden,
+        respuesta_correcta: p.respuesta_correcta || '',
       }));
+
+      // Store raw opciones indexed by pregunta id for later copy
+      const opcionesMap: Record<string, any[]> = {};
+      (data || []).forEach((p: any) => {
+        if (p.opciones && p.opciones.length > 0) {
+          opcionesMap[p.id] = p.opciones;
+        }
+      });
+      opcionesBancoRef.current = opcionesMap;
 
       setBancoPreguntas(mapped);
     } catch (error) {
@@ -175,21 +189,39 @@ export default function CrearDesdeBancoPage() {
       if (capError) throw capError;
 
       // 3. Create preguntas linked to this capacitacion (copies from bank)
-      const inserts = preguntasSeleccionadas.map((p, i) => ({
-        capacitacion_id: capacitacion.id,
-        orden: i + 1,
-        pregunta: p.pregunta,
-        tipo_pregunta: p.tipo_pregunta,
-        respuesta_correcta: '',
-        puntaje: p.puntaje,
-        area_especifica: p.area,
-      }));
+      for (let i = 0; i < preguntasSeleccionadas.length; i++) {
+        const p = preguntasSeleccionadas[i];
+        const { data: preguntaDB, error: pregError } = await supabase
+          .from('preguntas_capacitacion')
+          .insert({
+            capacitacion_id: capacitacion.id,
+            orden: i + 1,
+            pregunta: p.pregunta,
+            tipo_pregunta: p.tipo_pregunta,
+            respuesta_correcta: p.respuesta_correcta || '',
+            puntaje: p.puntaje,
+            area_especifica: p.area,
+          })
+          .select()
+          .single();
 
-      const { error: pregError } = await supabase
-        .from('preguntas_capacitacion')
-        .insert(inserts);
+        if (pregError) {
+          console.error(`Error al crear pregunta ${i}:`, pregError);
+          continue;
+        }
 
-      if (pregError) throw pregError;
+        // Copy opciones from banco if this question has them
+        const opcionesSrc = opcionesBancoRef.current[p.id];
+        if (preguntaDB && opcionesSrc && opcionesSrc.length > 0) {
+          const opInserts = opcionesSrc.map((op: any) => ({
+            pregunta_id: preguntaDB.id,
+            orden: op.orden,
+            texto_opcion: op.texto_opcion,
+            es_correcta: op.es_correcta,
+          }));
+          await supabase.from('opciones_pregunta').insert(opInserts);
+        }
+      }
 
       alert('✅ Plantilla creada correctamente con preguntas del banco');
       router.push('/dashboard/autoevaluaciones/gestionar');

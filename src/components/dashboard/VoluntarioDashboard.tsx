@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { formatearEdad } from '@/lib/utils/date-helpers';
+import Link from 'next/link';
 
 interface NinoAsignado {
   id: string;
@@ -34,6 +35,26 @@ interface EstadisticasVoluntario {
 interface VoluntarioDashboardProps {
   userId: string;
 }
+
+interface TrainingStatus {
+  necesitaCapacitacion: boolean;
+  areasPendientes: string[];
+  autoevaluacionesPendientes: number;
+  haCompletadoAlgunaAutoeval: boolean;
+  autoevalPuntaje: number | null; // 0..10 score from autoevaluación
+  autoevalPorcentaje: number | null; // 0..100
+  scoresPorArea: { area: string; score_final: number; necesita_capacitacion: boolean }[];
+}
+
+const AREA_LABELS: Record<string, string> = {
+  lenguaje: 'Lenguaje y Vocabulario',
+  lenguaje_vocabulario: 'Lenguaje y Vocabulario',
+  grafismo: 'Grafismo y Motricidad Fina',
+  grafismo_motricidad: 'Grafismo y Motricidad Fina',
+  lectura_escritura: 'Lectura y Escritura',
+  nociones_matematicas: 'Nociones Matemáticas',
+  matematicas: 'Nociones Matemáticas',
+};
 
 export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps) {
   const router = useRouter();
@@ -148,6 +169,70 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
     staleTime: 1000 * 60 * 2,
   });
 
+  // Training status query
+  const { data: trainingStatus } = useQuery<TrainingStatus>({
+    queryKey: ['voluntario-training-status', userId],
+    queryFn: async () => {
+      // 1. Check scores per area for necesita_capacitacion
+      const { data: scores } = await supabase
+        .from('scores_voluntarios_por_area')
+        .select('area, necesita_capacitacion, score_final')
+        .eq('voluntario_id', userId);
+
+      const areasPendientes = (scores || [])
+        .filter((s: any) => s.necesita_capacitacion)
+        .map((s: any) => s.area);
+
+      // 2. Check how many autoevaluaciones exist that volunteer hasn't completed
+      const { data: autoevals } = await supabase
+        .from('capacitaciones')
+        .select('id')
+        .eq('tipo', 'autoevaluacion')
+        .eq('activa', true);
+
+      const { data: completadas } = await supabase
+        .from('voluntarios_capacitaciones')
+        .select('capacitacion_id, estado')
+        .eq('voluntario_id', userId)
+        .in('estado', ['completada', 'aprobada', 'reprobada']);
+
+      const completadasIds = new Set((completadas || []).map((c: any) => c.capacitacion_id));
+      const pendientes = (autoevals || []).filter((a: any) => !completadasIds.has(a.id));
+
+      const haCompletadoAlgunaAutoeval = (completadas || []).length > 0;
+
+      // 3. Get autoevaluación puntaje (most recent completed)
+      const { data: volCaps } = await supabase
+        .from('voluntarios_capacitaciones')
+        .select('puntaje_final, puntaje_maximo, porcentaje, capacitacion_id')
+        .eq('voluntario_id', userId)
+        .in('estado', ['completada', 'aprobada', 'reprobada'])
+        .order('fecha_completado', { ascending: false })
+        .limit(1);
+
+      const autoevalResult = volCaps?.[0] || null;
+
+      // 4. Build per-area score map
+      const scoresPorArea = (scores || []).map((s: any) => ({
+        area: s.area as string,
+        score_final: s.score_final as number,
+        necesita_capacitacion: s.necesita_capacitacion as boolean,
+      }));
+
+      return {
+        necesitaCapacitacion: areasPendientes.length > 0,
+        areasPendientes,
+        autoevaluacionesPendientes: pendientes.length,
+        haCompletadoAlgunaAutoeval,
+        autoevalPuntaje: autoevalResult ? autoevalResult.puntaje_final : null,
+        autoevalPorcentaje: autoevalResult ? autoevalResult.porcentaje : null,
+        scoresPorArea,
+      };
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+  });
+
   const ninos = data?.ninos || [];
   const estadisticas = data?.estadisticas || {
     total_ninos: 0,
@@ -234,6 +319,159 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
             <span className="text-2xl">→</span>
           </div>
         </button>
+      )}
+
+      {/* 🟡 Training Gate — Autoevaluaciones pendientes */}
+      {(trainingStatus?.autoevaluacionesPendientes ?? 0) > 0 && (
+        <Link
+          href="/dashboard/autoevaluaciones"
+          className="block w-full bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60 rounded-xl p-4 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+        >
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">📋</span>
+            <div className="flex-1">
+              <p className="font-bold text-amber-900 text-sm sm:text-base">
+                {trainingStatus!.autoevaluacionesPendientes === 1
+                  ? 'Tenés 1 autoevaluación pendiente'
+                  : `Tenés ${trainingStatus!.autoevaluacionesPendientes} autoevaluaciones pendientes`}
+              </p>
+              <p className="text-xs sm:text-sm text-amber-700 mt-0.5">
+                Completá tus autoevaluaciones para que podamos asignarte niños según tus fortalezas.
+              </p>
+            </div>
+            <span className="text-amber-600 text-lg flex-shrink-0">→</span>
+          </div>
+        </Link>
+      )}
+
+      {/* 🔴 Training Gate — Necesita capacitación (score no perfecto) */}
+      {trainingStatus?.necesitaCapacitacion && trainingStatus.haCompletadoAlgunaAutoeval && (
+        <div className="w-full bg-gradient-to-r from-red-50 to-rose-50 border border-red-200/60 rounded-xl p-4 shadow-md">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">⚠️</span>
+            <div className="flex-1">
+              <p className="font-bold text-red-900 text-sm sm:text-base">
+                Capacitación requerida antes de operar
+              </p>
+              <p className="text-xs sm:text-sm text-red-700 mt-0.5">
+                Tu puntaje en las siguientes áreas no fue perfecto. Debés completar las capacitaciones correspondientes:
+              </p>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {trainingStatus.areasPendientes.map((area) => (
+                  <span
+                    key={area}
+                    className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-100 text-red-800 border border-red-200/60"
+                  >
+                    {AREA_LABELS[area] || area}
+                  </span>
+                ))}
+              </div>
+              <Link
+                href="/dashboard/capacitaciones"
+                className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-xs sm:text-sm transition-all active:scale-95"
+              >
+                📚 Ir a Capacitaciones
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ Puntaje Autoevaluación + Capacitaciones por Área */}
+      {trainingStatus?.haCompletadoAlgunaAutoeval && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+              Mi Progreso
+            </h2>
+          </div>
+          <div className="p-4 sm:p-6 space-y-5">
+            {/* Autoevaluación score — 5 stars */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-gradient-to-r from-sol-50 to-amber-50 dark:from-gray-700 dark:to-gray-700 rounded-xl p-4 border border-sol-200/40">
+              <div className="text-center sm:text-left flex-1">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Autoevaluación</p>
+                <div className="flex items-center justify-center sm:justify-start gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const puntaje = trainingStatus.autoevalPuntaje ?? 0;
+                    // Map 0-10 score to 0-5 stars
+                    const starsEarned = puntaje / 2;
+                    const filled = star <= Math.round(starsEarned);
+                    return (
+                      <span
+                        key={star}
+                        className={`text-2xl sm:text-3xl ${filled ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600'}`}
+                      >
+                        ★
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {trainingStatus.autoevalPuntaje != null
+                    ? `${trainingStatus.autoevalPuntaje}/10 puntos (${trainingStatus.autoevalPorcentaje ?? 0}%)`
+                    : 'Sin puntaje aún'}
+                </p>
+              </div>
+            </div>
+
+            {/* Capacitaciones por Área — 4 áreas con estrellas y colores */}
+            <div>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Capacitaciones por Área</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(['lenguaje', 'grafismo', 'lectura_escritura', 'nociones_matematicas'] as const).map((areaKey) => {
+                  const areaScore = trainingStatus.scoresPorArea.find(
+                    (s) => s.area === areaKey || s.area === areaKey.replace('nociones_matematicas', 'matematicas')
+                  );
+                  const score = areaScore?.score_final ?? 0;
+                  const necesita = areaScore?.necesita_capacitacion ?? (trainingStatus.autoevalPorcentaje != null && trainingStatus.autoevalPorcentaje < 100);
+                  // Map 0-10 score to 0-5 stars
+                  const starsEarned = score / 2;
+
+                  const areaColorMap: Record<string, { bg: string; border: string; text: string }> = {
+                    lenguaje: { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200/50', text: 'text-blue-700 dark:text-blue-300' },
+                    grafismo: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200/50', text: 'text-green-700 dark:text-green-300' },
+                    lectura_escritura: { bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-200/50', text: 'text-purple-700 dark:text-purple-300' },
+                    nociones_matematicas: { bg: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200/50', text: 'text-orange-700 dark:text-orange-300' },
+                  };
+                  const colors = areaColorMap[areaKey] || areaColorMap.lenguaje;
+
+                  // Star color based on status
+                  const starColor = necesita ? 'text-gray-300 dark:text-gray-600' : 'text-amber-400';
+                  const starFilledColor = score > 0 ? (necesita ? 'text-red-400' : 'text-amber-400') : 'text-gray-300 dark:text-gray-600';
+
+                  return (
+                    <div key={areaKey} className={`${colors.bg} ${colors.border} border rounded-lg p-3`}>
+                      <p className={`text-xs font-semibold ${colors.text} mb-1.5 truncate`}>
+                        {AREA_LABELS[areaKey] || areaKey}
+                      </p>
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const filled = star <= Math.round(starsEarned);
+                          return (
+                            <span
+                              key={star}
+                              className={`text-lg ${filled ? starFilledColor : 'text-gray-300 dark:text-gray-600'}`}
+                            >
+                              ★
+                            </span>
+                          );
+                        })}
+                        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                          {score > 0 ? `${score}/10` : '—'}
+                        </span>
+                      </div>
+                      {necesita && (
+                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 font-medium">
+                          Capacitación pendiente
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Estadísticas Rápidas - Mobile First */}
@@ -375,11 +613,11 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
             ✅ Asistencia
           </button>
           <button
-            onClick={() => router.push('/dashboard/ninos')}
+            onClick={() => router.push('/dashboard/biblioteca')}
             className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
             style={{ minHeight: '44px' }}
           >
-            👦 Ver Niños
+            📚 Biblioteca
           </button>
           <button
             onClick={() => router.push('/dashboard/metricas')}

@@ -27,7 +27,7 @@ function GestionarPlantillasContent() {
   const plantillaId = searchParams.get('plantilla');
 
   // Verificar permisos
-  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
+  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin', 'equipo_profesional'];
   const tienePermiso = perfil?.rol ? rolesPermitidos.includes(perfil.rol) : false;
 
   useEffect(() => {

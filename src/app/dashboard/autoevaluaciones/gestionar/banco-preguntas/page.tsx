@@ -6,11 +6,18 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
 import {
-  ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Save, X, Search, Filter, BookOpen,
+  ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Save, X, Search, Filter, BookOpen, CheckCircle2,
 } from 'lucide-react';
 
 type Area = 'lenguaje' | 'grafismo' | 'lectura_escritura' | 'matematicas';
 type TipoPregunta = 'escala' | 'verdadero_falso' | 'texto_libre' | 'multiple_choice';
+
+interface OpcionPregunta {
+  id?: string;
+  texto_opcion: string;
+  es_correcta: boolean;
+  orden: number;
+}
 
 interface PreguntaBanco {
   id: string;
@@ -20,6 +27,8 @@ interface PreguntaBanco {
   puntaje: number;
   activa: boolean;
   orden: number;
+  respuesta_correcta: string;
+  opciones: OpcionPregunta[];
   created_at: string;
 }
 
@@ -27,6 +36,8 @@ interface NuevaPregunta {
   pregunta: string;
   tipo_pregunta: TipoPregunta;
   area: Area;
+  respuesta_correcta: string;
+  opciones: OpcionPregunta[];
 }
 
 const AREAS: { value: Area; label: string; color: string; bg: string }[] = [
@@ -36,10 +47,11 @@ const AREAS: { value: Area; label: string; color: string; bg: string }[] = [
   { value: 'matematicas', label: 'Nociones Matemáticas', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200/30' },
 ];
 
-const TIPOS_PREGUNTA: { value: TipoPregunta; label: string }[] = [
-  { value: 'escala', label: 'Escala 1-5' },
-  { value: 'verdadero_falso', label: 'Sí / No' },
-  { value: 'texto_libre', label: 'Texto abierto' },
+const TIPOS_PREGUNTA: { value: TipoPregunta; label: string; desc: string }[] = [
+  { value: 'escala', label: 'Escala 1-5', desc: 'Respuesta numérica del 1 al 5' },
+  { value: 'verdadero_falso', label: 'Sí / No', desc: 'Verdadero o falso' },
+  { value: 'multiple_choice', label: 'Selección múltiple', desc: 'Varias opciones, una correcta' },
+  { value: 'texto_libre', label: 'Texto abierto', desc: 'Respuesta libre (revisión manual)' },
 ];
 
 const areaLabels: Record<string, string> = {
@@ -48,6 +60,10 @@ const areaLabels: Record<string, string> = {
   lectura_escritura: 'Lectura y Escritura',
   matematicas: 'Nociones Matemáticas',
 };
+
+function emptyNuevaPregunta(area: Area = 'lenguaje'): NuevaPregunta {
+  return { pregunta: '', tipo_pregunta: 'escala', area, respuesta_correcta: '', opciones: [] };
+}
 
 export default function BancoPreguntasPage() {
   const router = useRouter();
@@ -59,11 +75,9 @@ export default function BancoPreguntasPage() {
   const [busqueda, setBusqueda] = useState('');
   const [mostrarInactivas, setMostrarInactivas] = useState(false);
 
-  // Estado para crear/editar
+  // Estado para crear
   const [modoCrear, setModoCrear] = useState(false);
-  const [nuevasPreguntas, setNuevasPreguntas] = useState<NuevaPregunta[]>([
-    { pregunta: '', tipo_pregunta: 'escala', area: 'lenguaje' },
-  ]);
+  const [nuevasPreguntas, setNuevasPreguntas] = useState<NuevaPregunta[]>([emptyNuevaPregunta()]);
   const [guardando, setGuardando] = useState(false);
 
   // Estado para edición inline
@@ -71,8 +85,10 @@ export default function BancoPreguntasPage() {
   const [editTexto, setEditTexto] = useState('');
   const [editTipo, setEditTipo] = useState<TipoPregunta>('escala');
   const [editArea, setEditArea] = useState<Area>('lenguaje');
+  const [editRespuestaCorrecta, setEditRespuestaCorrecta] = useState('');
+  const [editOpciones, setEditOpciones] = useState<OpcionPregunta[]>([]);
 
-  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
+  const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin', 'equipo_profesional'];
   const tienePermiso = perfil?.rol ? rolesPermitidos.includes(perfil.rol) : false;
 
   useEffect(() => {
@@ -87,7 +103,10 @@ export default function BancoPreguntasPage() {
     try {
       const { data, error } = await supabase
         .from('preguntas_capacitacion')
-        .select('*')
+        .select(`
+          *,
+          opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
+        `)
         .is('capacitacion_id', null)
         .order('area_especifica', { ascending: true })
         .order('orden', { ascending: true });
@@ -102,6 +121,8 @@ export default function BancoPreguntasPage() {
         puntaje: p.puntaje,
         activa: p.puntaje > 0,
         orden: p.orden,
+        respuesta_correcta: p.respuesta_correcta || '',
+        opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
         created_at: p.created_at,
       }));
 
@@ -117,7 +138,7 @@ export default function BancoPreguntasPage() {
   const agregarFilaCrear = () => {
     setNuevasPreguntas([
       ...nuevasPreguntas,
-      { pregunta: '', tipo_pregunta: 'escala', area: nuevasPreguntas[nuevasPreguntas.length - 1]?.area || 'lenguaje' },
+      emptyNuevaPregunta(nuevasPreguntas[nuevasPreguntas.length - 1]?.area || 'lenguaje'),
     ]);
   };
 
@@ -127,7 +148,51 @@ export default function BancoPreguntasPage() {
   };
 
   const actualizarNuevaPregunta = (index: number, campo: keyof NuevaPregunta, valor: any) => {
-    setNuevasPreguntas(nuevasPreguntas.map((p, i) => (i === index ? { ...p, [campo]: valor } : p)));
+    setNuevasPreguntas(nuevasPreguntas.map((p, i) => {
+      if (i !== index) return p;
+      const updated = { ...p, [campo]: valor };
+      // Reset respuesta_correcta and opciones when tipo changes
+      if (campo === 'tipo_pregunta') {
+        updated.respuesta_correcta = '';
+        updated.opciones = valor === 'multiple_choice'
+          ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
+          : [];
+      }
+      return updated;
+    }));
+  };
+
+  const actualizarOpcionNueva = (preguntaIdx: number, opcionIdx: number, campo: keyof OpcionPregunta, valor: any) => {
+    setNuevasPreguntas(nuevasPreguntas.map((p, pi) => {
+      if (pi !== preguntaIdx) return p;
+      const newOpciones = p.opciones.map((op, oi) => {
+        if (oi !== opcionIdx) {
+          // If marking this one as correcta, unmark others
+          if (campo === 'es_correcta' && valor === true) return { ...op, es_correcta: false };
+          return op;
+        }
+        return { ...op, [campo]: valor };
+      });
+      // Derive respuesta_correcta from the correct option
+      const correcta = newOpciones.find(o => o.es_correcta);
+      return { ...p, opciones: newOpciones, respuesta_correcta: correcta?.texto_opcion || '' };
+    }));
+  };
+
+  const agregarOpcionNueva = (preguntaIdx: number) => {
+    setNuevasPreguntas(nuevasPreguntas.map((p, pi) => {
+      if (pi !== preguntaIdx) return p;
+      return { ...p, opciones: [...p.opciones, { texto_opcion: '', es_correcta: false, orden: p.opciones.length + 1 }] };
+    }));
+  };
+
+  const quitarOpcionNueva = (preguntaIdx: number, opcionIdx: number) => {
+    setNuevasPreguntas(nuevasPreguntas.map((p, pi) => {
+      if (pi !== preguntaIdx || p.opciones.length <= 2) return p;
+      const newOpciones = p.opciones.filter((_, oi) => oi !== opcionIdx).map((op, i) => ({ ...op, orden: i + 1 }));
+      const correcta = newOpciones.find(o => o.es_correcta);
+      return { ...p, opciones: newOpciones, respuesta_correcta: correcta?.texto_opcion || '' };
+    }));
   };
 
   const guardarNuevasPreguntas = async () => {
@@ -135,6 +200,28 @@ export default function BancoPreguntasPage() {
     if (validas.length === 0) {
       alert('Escribí al menos una pregunta');
       return;
+    }
+
+    // Validate respuesta_correcta for non-texto_libre
+    for (const p of validas) {
+      if (p.tipo_pregunta === 'multiple_choice') {
+        if (p.opciones.length < 2) {
+          alert(`La pregunta "${p.pregunta.substring(0, 40)}..." necesita al menos 2 opciones`);
+          return;
+        }
+        if (!p.opciones.some(o => o.es_correcta)) {
+          alert(`La pregunta "${p.pregunta.substring(0, 40)}..." necesita una opción marcada como correcta`);
+          return;
+        }
+        if (p.opciones.some(o => !o.texto_opcion.trim())) {
+          alert(`Todas las opciones de "${p.pregunta.substring(0, 40)}..." deben tener texto`);
+          return;
+        }
+      }
+      if (p.tipo_pregunta !== 'texto_libre' && !p.respuesta_correcta.trim()) {
+        alert(`La pregunta "${p.pregunta.substring(0, 40)}..." necesita una respuesta correcta`);
+        return;
+      }
     }
 
     setGuardando(true);
@@ -155,18 +242,38 @@ export default function BancoPreguntasPage() {
           orden: ordenMaxPorArea[p.area],
           pregunta: p.pregunta.trim(),
           tipo_pregunta: p.tipo_pregunta,
-          respuesta_correcta: '',
+          respuesta_correcta: p.respuesta_correcta,
           puntaje: 10,
           area_especifica: p.area,
         };
       });
 
-      const { error } = await supabase.from('preguntas_capacitacion').insert(inserts);
+      const { data: insertedPreguntas, error } = await supabase
+        .from('preguntas_capacitacion')
+        .insert(inserts)
+        .select();
 
       if (error) throw error;
 
+      // Insert opciones for multiple_choice
+      if (insertedPreguntas) {
+        for (let i = 0; i < insertedPreguntas.length; i++) {
+          const preguntaDB = insertedPreguntas[i];
+          const original = validas[i];
+          if (original.tipo_pregunta === 'multiple_choice' && original.opciones.length > 0) {
+            const opInserts = original.opciones.map((op, idx) => ({
+              pregunta_id: preguntaDB.id,
+              orden: op.orden ?? idx + 1,
+              texto_opcion: op.texto_opcion.trim(),
+              es_correcta: op.es_correcta,
+            }));
+            await supabase.from('opciones_pregunta').insert(opInserts);
+          }
+        }
+      }
+
       setModoCrear(false);
-      setNuevasPreguntas([{ pregunta: '', tipo_pregunta: 'escala', area: 'lenguaje' }]);
+      setNuevasPreguntas([emptyNuevaPregunta()]);
       await fetchPreguntas();
     } catch (error) {
       console.error('Error al crear preguntas:', error);
@@ -182,14 +289,48 @@ export default function BancoPreguntasPage() {
     setEditTexto(p.pregunta);
     setEditTipo(p.tipo_pregunta);
     setEditArea(p.area);
+    setEditRespuestaCorrecta(p.respuesta_correcta);
+    setEditOpciones(p.tipo_pregunta === 'multiple_choice' && p.opciones.length > 0
+      ? p.opciones.map(o => ({ ...o }))
+      : p.tipo_pregunta === 'multiple_choice'
+        ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
+        : []);
   };
 
   const cancelarEdicion = () => {
     setEditandoId(null);
   };
 
+  const actualizarEditOpcion = (opcionIdx: number, campo: keyof OpcionPregunta, valor: any) => {
+    setEditOpciones(prev => {
+      const newOps = prev.map((op, oi) => {
+        if (oi !== opcionIdx) {
+          if (campo === 'es_correcta' && valor === true) return { ...op, es_correcta: false };
+          return op;
+        }
+        return { ...op, [campo]: valor };
+      });
+      // Derive respuesta_correcta
+      const correcta = newOps.find(o => o.es_correcta);
+      if (correcta) setEditRespuestaCorrecta(correcta.texto_opcion);
+      return newOps;
+    });
+  };
+
   const guardarEdicion = async () => {
     if (!editandoId || !editTexto.trim()) return;
+
+    // Validate
+    if (editTipo === 'multiple_choice') {
+      if (editOpciones.length < 2) { alert('Se necesitan al menos 2 opciones'); return; }
+      if (!editOpciones.some(o => o.es_correcta)) { alert('Marcá una opción como correcta'); return; }
+      if (editOpciones.some(o => !o.texto_opcion.trim())) { alert('Todas las opciones deben tener texto'); return; }
+    }
+    if (editTipo !== 'texto_libre' && !editRespuestaCorrecta.trim()) {
+      alert('Ingresá la respuesta correcta');
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('preguntas_capacitacion')
@@ -197,10 +338,29 @@ export default function BancoPreguntasPage() {
           pregunta: editTexto.trim(),
           tipo_pregunta: editTipo,
           area_especifica: editArea,
+          respuesta_correcta: editRespuestaCorrecta,
         })
         .eq('id', editandoId);
 
       if (error) throw error;
+
+      // Update opciones
+      if (editTipo === 'multiple_choice') {
+        await supabase.from('opciones_pregunta').delete().eq('pregunta_id', editandoId);
+        if (editOpciones.length > 0) {
+          const opInserts = editOpciones.map((op, idx) => ({
+            pregunta_id: editandoId,
+            orden: idx + 1,
+            texto_opcion: op.texto_opcion.trim(),
+            es_correcta: op.es_correcta,
+          }));
+          await supabase.from('opciones_pregunta').insert(opInserts);
+        }
+      } else {
+        // Clean up opciones if type changed away from multiple_choice
+        await supabase.from('opciones_pregunta').delete().eq('pregunta_id', editandoId);
+      }
+
       setEditandoId(null);
       await fetchPreguntas();
     } catch (error) {
@@ -231,6 +391,8 @@ export default function BancoPreguntasPage() {
       return;
     }
     try {
+      // Delete opciones first (FK)
+      await supabase.from('opciones_pregunta').delete().eq('pregunta_id', p.id);
       const { error } = await supabase.from('preguntas_capacitacion').delete().eq('id', p.id);
       if (error) throw error;
       await fetchPreguntas();
@@ -257,6 +419,217 @@ export default function BancoPreguntasPage() {
     preguntas: preguntasFiltradas.filter((p) => p.area === a.value),
     totalBanco: preguntas.filter((p) => p.area === a.value && p.activa).length,
   })).filter((g) => (!filtroArea || g.value === filtroArea) && g.preguntas.length > 0);
+
+  // --- Helper: render respuesta correcta indicator ---
+  const renderRespuestaCorrectaBadge = (p: PreguntaBanco) => {
+    if (p.tipo_pregunta === 'texto_libre') return null;
+    if (!p.respuesta_correcta) {
+      return (
+        <span className="text-xs text-impulso-600 font-outfit px-2 py-0.5 bg-impulso-50 rounded-lg border border-impulso-200/30">
+          ⚠ Sin respuesta correcta
+        </span>
+      );
+    }
+    let display = p.respuesta_correcta;
+    if (p.tipo_pregunta === 'verdadero_falso') {
+      const lc = p.respuesta_correcta.toLowerCase();
+      display = ['true', 'si', 'sí', 'verdadero', '1'].includes(lc) ? 'Sí' : 'No';
+    }
+    return (
+      <span className="text-xs text-crecimiento-700 font-outfit px-2 py-0.5 bg-crecimiento-50 rounded-lg border border-crecimiento-200/30 flex items-center gap-1">
+        <CheckCircle2 className="w-3 h-3" />
+        {display}
+      </span>
+    );
+  };
+
+  // --- Helper: render respuesta correcta input for create form ---
+  const renderRespuestaCorrectaInput = (np: NuevaPregunta, index: number) => {
+    if (np.tipo_pregunta === 'texto_libre') {
+      return (
+        <input
+          type="text"
+          value={np.respuesta_correcta}
+          onChange={(e) => actualizarNuevaPregunta(index, 'respuesta_correcta', e.target.value)}
+          placeholder="Respuesta esperada (opcional, revisión manual)"
+          className="w-full px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-neutro-carbon font-outfit text-sm focus:ring-2 focus:ring-sol-400"
+        />
+      );
+    }
+    if (np.tipo_pregunta === 'verdadero_falso') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Respuesta correcta:</span>
+          <button
+            type="button"
+            onClick={() => actualizarNuevaPregunta(index, 'respuesta_correcta', 'true')}
+            className={`px-4 py-1.5 rounded-xl text-sm font-outfit font-medium transition-all ${
+              np.respuesta_correcta === 'true'
+                ? 'bg-crecimiento-400 text-white shadow-md'
+                : 'bg-neutro-nube text-neutro-piedra hover:bg-neutro-piedra/20'
+            }`}
+          >
+            Sí
+          </button>
+          <button
+            type="button"
+            onClick={() => actualizarNuevaPregunta(index, 'respuesta_correcta', 'false')}
+            className={`px-4 py-1.5 rounded-xl text-sm font-outfit font-medium transition-all ${
+              np.respuesta_correcta === 'false'
+                ? 'bg-impulso-400 text-white shadow-md'
+                : 'bg-neutro-nube text-neutro-piedra hover:bg-neutro-piedra/20'
+            }`}
+          >
+            No
+          </button>
+        </div>
+      );
+    }
+    if (np.tipo_pregunta === 'escala') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Respuesta correcta (1-5):</span>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map(v => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => actualizarNuevaPregunta(index, 'respuesta_correcta', String(v))}
+                className={`w-9 h-9 rounded-lg text-sm font-bold font-outfit transition-all ${
+                  np.respuesta_correcta === String(v)
+                    ? 'bg-sol-400 text-white shadow-md'
+                    : 'bg-neutro-nube text-neutro-piedra hover:bg-neutro-piedra/20'
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    if (np.tipo_pregunta === 'multiple_choice') {
+      return (
+        <div className="space-y-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Opciones (marcá la correcta):</span>
+          {np.opciones.map((op, opIdx) => (
+            <div key={opIdx} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => actualizarOpcionNueva(index, opIdx, 'es_correcta', true)}
+                className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                  op.es_correcta
+                    ? 'bg-crecimiento-400 border-crecimiento-500 text-white'
+                    : 'border-neutro-piedra/30 hover:border-crecimiento-300'
+                }`}
+              >
+                {op.es_correcta && <CheckCircle2 className="w-4 h-4" />}
+              </button>
+              <input
+                type="text"
+                value={op.texto_opcion}
+                onChange={(e) => actualizarOpcionNueva(index, opIdx, 'texto_opcion', e.target.value)}
+                placeholder={`Opción ${opIdx + 1}`}
+                className="flex-1 px-3 py-1.5 bg-white border border-neutro-piedra/20 rounded-lg text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+              />
+              {np.opciones.length > 2 && (
+                <button type="button" onClick={() => quitarOpcionNueva(index, opIdx)} className="p-1 text-impulso-500 hover:bg-impulso-50 rounded-lg">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => agregarOpcionNueva(index)}
+            className="text-xs text-crecimiento-600 hover:text-crecimiento-700 font-outfit font-medium flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" /> Agregar opción
+          </button>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // --- Helper: render respuesta correcta input for edit form ---
+  const renderEditRespuestaCorrecta = () => {
+    if (editTipo === 'texto_libre') {
+      return (
+        <input
+          type="text"
+          value={editRespuestaCorrecta}
+          onChange={(e) => setEditRespuestaCorrecta(e.target.value)}
+          placeholder="Respuesta esperada (opcional)"
+          className="w-full px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+        />
+      );
+    }
+    if (editTipo === 'verdadero_falso') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Correcta:</span>
+          <button type="button" onClick={() => setEditRespuestaCorrecta('true')}
+            className={`px-3 py-1 rounded-lg text-xs font-outfit font-medium transition-all ${editRespuestaCorrecta === 'true' ? 'bg-crecimiento-400 text-white' : 'bg-neutro-nube text-neutro-piedra'}`}>
+            Sí
+          </button>
+          <button type="button" onClick={() => setEditRespuestaCorrecta('false')}
+            className={`px-3 py-1 rounded-lg text-xs font-outfit font-medium transition-all ${editRespuestaCorrecta === 'false' ? 'bg-impulso-400 text-white' : 'bg-neutro-nube text-neutro-piedra'}`}>
+            No
+          </button>
+        </div>
+      );
+    }
+    if (editTipo === 'escala') {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Correcta:</span>
+          {[1, 2, 3, 4, 5].map(v => (
+            <button key={v} type="button" onClick={() => setEditRespuestaCorrecta(String(v))}
+              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${editRespuestaCorrecta === String(v) ? 'bg-sol-400 text-white' : 'bg-neutro-nube text-neutro-piedra'}`}>
+              {v}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (editTipo === 'multiple_choice') {
+      return (
+        <div className="space-y-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Opciones:</span>
+          {editOpciones.map((op, opIdx) => (
+            <div key={opIdx} className="flex items-center gap-2">
+              <button type="button"
+                onClick={() => actualizarEditOpcion(opIdx, 'es_correcta', true)}
+                className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                  op.es_correcta ? 'bg-crecimiento-400 border-crecimiento-500 text-white' : 'border-neutro-piedra/30'
+                }`}>
+                {op.es_correcta && <CheckCircle2 className="w-3.5 h-3.5" />}
+              </button>
+              <input type="text" value={op.texto_opcion}
+                onChange={(e) => actualizarEditOpcion(opIdx, 'texto_opcion', e.target.value)}
+                placeholder={`Opción ${opIdx + 1}`}
+                className="flex-1 px-2 py-1 bg-white border border-neutro-piedra/20 rounded-lg text-xs font-outfit focus:ring-2 focus:ring-sol-400"
+              />
+              {editOpciones.length > 2 && (
+                <button type="button"
+                  onClick={() => setEditOpciones(prev => prev.filter((_, i) => i !== opIdx).map((o, i) => ({ ...o, orden: i + 1 })))}
+                  className="p-0.5 text-impulso-500 hover:bg-impulso-50 rounded">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button"
+            onClick={() => setEditOpciones(prev => [...prev, { texto_opcion: '', es_correcta: false, orden: prev.length + 1 }])}
+            className="text-xs text-crecimiento-600 font-outfit font-medium flex items-center gap-1">
+            <Plus className="w-3 h-3" /> Agregar opción
+          </button>
+        </div>
+      );
+    }
+    return null;
+  };
 
   if (!tienePermiso && perfil) return null;
 
@@ -301,6 +674,7 @@ export default function BancoPreguntasPage() {
           {AREAS.map((a) => {
             const total = preguntas.filter((p) => p.area === a.value && p.activa).length;
             const inactivas = preguntas.filter((p) => p.area === a.value && !p.activa).length;
+            const sinRespuesta = preguntas.filter((p) => p.area === a.value && p.activa && p.tipo_pregunta !== 'texto_libre' && !p.respuesta_correcta).length;
             return (
               <button
                 key={a.value}
@@ -319,6 +693,9 @@ export default function BancoPreguntasPage() {
                 {inactivas > 0 && (
                   <span className="text-xs text-neutro-piedra font-outfit">+{inactivas} inactivas</span>
                 )}
+                {sinRespuesta > 0 && (
+                  <span className="text-xs text-impulso-600 font-outfit block">⚠ {sinRespuesta} sin rta. correcta</span>
+                )}
               </button>
             );
           })}
@@ -327,7 +704,6 @@ export default function BancoPreguntasPage() {
         {/* Barra de acciones */}
         <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.1)] p-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-            {/* Búsqueda */}
             <div className="flex-1 relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutro-piedra" />
               <input
@@ -338,8 +714,6 @@ export default function BancoPreguntasPage() {
                 className="w-full pl-10 pr-4 py-2.5 bg-white/80 border border-white/60 rounded-2xl text-neutro-carbon font-outfit text-sm focus:ring-2 focus:ring-sol-400 focus:border-transparent"
               />
             </div>
-
-            {/* Toggle inactivas */}
             <button
               onClick={() => setMostrarInactivas(!mostrarInactivas)}
               className={`px-4 py-2.5 rounded-2xl text-sm font-outfit font-medium transition-all border ${
@@ -350,8 +724,6 @@ export default function BancoPreguntasPage() {
             >
               {mostrarInactivas ? 'Ocultar inactivas' : 'Mostrar inactivas'}
             </button>
-
-            {/* Botón crear */}
             <button
               onClick={() => setModoCrear(!modoCrear)}
               className="flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold active:scale-95"
@@ -371,51 +743,58 @@ export default function BancoPreguntasPage() {
 
             <div className="space-y-4">
               {nuevasPreguntas.map((np, index) => (
-                <div key={index} className="flex flex-col sm:flex-row gap-3 items-start bg-white/80 rounded-2xl p-4 border border-white/60">
-                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-crecimiento-100 flex items-center justify-center text-crecimiento-700 font-bold text-sm font-quicksand">
-                    {index + 1}
-                  </span>
+                <div key={index} className="flex flex-col gap-3 bg-white/80 rounded-2xl p-4 border border-white/60">
+                  <div className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-crecimiento-100 flex items-center justify-center text-crecimiento-700 font-bold text-sm font-quicksand">
+                      {index + 1}
+                    </span>
 
-                  <div className="flex-1 space-y-3 w-full">
-                    <textarea
-                      value={np.pregunta}
-                      onChange={(e) => actualizarNuevaPregunta(index, 'pregunta', e.target.value)}
-                      placeholder="Escribe la pregunta..."
-                      rows={2}
-                      className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm resize-none placeholder:text-neutro-piedra/60"
-                    />
+                    <div className="flex-1 space-y-3 w-full">
+                      <textarea
+                        value={np.pregunta}
+                        onChange={(e) => actualizarNuevaPregunta(index, 'pregunta', e.target.value)}
+                        placeholder="Escribe la pregunta..."
+                        rows={2}
+                        className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm resize-none placeholder:text-neutro-piedra/60"
+                      />
 
-                    <div className="flex gap-3">
-                      <select
-                        value={np.area}
-                        onChange={(e) => actualizarNuevaPregunta(index, 'area', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-neutro-carbon font-outfit text-sm focus:ring-2 focus:ring-sol-400"
-                      >
-                        {AREAS.map((a) => (
-                          <option key={a.value} value={a.value}>{a.label}</option>
-                        ))}
-                      </select>
+                      <div className="flex gap-3">
+                        <select
+                          value={np.area}
+                          onChange={(e) => actualizarNuevaPregunta(index, 'area', e.target.value)}
+                          className="flex-1 px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-neutro-carbon font-outfit text-sm focus:ring-2 focus:ring-sol-400"
+                        >
+                          {AREAS.map((a) => (
+                            <option key={a.value} value={a.value}>{a.label}</option>
+                          ))}
+                        </select>
 
-                      <select
-                        value={np.tipo_pregunta}
-                        onChange={(e) => actualizarNuevaPregunta(index, 'tipo_pregunta', e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-neutro-carbon font-outfit text-sm focus:ring-2 focus:ring-sol-400"
-                      >
-                        {TIPOS_PREGUNTA.map((t) => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
+                        <select
+                          value={np.tipo_pregunta}
+                          onChange={(e) => actualizarNuevaPregunta(index, 'tipo_pregunta', e.target.value)}
+                          className="flex-1 px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-neutro-carbon font-outfit text-sm focus:ring-2 focus:ring-sol-400"
+                        >
+                          {TIPOS_PREGUNTA.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Respuesta correcta input */}
+                      <div className="bg-crecimiento-50/30 rounded-xl p-3 border border-crecimiento-200/20">
+                        {renderRespuestaCorrectaInput(np, index)}
+                      </div>
                     </div>
-                  </div>
 
-                  {nuevasPreguntas.length > 1 && (
-                    <button
-                      onClick={() => quitarFilaCrear(index)}
-                      className="flex-shrink-0 p-2 text-impulso-600 hover:bg-impulso-50 rounded-xl transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                    {nuevasPreguntas.length > 1 && (
+                      <button
+                        onClick={() => quitarFilaCrear(index)}
+                        className="flex-shrink-0 p-2 text-impulso-600 hover:bg-impulso-50 rounded-xl transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -434,7 +813,7 @@ export default function BancoPreguntasPage() {
               <button
                 onClick={() => {
                   setModoCrear(false);
-                  setNuevasPreguntas([{ pregunta: '', tipo_pregunta: 'escala', area: 'lenguaje' }]);
+                  setNuevasPreguntas([emptyNuevaPregunta()]);
                 }}
                 className="px-5 py-2.5 bg-white/80 border border-white/60 text-neutro-piedra rounded-2xl transition-all font-outfit text-sm font-medium"
               >
@@ -497,7 +876,7 @@ export default function BancoPreguntasPage() {
                             className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm resize-none"
                             autoFocus
                           />
-                          <div className="flex gap-3 items-center">
+                          <div className="flex flex-wrap gap-3 items-center">
                             <select
                               value={editArea}
                               onChange={(e) => setEditArea(e.target.value as Area)}
@@ -509,14 +888,26 @@ export default function BancoPreguntasPage() {
                             </select>
                             <select
                               value={editTipo}
-                              onChange={(e) => setEditTipo(e.target.value as TipoPregunta)}
+                              onChange={(e) => {
+                                const newTipo = e.target.value as TipoPregunta;
+                                setEditTipo(newTipo);
+                                setEditRespuestaCorrecta('');
+                                setEditOpciones(newTipo === 'multiple_choice'
+                                  ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
+                                  : []);
+                              }}
                               className="px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-sm font-outfit focus:ring-2 focus:ring-sol-400"
                             >
                               {TIPOS_PREGUNTA.map((t) => (
                                 <option key={t.value} value={t.value}>{t.label}</option>
                               ))}
                             </select>
-                            <div className="flex-1" />
+                          </div>
+                          {/* Respuesta correcta edit */}
+                          <div className="bg-crecimiento-50/30 rounded-xl p-3 border border-crecimiento-200/20">
+                            {renderEditRespuestaCorrecta()}
+                          </div>
+                          <div className="flex gap-2 justify-end">
                             <button
                               onClick={cancelarEdicion}
                               className="p-2 text-neutro-piedra hover:bg-neutro-piedra/10 rounded-xl transition-all"
@@ -542,16 +933,39 @@ export default function BancoPreguntasPage() {
                             <p className="text-neutro-carbon font-outfit text-sm leading-relaxed">
                               {p.pregunta}
                             </p>
-                            <div className="flex items-center gap-2 mt-1.5">
+                            <div className="flex flex-wrap items-center gap-2 mt-1.5">
                               <span className="text-xs text-neutro-piedra font-outfit px-2 py-0.5 bg-neutro-nube rounded-lg">
                                 {TIPOS_PREGUNTA.find((t) => t.value === p.tipo_pregunta)?.label || p.tipo_pregunta}
                               </span>
+                              {renderRespuestaCorrectaBadge(p)}
+                              {p.tipo_pregunta === 'multiple_choice' && p.opciones.length > 0 && (
+                                <span className="text-xs text-neutro-piedra font-outfit px-2 py-0.5 bg-neutro-nube rounded-lg">
+                                  {p.opciones.length} opciones
+                                </span>
+                              )}
                               {!p.activa && (
                                 <span className="text-xs text-neutro-piedra font-outfit px-2 py-0.5 bg-neutro-piedra/10 rounded-lg">
                                   Inactiva
                                 </span>
                               )}
                             </div>
+                            {/* Show opciones in read mode for multiple_choice */}
+                            {p.tipo_pregunta === 'multiple_choice' && p.opciones.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {p.opciones.map((op, oi) => (
+                                  <div key={oi} className={`flex items-center gap-2 text-xs font-outfit px-2 py-1 rounded-lg ${
+                                    op.es_correcta ? 'bg-crecimiento-50 text-crecimiento-700' : 'text-neutro-piedra'
+                                  }`}>
+                                    <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                      op.es_correcta ? 'bg-crecimiento-400 border-crecimiento-500 text-white' : 'border-neutro-piedra/30'
+                                    }`}>
+                                      {op.es_correcta && <CheckCircle2 className="w-3 h-3" />}
+                                    </span>
+                                    {op.texto_opcion}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           {/* Acciones */}

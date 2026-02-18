@@ -30,7 +30,7 @@ export default function AutoevaluacionesPage() {
   const { perfil } = useAuth();
 
   // Roles que pueden gestionar plantillas (no deben completar autoevaluaciones)
-  const rolesAdministrativos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
+  const rolesAdministrativos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin', 'equipo_profesional'];
   const puedeGestionarPlantillas = perfil?.rol ? rolesAdministrativos.includes(perfil.rol) : false;
 
   useEffect(() => {

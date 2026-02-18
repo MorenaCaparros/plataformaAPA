@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthenticatedClient } from '@/lib/supabase/api-auth';
 
-const ROLES_PERMITIDOS = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'];
+const ROLES_PERMITIDOS = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin', 'equipo_profesional'];
 
 async function verificarPermiso(supabase: any) {
   let userId = (supabase as any)._authUserId;
@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('preguntas_capacitacion')
-      .select('*')
+      .select(`
+        *,
+        opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
+      `)
       .is('capacitacion_id', null)
       .order('area_especifica', { ascending: true })
       .order('orden', { ascending: true });
@@ -73,6 +76,8 @@ export async function GET(request: NextRequest) {
       puntaje: p.puntaje,
       activa: p.puntaje > 0,
       orden: p.orden,
+      respuesta_correcta: p.respuesta_correcta || '',
+      opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
       created_at: p.created_at,
     }));
 
@@ -143,17 +148,48 @@ export async function POST(request: NextRequest) {
         respuesta_correcta: p.respuesta_correcta || '',
         puntaje: p.puntaje ?? 10,
         area_especifica: area,
+        _opciones: p.opciones || [], // transient, not inserted
       };
+    });
+
+    // Separate opciones from inserts
+    const opcionesMap: Record<number, any[]> = {};
+    const dbInserts = inserts.map((ins: any, idx: number) => {
+      opcionesMap[idx] = ins._opciones;
+      const { _opciones, ...rest } = ins;
+      return rest;
     });
 
     const { data, error } = await supabase
       .from('preguntas_capacitacion')
-      .insert(inserts)
+      .insert(dbInserts)
       .select();
 
     if (error) {
       console.error('Error al crear preguntas:', error);
       return NextResponse.json({ error: 'Error al crear preguntas' }, { status: 500 });
+    }
+
+    // Insert opciones for multiple_choice questions
+    if (data) {
+      for (let i = 0; i < data.length; i++) {
+        const pregunta = data[i];
+        const opciones = opcionesMap[i] || [];
+        if (pregunta.tipo_pregunta === 'multiple_choice' && opciones.length > 0) {
+          const opcionInserts = opciones.map((op: any, idx: number) => ({
+            pregunta_id: pregunta.id,
+            orden: op.orden ?? idx + 1,
+            texto_opcion: op.texto_opcion,
+            es_correcta: op.es_correcta || false,
+          }));
+          const { error: opError } = await supabase
+            .from('opciones_pregunta')
+            .insert(opcionInserts);
+          if (opError) {
+            console.error('Error al crear opciones:', opError);
+          }
+        }
+      }
     }
 
     return NextResponse.json(data, { status: 201 });

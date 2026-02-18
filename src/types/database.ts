@@ -50,6 +50,7 @@ export interface Perfil {
   foto_perfil_url: string | null;
   fecha_ingreso: string;
   max_ninos_asignados: number;
+  horas_disponibles: number | null;
   activo: boolean;
   password_temporal: boolean;
   ultima_conexion: string | null;

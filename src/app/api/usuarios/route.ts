@@ -162,6 +162,7 @@ export async function POST(request: NextRequest) {
         .from('perfiles')
         .insert({
           id: usuarioExistente.id,
+          email: email.toLowerCase().trim(),
           nombre,
           apellido: apellido || '',
           rol,
@@ -195,6 +196,7 @@ export async function POST(request: NextRequest) {
     const { data: updated, error: updateError } = await supabaseAdmin
       .from('perfiles')
       .update({
+        email: email.toLowerCase().trim(),
         nombre,
         apellido: apellido || '',
         rol,
@@ -213,6 +215,7 @@ export async function POST(request: NextRequest) {
         .from('perfiles')
         .insert({
           id: userId,
+          email: email.toLowerCase().trim(),
           nombre,
           apellido: apellido || '',
           rol,
