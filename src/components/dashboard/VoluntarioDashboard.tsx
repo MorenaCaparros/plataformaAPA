@@ -241,6 +241,9 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
     ultima_sesion: null
   };
 
+  // Volunteer is blocked from operations if they need capacitación
+  const operacionBloqueada = !!(trainingStatus?.necesitaCapacitacion && trainingStatus.haCompletadoAlgunaAutoeval);
+
   // Check for active session timer (runs after data is available)
   useEffect(() => {
     const checkActiveSession = () => {
@@ -346,32 +349,47 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
       {/* 🔴 Training Gate — Necesita capacitación (score no perfecto) */}
       {trainingStatus?.necesitaCapacitacion && trainingStatus.haCompletadoAlgunaAutoeval && (
-        <div className="w-full bg-gradient-to-r from-red-50 to-rose-50 border border-red-200/60 rounded-xl p-4 shadow-md">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0">⚠️</span>
+        <div className="w-full bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-2 border-red-300 rounded-2xl p-5 sm:p-6 shadow-lg relative overflow-hidden">
+          {/* Decorative blocked icon */}
+          <div className="absolute -right-4 -top-4 opacity-[0.06] pointer-events-none">
+            <span className="text-[120px]">🚫</span>
+          </div>
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 border border-red-200">
+              <span className="text-2xl">⛔</span>
+            </div>
             <div className="flex-1">
-              <p className="font-bold text-red-900 text-sm sm:text-base">
-                Capacitación requerida antes de operar
+              <p className="font-bold text-red-900 text-base sm:text-lg">
+                Operación bloqueada — Capacitación requerida
               </p>
-              <p className="text-xs sm:text-sm text-red-700 mt-0.5">
-                Tu puntaje en las siguientes áreas no fue perfecto. Debés completar las capacitaciones correspondientes:
+              <p className="text-sm text-red-700 mt-1 leading-relaxed">
+                Tu puntaje en las siguientes áreas no fue perfecto en la autoevaluación. 
+                No podés registrar sesiones ni operar con niños hasta completar las capacitaciones correspondientes.
               </p>
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-3">
                 {trainingStatus.areasPendientes.map((area) => (
                   <span
                     key={area}
-                    className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-red-100 text-red-800 border border-red-200/60"
+                    className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-red-100 text-red-800 border border-red-300/60"
                   >
-                    {AREA_LABELS[area] || area}
+                    ⚠️ {AREA_LABELS[area] || area}
                   </span>
                 ))}
               </div>
-              <Link
-                href="/dashboard/capacitaciones"
-                className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-xs sm:text-sm transition-all active:scale-95"
-              >
-                📚 Ir a Capacitaciones
-              </Link>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link
+                  href="/dashboard/capacitaciones"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition-all active:scale-95 shadow-md hover:shadow-lg"
+                >
+                  📚 Completar Capacitaciones
+                </Link>
+                <Link
+                  href="/dashboard/autoevaluaciones"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-red-50 text-red-700 border border-red-200 rounded-xl font-semibold text-sm transition-all active:scale-95"
+                >
+                  📋 Ver Autoevaluaciones
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -571,11 +589,17 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                   {/* Botones de acción - Mobile optimized */}
                   <div className="flex flex-col gap-2 shrink-0">
                     <button
-                      onClick={() => router.push(`/dashboard/sesiones/nueva/${nino.id}`)}
-                      className="px-4 py-2.5 bg-crecimiento-500 hover:bg-crecimiento-600 active:bg-crecimiento-700 text-white rounded-lg font-medium shadow-md hover:shadow-lg transition-all touch-manipulation min-w-[120px] text-sm sm:text-base"
+                      onClick={() => !operacionBloqueada && router.push(`/dashboard/sesiones/nueva/${nino.id}`)}
+                      disabled={operacionBloqueada}
+                      className={`px-4 py-2.5 rounded-lg font-medium shadow-md transition-all touch-manipulation min-w-[120px] text-sm sm:text-base ${
+                        operacionBloqueada
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                          : 'bg-crecimiento-500 hover:bg-crecimiento-600 active:bg-crecimiento-700 text-white hover:shadow-lg'
+                      }`}
                       style={{ minHeight: '44px' }} // iOS touch target
+                      title={operacionBloqueada ? 'Debés completar las capacitaciones pendientes antes de registrar sesiones' : ''}
                     >
-                      📝 Nueva Sesión
+                      {operacionBloqueada ? '🔒 Bloqueado' : '📝 Nueva Sesión'}
                     </button>
                     <button
                       onClick={() => router.push(`/dashboard/ninos/${nino.id}`)}

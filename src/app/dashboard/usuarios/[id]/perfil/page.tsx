@@ -8,6 +8,7 @@ import Link from 'next/link';
 import {
   ArrowLeft, User, Star, AlertTriangle, CheckCircle2,
   BookOpen, Clock, Users, Award, TrendingUp, Calendar,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 function getDriveImageUrl(url: string | null): string | null {
@@ -61,6 +62,20 @@ interface ResultadoAutoeval {
   };
 }
 
+interface RespuestaIndividual {
+  id: string;
+  pregunta_id: string;
+  respuesta: string;
+  es_correcta: boolean | null;
+  puntaje_obtenido: number;
+  pregunta?: {
+    pregunta: string;
+    tipo_pregunta: string;
+    respuesta_correcta: string;
+    puntaje: number;
+  };
+}
+
 interface EstudioPerfil {
   id: string;
   titulo: string;
@@ -100,6 +115,9 @@ export default function PerfilVoluntarioPage() {
   const [resultados, setResultados] = useState<ResultadoAutoeval[]>([]);
   const [estudios, setEstudios] = useState<EstudioPerfil[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedAutoeval, setExpandedAutoeval] = useState<string | null>(null);
+  const [respuestasDetalle, setRespuestasDetalle] = useState<Record<string, RespuestaIndividual[]>>({});
+  const [loadingDetalle, setLoadingDetalle] = useState<string | null>(null);
 
   const rolesPermitidos = ['director', 'admin', 'psicopedagogia', 'coordinador', 'trabajador_social', 'equipo_profesional'];
   const tienePermiso = miPerfil?.rol ? rolesPermitidos.includes(miPerfil.rol) || miPerfil.id === userId : false;
@@ -174,6 +192,55 @@ export default function PerfilVoluntarioPage() {
       console.error('Error loading profile:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function toggleDetalle(autoevalId: string, capacitacionId: string) {
+    if (expandedAutoeval === autoevalId) {
+      setExpandedAutoeval(null);
+      return;
+    }
+    setExpandedAutoeval(autoevalId);
+
+    // Already fetched
+    if (respuestasDetalle[autoevalId]) return;
+
+    setLoadingDetalle(autoevalId);
+    try {
+      const { data, error } = await supabase
+        .from('respuestas_capacitaciones')
+        .select(`
+          id,
+          pregunta_id,
+          respuesta,
+          es_correcta,
+          puntaje_obtenido,
+          pregunta:preguntas_capacitacion(pregunta, tipo_pregunta, respuesta_correcta, puntaje)
+        `)
+        .eq('voluntario_capacitacion_id', autoevalId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const respuestas: RespuestaIndividual[] = (data || []).map((r: any) => ({
+        id: r.id,
+        pregunta_id: r.pregunta_id,
+        respuesta: r.respuesta,
+        es_correcta: r.es_correcta,
+        puntaje_obtenido: r.puntaje_obtenido ?? 0,
+        pregunta: r.pregunta ? {
+          pregunta: r.pregunta.pregunta,
+          tipo_pregunta: r.pregunta.tipo_pregunta,
+          respuesta_correcta: r.pregunta.respuesta_correcta,
+          puntaje: r.pregunta.puntaje,
+        } : undefined,
+      }));
+
+      setRespuestasDetalle(prev => ({ ...prev, [autoevalId]: respuestas }));
+    } catch (err) {
+      console.error('Error loading response details:', err);
+    } finally {
+      setLoadingDetalle(null);
     }
   }
 
@@ -485,36 +552,116 @@ export default function PerfilVoluntarioPage() {
                 {autoevaluaciones.map(r => {
                   const badge = getEstadoBadge(r.estado);
                   const colors = AREA_COLORS[r.capacitacion?.area || ''] || { bg: 'bg-gray-50', text: 'text-gray-700', gradient: 'from-gray-400 to-gray-500' };
+                  const isExpanded = expandedAutoeval === r.id;
+                  const detalle = respuestasDetalle[r.id];
+                  const isLoadingThis = loadingDetalle === r.id;
 
                   return (
-                    <div key={r.id} className="bg-white/80 rounded-2xl p-4 border border-white/60 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-outfit font-semibold text-neutro-carbon truncate">
-                          {r.capacitacion?.nombre || 'Autoevaluación'}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${colors.bg} ${colors.text}`}>
-                            {AREA_LABELS[r.capacitacion?.area || ''] || r.capacitacion?.area || '—'}
-                          </span>
-                          <span className="text-xs text-neutro-piedra font-outfit">
-                            {formatFecha(r.fecha_completado)}
-                          </span>
+                    <div key={r.id} className="bg-white/80 rounded-2xl border border-white/60 overflow-hidden">
+                      {/* Header row — clickable */}
+                      <button
+                        onClick={() => toggleDetalle(r.id, r.capacitacion_id)}
+                        className="w-full p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 hover:bg-white/90 transition-colors text-left"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-outfit font-semibold text-neutro-carbon truncate">
+                            {r.capacitacion?.nombre || 'Autoevaluación'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${colors.bg} ${colors.text}`}>
+                              {AREA_LABELS[r.capacitacion?.area || ''] || r.capacitacion?.area || '—'}
+                            </span>
+                            <span className="text-xs text-neutro-piedra font-outfit">
+                              {formatFecha(r.fecha_completado)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <div className="text-right">
-                          <p className="text-lg font-bold font-quicksand text-neutro-carbon">
-                            {r.porcentaje != null ? `${Math.round(r.porcentaje)}%` : '—'}
-                          </p>
-                          <p className="text-[10px] text-neutro-piedra font-outfit">
-                            {r.puntaje_final}/{r.puntaje_maximo || '?'} pts
-                          </p>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="text-right">
+                            <p className="text-lg font-bold font-quicksand text-neutro-carbon">
+                              {r.porcentaje != null ? `${Math.round(r.porcentaje)}%` : '—'}
+                            </p>
+                            <p className="text-[10px] text-neutro-piedra font-outfit">
+                              {r.puntaje_final}/{r.puntaje_maximo || '?'} pts
+                            </p>
+                          </div>
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold ${badge.color}`}>
+                            {badge.label}
+                          </span>
+                          {isExpanded ? (
+                            <ChevronUp className="w-4 h-4 text-neutro-piedra" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-neutro-piedra" />
+                          )}
                         </div>
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold ${badge.color}`}>
-                          {badge.label}
-                        </span>
-                      </div>
+                      </button>
+
+                      {/* Expandable detail */}
+                      {isExpanded && (
+                        <div className="border-t border-white/60 bg-neutro-nube/20 px-4 py-3">
+                          {isLoadingThis ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="animate-spin rounded-full h-6 w-6 border-2 border-crecimiento-200 border-t-crecimiento-500"></div>
+                              <span className="ml-2 text-sm text-neutro-piedra font-outfit">Cargando respuestas...</span>
+                            </div>
+                          ) : detalle && detalle.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold text-neutro-piedra font-outfit mb-2">
+                                Detalle de respuestas ({detalle.length})
+                              </p>
+                              {detalle.map((resp, idx) => {
+                                const iconoEstado = resp.es_correcta === true
+                                  ? '✅' : resp.es_correcta === false
+                                  ? '❌' : '📝';
+                                const bgEstado = resp.es_correcta === true
+                                  ? 'bg-crecimiento-50 border-crecimiento-200/40'
+                                  : resp.es_correcta === false
+                                  ? 'bg-red-50 border-red-200/40'
+                                  : 'bg-sol-50 border-sol-200/40';
+
+                                return (
+                                  <div key={resp.id} className={`rounded-xl p-3 border ${bgEstado}`}>
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-base flex-shrink-0 mt-0.5">{iconoEstado}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-outfit text-neutro-carbon font-medium">
+                                          {idx + 1}. {resp.pregunta?.pregunta || 'Pregunta'}
+                                        </p>
+                                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs font-outfit text-neutro-piedra">
+                                          <span>
+                                            <strong>Respuesta:</strong>{' '}
+                                            <span className="text-neutro-carbon">{resp.respuesta || '—'}</span>
+                                          </span>
+                                          {resp.pregunta?.tipo_pregunta !== 'texto_abierto' && resp.pregunta?.respuesta_correcta && (
+                                            <span>
+                                              <strong>Correcta:</strong>{' '}
+                                              <span className="text-crecimiento-700">{resp.pregunta.respuesta_correcta}</span>
+                                            </span>
+                                          )}
+                                          <span>
+                                            <strong>Puntaje:</strong>{' '}
+                                            {resp.puntaje_obtenido}/{resp.pregunta?.puntaje || '?'}
+                                          </span>
+                                        </div>
+                                        {resp.es_correcta === null && (
+                                          <p className="text-[10px] text-sol-700 font-outfit mt-1 italic">
+                                            Respuesta de texto — requiere revisión manual
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-neutro-piedra font-outfit text-center py-3">
+                              No se encontraron respuestas individuales para esta autoevaluación.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

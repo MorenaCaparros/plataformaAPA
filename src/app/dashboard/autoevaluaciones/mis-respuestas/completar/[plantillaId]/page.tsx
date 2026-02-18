@@ -20,6 +20,8 @@ interface Pregunta {
   tipo: 'escala_1_5' | 'si_no' | 'texto_abierto' | 'multiple_choice';
   categoria: string;
   opciones: OpcionPregunta[];
+  respuesta_correcta: string;
+  puntaje: number;
 }
 
 interface Plantilla {
@@ -87,7 +89,7 @@ export default function CompletarAutoevaluacionPage() {
         .select(`
           *,
           preguntas_db:preguntas_capacitacion(
-            id, orden, pregunta, tipo_pregunta, puntaje,
+            id, orden, pregunta, tipo_pregunta, puntaje, respuesta_correcta,
             opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
           )
         `)
@@ -115,6 +117,8 @@ export default function CompletarAutoevaluacionPage() {
               tipo,
               categoria: '',
               opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
+              respuesta_correcta: p.respuesta_correcta || '',
+              puntaje: p.puntaje || 10,
             };
           }),
       };
@@ -247,20 +251,88 @@ export default function CompletarAutoevaluacionPage() {
 
     setEnviando(true);
     try {
-      // Calculate automatic score for scale questions
-      let puntajeTotal = 0;
-      let preguntasConPuntaje = 0;
+      // ── Corrección automática: comparar cada respuesta con la correcta ──
+      let puntajeObtenidoTotal = 0;
+      let puntajeMaximoTotal = 0;
 
-      plantilla.preguntas.forEach(pregunta => {
-        if (pregunta.tipo === 'escala_1_5' && respuestas[pregunta.id]) {
-          puntajeTotal += respuestas[pregunta.id];
-          preguntasConPuntaje++;
+      const resultadosPorPregunta: {
+        preguntaId: string;
+        respuesta: string;
+        esCorrecta: boolean | null;
+        puntajeObtenido: number;
+        puntajeMaximo: number;
+      }[] = [];
+
+      plantilla.preguntas.forEach((pregunta) => {
+        const respuestaVoluntario = respuestas[pregunta.id];
+        const puntajeMax = pregunta.puntaje || 10;
+        let esCorrecta: boolean | null = null;
+        let puntajeObtenido = 0;
+
+        switch (pregunta.tipo) {
+          case 'escala_1_5': {
+            // Escala: puntaje proporcional (ej: 5/5 = 100%, 3/5 = 60%)
+            const valor = typeof respuestaVoluntario === 'number' ? respuestaVoluntario : parseInt(String(respuestaVoluntario));
+            if (!isNaN(valor)) {
+              puntajeObtenido = Math.round((valor / 5) * puntajeMax);
+              esCorrecta = valor >= 4; // 4+ se considera "correcto"
+            }
+            break;
+          }
+          case 'si_no': {
+            // Comparar con respuesta_correcta (puede ser "true"/"false"/"si"/"no")
+            const respCorrecta = pregunta.respuesta_correcta.toLowerCase().trim();
+            const respVol = String(respuestaVoluntario).toLowerCase().trim();
+            const correctaEsTrue = ['true', 'si', 'sí', 'verdadero', '1'].includes(respCorrecta);
+            const voluntarioEsTrue = ['true', 'si', 'sí', 'verdadero', '1'].includes(respVol);
+            esCorrecta = correctaEsTrue === voluntarioEsTrue;
+            puntajeObtenido = esCorrecta ? puntajeMax : 0;
+            break;
+          }
+          case 'multiple_choice': {
+            // Comparar texto de opción elegida con la opción correcta
+            const respVol = String(respuestaVoluntario).trim().toLowerCase();
+            // Buscar la opción correcta
+            const opcionCorrecta = pregunta.opciones.find(o => o.es_correcta);
+            if (opcionCorrecta) {
+              esCorrecta = respVol === opcionCorrecta.texto_opcion.trim().toLowerCase();
+            } else {
+              // Fallback: comparar con respuesta_correcta del campo
+              esCorrecta = respVol === pregunta.respuesta_correcta.trim().toLowerCase();
+            }
+            puntajeObtenido = esCorrecta ? puntajeMax : 0;
+            break;
+          }
+          case 'texto_abierto': {
+            // Texto libre: no se puede corregir automáticamente, asignar puntaje parcial
+            esCorrecta = null; // Requiere revisión manual
+            puntajeObtenido = 0; // Se asigna manualmente después
+            break;
+          }
         }
+
+        puntajeObtenidoTotal += puntajeObtenido;
+        puntajeMaximoTotal += puntajeMax;
+
+        resultadosPorPregunta.push({
+          preguntaId: pregunta.id,
+          respuesta: String(respuestaVoluntario),
+          esCorrecta,
+          puntajeObtenido,
+          puntajeMaximo: puntajeMax,
+        });
       });
 
-      const puntajePromedio = preguntasConPuntaje > 0 
-        ? puntajeTotal / preguntasConPuntaje 
-        : null;
+      // Calcular porcentaje (0-100) y puntaje final (0-10)
+      const porcentaje = puntajeMaximoTotal > 0
+        ? Math.round((puntajeObtenidoTotal / puntajeMaximoTotal) * 100)
+        : 0;
+      const puntajeFinal = puntajeMaximoTotal > 0
+        ? Math.round((puntajeObtenidoTotal / puntajeMaximoTotal) * 10)
+        : 0;
+
+      // Determinar si tiene preguntas de texto sin corregir
+      const tienePreguntasManuales = resultadosPorPregunta.some(r => r.esCorrecta === null);
 
       if (respuestaExistente) {
         // Delete old individual responses and recreate
@@ -269,27 +341,26 @@ export default function CompletarAutoevaluacionPage() {
           .delete()
           .eq('voluntario_capacitacion_id', respuestaExistente.id);
 
-        // Insert final responses
-        for (const [preguntaId, respuesta] of Object.entries(respuestas)) {
+        // Insert corrected responses
+        for (const resultado of resultadosPorPregunta) {
           await supabase
             .from('respuestas_capacitaciones')
             .insert({
               voluntario_capacitacion_id: respuestaExistente.id,
-              pregunta_id: preguntaId,
-              respuesta: String(respuesta),
-              es_correcta: null,
-              puntaje_obtenido: typeof respuesta === 'number' ? respuesta * 2 : 0,
+              pregunta_id: resultado.preguntaId,
+              respuesta: resultado.respuesta,
+              es_correcta: resultado.esCorrecta,
+              puntaje_obtenido: resultado.puntajeObtenido,
             });
         }
 
         // Mark as completed
-        const porcentaje = puntajePromedio ? Math.round(puntajePromedio * 20) : 0;
         const { error } = await supabase
           .from('voluntarios_capacitaciones')
           .update({
-            estado: 'completada',
+            estado: tienePreguntasManuales ? 'completada' : 'completada',
             fecha_completado: new Date().toISOString(),
-            puntaje_final: puntajePromedio ? Math.round(puntajePromedio * 2) : 0,
+            puntaje_final: puntajeFinal,
             puntaje_maximo: 10,
             porcentaje,
           })
@@ -306,9 +377,9 @@ export default function CompletarAutoevaluacionPage() {
             estado: 'completada',
             fecha_inicio: new Date().toISOString(),
             fecha_completado: new Date().toISOString(),
-            puntaje_final: puntajePromedio ? Math.round(puntajePromedio * 2) : 0,
+            puntaje_final: puntajeFinal,
             puntaje_maximo: 10,
-            porcentaje: puntajePromedio ? Math.round(puntajePromedio * 20) : 0,
+            porcentaje,
             intentos: 1,
           })
           .select()
@@ -316,16 +387,16 @@ export default function CompletarAutoevaluacionPage() {
 
         if (error) throw error;
 
-        // Insert individual responses
-        for (const [preguntaId, respuesta] of Object.entries(respuestas)) {
+        // Insert corrected responses
+        for (const resultado of resultadosPorPregunta) {
           await supabase
             .from('respuestas_capacitaciones')
             .insert({
               voluntario_capacitacion_id: data.id,
-              pregunta_id: preguntaId,
-              respuesta: String(respuesta),
-              es_correcta: null,
-              puntaje_obtenido: typeof respuesta === 'number' ? respuesta * 2 : 0,
+              pregunta_id: resultado.preguntaId,
+              respuesta: resultado.respuesta,
+              es_correcta: resultado.esCorrecta,
+              puntaje_obtenido: resultado.puntajeObtenido,
             });
         }
       }
@@ -339,7 +410,22 @@ export default function CompletarAutoevaluacionPage() {
         })
         .eq('id', perfil.id);
 
-      alert('🎉 ¡Autoevaluación completada con éxito!');
+      // Show result to volunteer
+      const correctas = resultadosPorPregunta.filter(r => r.esCorrecta === true).length;
+      const incorrectas = resultadosPorPregunta.filter(r => r.esCorrecta === false).length;
+      const manuales = resultadosPorPregunta.filter(r => r.esCorrecta === null).length;
+
+      let mensaje = `🎉 ¡Autoevaluación completada!\n\n`;
+      mensaje += `📊 Puntaje: ${puntajeFinal}/10 (${porcentaje}%)\n`;
+      mensaje += `✅ Correctas: ${correctas}\n`;
+      if (incorrectas > 0) mensaje += `❌ Incorrectas: ${incorrectas}\n`;
+      if (manuales > 0) mensaje += `📝 Revisión pendiente: ${manuales}\n`;
+
+      if (porcentaje < 70) {
+        mensaje += `\n⚠️ Tu puntaje es menor al 70%. Es posible que necesites completar capacitaciones adicionales.`;
+      }
+
+      alert(mensaje);
       router.push('/dashboard/autoevaluaciones/mis-respuestas');
     } catch (error) {
       console.error('Error al enviar:', error);
