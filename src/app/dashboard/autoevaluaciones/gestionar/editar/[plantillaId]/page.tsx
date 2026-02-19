@@ -7,8 +7,8 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
 
-type TipoPregunta = 'escala' | 'si_no' | 'texto_abierto' | 'multiple_choice';
-type Area = 'lenguaje' | 'grafismo' | 'lectura_escritura' | 'matematicas';
+type TipoPregunta = 'escala' | 'si_no' | 'texto_abierto' | 'multiple_choice' | 'ordenar_palabras' | 'respuesta_imagen';
+type Area = 'lenguaje' | 'grafismo' | 'lectura_escritura' | 'matematicas' | 'mixta';
 
 interface OpcionPregunta {
   id?: string;
@@ -23,6 +23,8 @@ interface Pregunta {
   tipo: TipoPregunta;
   respuesta_correcta: string;
   opciones: OpcionPregunta[];
+  puntaje: number;
+  imagen_url: string;
 }
 
 export default function EditarPlantillaPage() {
@@ -56,7 +58,7 @@ export default function EditarPlantillaPage() {
         .select(`
           *,
           preguntas_db:preguntas_capacitacion(
-            id, orden, pregunta, tipo_pregunta, puntaje, respuesta_correcta,
+            id, orden, pregunta, tipo_pregunta, puntaje, respuesta_correcta, imagen_url,
             opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
           )
         `)
@@ -76,6 +78,8 @@ export default function EditarPlantillaPage() {
             if (p.tipo_pregunta === 'verdadero_falso') tipo = 'si_no';
             else if (p.tipo_pregunta === 'texto_libre') tipo = 'texto_abierto';
             else if (p.tipo_pregunta === 'multiple_choice') tipo = 'multiple_choice';
+            else if (p.tipo_pregunta === 'ordenar_palabras') tipo = 'ordenar_palabras';
+            else if (p.tipo_pregunta === 'respuesta_imagen') tipo = 'respuesta_imagen';
             else if (p.tipo_pregunta === 'escala') tipo = 'escala';
             return {
               id: p.id,
@@ -83,6 +87,8 @@ export default function EditarPlantillaPage() {
               tipo,
               respuesta_correcta: p.respuesta_correcta || '',
               opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
+              puntaje: p.puntaje || 10,
+              imagen_url: p.imagen_url || '',
             };
           });
         setPreguntas(mappedPreguntas);
@@ -97,7 +103,7 @@ export default function EditarPlantillaPage() {
   }
 
   function agregarPregunta() {
-    setPreguntas([...preguntas, { id: Date.now().toString(), texto: '', tipo: 'escala', respuesta_correcta: '', opciones: [] }]);
+    setPreguntas([...preguntas, { id: Date.now().toString(), texto: '', tipo: 'escala', respuesta_correcta: '', opciones: [], puntaje: 10, imagen_url: '' }]);
   }
 
   function eliminarPregunta(id: string) {
@@ -110,9 +116,12 @@ export default function EditarPlantillaPage() {
       const updated = { ...p, [campo]: valor };
       if (campo === 'tipo') {
         updated.respuesta_correcta = '';
-        updated.opciones = valor === 'multiple_choice'
-          ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
-          : [];
+        updated.imagen_url = '';
+        if (valor === 'multiple_choice' || valor === 'respuesta_imagen') {
+          updated.opciones = [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }];
+        } else {
+          updated.opciones = [];
+        }
       }
       return updated;
     }));
@@ -168,7 +177,7 @@ export default function EditarPlantillaPage() {
     }
 
     for (const p of preguntas) {
-      if (p.tipo === 'multiple_choice') {
+      if (p.tipo === 'multiple_choice' || p.tipo === 'respuesta_imagen') {
         if (p.opciones.length < 2) { alert(`Pregunta "${p.texto.substring(0, 30)}..." necesita al menos 2 opciones`); return; }
         if (!p.opciones.some(o => o.es_correcta)) { alert(`Pregunta "${p.texto.substring(0, 30)}..." necesita una opción correcta`); return; }
         if (p.opciones.some(o => !o.texto_opcion.trim())) { alert('Todas las opciones deben tener texto'); return; }
@@ -214,7 +223,8 @@ export default function EditarPlantillaPage() {
             pregunta: p.texto,
             tipo_pregunta: tipoDB,
             respuesta_correcta: p.respuesta_correcta || '',
-            puntaje: 10,
+            puntaje: p.puntaje || 10,
+            imagen_url: p.imagen_url || null,
           })
           .select()
           .single();
@@ -224,7 +234,7 @@ export default function EditarPlantillaPage() {
           continue;
         }
 
-        if (p.tipo === 'multiple_choice' && preguntaDB && p.opciones.length > 0) {
+        if ((p.tipo === 'multiple_choice' || p.tipo === 'respuesta_imagen') && preguntaDB && p.opciones.length > 0) {
           const opInserts = p.opciones.map((op, idx) => ({
             pregunta_id: preguntaDB.id,
             orden: idx + 1,
@@ -320,6 +330,72 @@ export default function EditarPlantillaPage() {
         </div>
       );
     }
+    if (pregunta.tipo === 'ordenar_palabras') {
+      return (
+        <div className="space-y-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Orden correcto (separá con |):</span>
+          <input
+            type="text"
+            value={pregunta.respuesta_correcta}
+            onChange={(e) => actualizarPregunta(pregunta.id, 'respuesta_correcta', e.target.value)}
+            placeholder="palabra1|palabra2|palabra3"
+            className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+          />
+          {pregunta.respuesta_correcta && (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {pregunta.respuesta_correcta.split('|').map((w, i) => (
+                <span key={i} className="px-2.5 py-1 bg-sol-100 text-sol-800 text-xs font-outfit rounded-lg border border-sol-200/40">
+                  {i + 1}. {w.trim()}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (pregunta.tipo === 'respuesta_imagen') {
+      return (
+        <div className="space-y-3">
+          <div>
+            <span className="text-xs text-neutro-piedra font-outfit">URL de la imagen:</span>
+            <input
+              type="url"
+              value={pregunta.imagen_url}
+              onChange={(e) => actualizarPregunta(pregunta.id, 'imagen_url', e.target.value)}
+              placeholder="https://ejemplo.com/imagen.jpg"
+              className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-xl text-sm font-outfit focus:ring-2 focus:ring-sol-400 mt-1"
+            />
+          </div>
+          <div>
+            <span className="text-xs text-neutro-piedra font-outfit">Opciones de respuesta (marcá la correcta):</span>
+            {pregunta.opciones.map((op, opIdx) => (
+              <div key={opIdx} className="flex items-center gap-2 mt-1.5">
+                <button type="button" onClick={() => actualizarOpcion(pregunta.id, opIdx, 'es_correcta', true)}
+                  className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                    op.es_correcta ? 'bg-crecimiento-400 border-crecimiento-500 text-white' : 'border-neutro-piedra/30'
+                  }`}>
+                  {op.es_correcta && <CheckCircle2 className="w-4 h-4" />}
+                </button>
+                <input type="text" value={op.texto_opcion}
+                  onChange={(e) => actualizarOpcion(pregunta.id, opIdx, 'texto_opcion', e.target.value)}
+                  placeholder={`Opción ${opIdx + 1}`}
+                  className="flex-1 px-3 py-1.5 bg-white border border-neutral-200 rounded-lg text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+                />
+                {pregunta.opciones.length > 2 && (
+                  <button type="button" onClick={() => quitarOpcion(pregunta.id, opIdx)} className="p-1 text-impulso-500 hover:bg-impulso-50 rounded-lg">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" onClick={() => agregarOpcion(pregunta.id)}
+              className="text-xs text-crecimiento-600 font-outfit font-medium flex items-center gap-1 mt-2">
+              <Plus className="w-3.5 h-3.5" /> Agregar opción
+            </button>
+          </div>
+        </div>
+      );
+    }
     return null;
   };
 
@@ -384,6 +460,7 @@ export default function EditarPlantillaPage() {
                   <option value="grafismo">Grafismo y Motricidad Fina</option>
                   <option value="lectura_escritura">Lectura y Escritura</option>
                   <option value="matematicas">Nociones Matemáticas</option>
+                  <option value="mixta">Múltiples Áreas</option>
                 </select>
               </div>
 
@@ -458,7 +535,23 @@ export default function EditarPlantillaPage() {
                         <option value="si_no">Sí / No</option>
                         <option value="multiple_choice">Selección múltiple</option>
                         <option value="texto_abierto">Texto abierto</option>
+                        <option value="ordenar_palabras">Ordenar palabras</option>
+                        <option value="respuesta_imagen">Respuesta con imagen</option>
                       </select>
+
+                      {/* Puntaje de la pregunta */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-neutro-piedra font-outfit whitespace-nowrap">Puntaje:</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={pregunta.puntaje}
+                          onChange={(e) => actualizarPregunta(pregunta.id, 'puntaje', Math.max(1, parseInt(e.target.value) || 10))}
+                          className="w-20 px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-sm font-outfit text-center font-bold focus:ring-2 focus:ring-sol-400"
+                        />
+                        <span className="text-xs text-neutro-piedra font-outfit">pts</span>
+                      </div>
 
                       {/* Respuesta correcta */}
                       <div className="bg-crecimiento-50/30 rounded-xl p-3 border border-crecimiento-200/20">

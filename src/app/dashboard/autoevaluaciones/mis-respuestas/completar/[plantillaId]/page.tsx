@@ -314,11 +314,19 @@ export default function CompletarAutoevaluacionPage() {
 
         switch (pregunta.tipo) {
           case 'escala_1_5': {
-            // Escala: puntaje proporcional (ej: 5/5 = 100%, 3/5 = 60%)
+            // Escala: comparar con respuesta_correcta. Si coincide → puntaje completo
             const valor = typeof respuestaVoluntario === 'number' ? respuestaVoluntario : parseInt(String(respuestaVoluntario));
+            const valorCorrecto = parseInt(pregunta.respuesta_correcta);
             if (!isNaN(valor)) {
-              puntajeObtenido = Math.round((valor / 5) * puntajeMax);
-              esCorrecta = valor >= 4; // 4+ se considera "correcto"
+              if (!isNaN(valorCorrecto)) {
+                // Si hay respuesta correcta definida, comparar directamente
+                esCorrecta = valor === valorCorrecto;
+                puntajeObtenido = esCorrecta ? puntajeMax : 0;
+              } else {
+                // Sin respuesta correcta definida: puntaje proporcional
+                puntajeObtenido = Math.round((valor / 5) * puntajeMax);
+                esCorrecta = valor >= 4;
+              }
             }
             break;
           }

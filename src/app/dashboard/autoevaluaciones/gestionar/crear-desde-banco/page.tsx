@@ -494,14 +494,28 @@ export default function CrearDesdeBancoPage() {
                       </span>
                     </div>
                     <div className="space-y-1.5">
-                      {preguntasArea.map((p, i) => (
+                      {preguntasArea.map((p, i) => {
+                        const tipoLabel: Record<string, string> = {
+                          escala: 'Escala 1-5',
+                          verdadero_falso: 'Sí / No',
+                          multiple_choice: 'Selección múltiple',
+                          texto_libre: 'Texto abierto',
+                          ordenar_palabras: 'Ordenar palabras',
+                          respuesta_imagen: 'Resp. con imagen',
+                        };
+                        return (
                         <div key={p.id} className="flex items-start gap-2 bg-white/80 rounded-xl p-3 border border-white/60 group">
                           <span className="flex-shrink-0 w-6 h-6 rounded-full bg-neutro-nube flex items-center justify-center text-neutro-piedra text-xs font-bold">
                             {i + 1}
                           </span>
-                          <p className="flex-1 text-sm text-neutro-carbon font-outfit leading-relaxed">
-                            {p.pregunta}
-                          </p>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-neutro-carbon font-outfit leading-relaxed">
+                              {p.pregunta}
+                            </p>
+                            <span className="text-[10px] text-neutro-piedra font-outfit px-1.5 py-0.5 rounded bg-neutro-carbon/5 mt-1 inline-block">
+                              {tipoLabel[p.tipo_pregunta] || p.tipo_pregunta}
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() => quitarPreguntaSeleccionada(p.id)}
@@ -511,7 +525,8 @@ export default function CrearDesdeBancoPage() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
