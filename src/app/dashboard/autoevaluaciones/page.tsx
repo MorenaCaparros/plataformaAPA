@@ -111,14 +111,16 @@ export default function AutoevaluacionesPage() {
     lenguaje: 'Lenguaje y Vocabulario',
     grafismo: 'Grafismo y Motricidad Fina',
     lectura_escritura: 'Lectura y Escritura',
-    matematicas: 'Nociones Matemáticas'
+    matematicas: 'Nociones Matemáticas',
+    mixta: 'Múltiples Áreas',
   };
 
   const areaColors: Record<string, string> = {
     lenguaje: 'bg-sol-100 text-sol-700',
     grafismo: 'bg-green-100 text-green-800',
     lectura_escritura: 'bg-purple-100 text-purple-800',
-    matematicas: 'bg-orange-100 text-orange-800'
+    matematicas: 'bg-orange-100 text-orange-800',
+    mixta: 'bg-impulso-100 text-impulso-700',
   };
 
   if (loading) {
@@ -141,7 +143,7 @@ export default function AutoevaluacionesPage() {
             <h1 className="text-3xl md:text-4xl font-bold text-neutro-carbon font-quicksand">
               {puedeGestionarPlantillas ? 'Plantillas de Autoevaluación' : 'Mis Autoevaluaciones'}
             </h1>
-            {puedeGestionarPlantillas && (
+            {puedeGestionarPlantillas ? (
               <div className="flex gap-3">
                 <Link
                   href="/dashboard/autoevaluaciones/gestionar/banco-preguntas"
@@ -156,6 +158,13 @@ export default function AutoevaluacionesPage() {
                   Gestionar Plantillas
                 </Link>
               </div>
+            ) : respuestas.length > 0 && (
+              <Link
+                href="/dashboard/autoevaluaciones/mis-respuestas"
+                className="px-5 py-3 min-h-[48px] bg-white/80 backdrop-blur-sm border border-crecimiento-200/40 text-crecimiento-700 rounded-2xl hover:shadow-[0_4px_16px_rgba(164,198,57,0.15)] transition-all font-outfit font-semibold active:scale-95 flex items-center gap-2"
+              >
+                📊 Ver mis resultados
+              </Link>
             )}
           </div>
           <p className="text-neutro-piedra font-outfit text-lg">

@@ -63,6 +63,13 @@ export default function IngresoCompletoPage() {
   const { user, perfil } = useAuth();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+
+  // Voluntarios no pueden registrar niños — redirigir
+  useEffect(() => {
+    if (perfil?.rol === 'voluntario') {
+      router.replace('/dashboard/ninos');
+    }
+  }, [perfil, router]);
   
   // Grabación de voz
   const [isRecording, setIsRecording] = useState(false);

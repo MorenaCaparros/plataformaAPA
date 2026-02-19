@@ -84,15 +84,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Filter only autoevaluacion type and map to old shape
+    // Filter only autoevaluacion type, exclude drafts (en_progreso), and map to old shape
     const respuestas = (registros || [])
-      .filter((r: any) => r.capacitacion?.tipo === 'autoevaluacion')
+      .filter((r: any) => r.capacitacion?.tipo === 'autoevaluacion' && r.estado !== 'en_progreso' && r.estado !== 'pendiente')
       .map((r: any) => ({
         id: r.id,
         plantilla_id: r.capacitacion_id,
         voluntario_id: r.voluntario_id,
-        puntaje_automatico: r.puntaje_final,
-        puntaje_total: r.puntaje_final,
+        puntaje_automatico: r.puntaje_final ?? 0,
+        puntaje_total: r.puntaje_final ?? 0,
+        porcentaje: r.porcentaje ?? 0,
         puntaje_manual: null,
         estado: mapEstadoToOld(r.estado),
         fecha_completada: r.fecha_completado || r.created_at,

@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
-import { ArrowLeft, Save, Send, Star, Check, X, Clock, Users, GripVertical } from 'lucide-react';
+import { ArrowLeft, Save, Send, Star, Check, X, Clock, Users, GripVertical, AlertTriangle, Trophy, CheckCircle, XCircle, FileText } from 'lucide-react';
 
 interface OpcionPregunta {
   id: string;
@@ -45,6 +45,20 @@ interface RespuestaGuardada {
   completada: boolean;
 }
 
+interface ModalState {
+  visible: boolean;
+  tipo: 'exito' | 'error' | 'advertencia' | 'resultado';
+  titulo: string;
+  mensaje: string;
+  // Resultado fields (for tipo === 'resultado')
+  puntaje?: number;
+  porcentaje?: number;
+  correctas?: number;
+  incorrectas?: number;
+  manuales?: number;
+  onClose?: () => void;
+}
+
 export default function CompletarAutoevaluacionPage() {
   const params = useParams();
   const router = useRouter();
@@ -60,6 +74,9 @@ export default function CompletarAutoevaluacionPage() {
   // Special questions state
   const [maxNinos, setMaxNinos] = useState<number>(3);
   const [horasDisponibles, setHorasDisponibles] = useState<number>(4);
+
+  // Modal state
+  const [modal, setModal] = useState<ModalState>({ visible: false, tipo: 'exito', titulo: '', mensaje: '' });
 
   const plantillaId = params.plantillaId as string;
 
@@ -91,7 +108,7 @@ export default function CompletarAutoevaluacionPage() {
         .select(`
           *,
           preguntas_db:preguntas_capacitacion(
-            id, orden, pregunta, tipo_pregunta, puntaje, respuesta_correcta, imagen_url, datos_extra,
+            id, orden, pregunta, tipo_pregunta, puntaje, respuesta_correcta, imagen_url, datos_extra, area_especifica,
             opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
           )
         `)
@@ -119,7 +136,7 @@ export default function CompletarAutoevaluacionPage() {
               id: p.id,
               texto: p.pregunta,
               tipo,
-              categoria: '',
+              categoria: p.area_especifica || '',
               opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
               respuesta_correcta: p.respuesta_correcta || '',
               puntaje: p.puntaje || 10,
@@ -167,8 +184,13 @@ export default function CompletarAutoevaluacionPage() {
       }
     } catch (error) {
       console.error('Error al cargar datos:', error);
-      alert('Error al cargar la autoevaluación');
-      router.push('/dashboard/autoevaluaciones/mis-respuestas');
+      setModal({
+        visible: true,
+        tipo: 'error',
+        titulo: 'Error al cargar',
+        mensaje: 'No se pudo cargar la autoevaluación. Intenta nuevamente.',
+        onClose: () => router.push('/dashboard/autoevaluaciones/mis-respuestas'),
+      });
     } finally {
       setLoading(false);
     }
@@ -236,10 +258,20 @@ export default function CompletarAutoevaluacionPage() {
         }
       }
 
-      alert('✅ Progreso guardado correctamente');
+      setModal({
+        visible: true,
+        tipo: 'exito',
+        titulo: 'Progreso guardado',
+        mensaje: 'Tu progreso ha sido guardado correctamente. Puedes continuar más tarde.',
+      });
     } catch (error) {
       console.error('Error al guardar:', error);
-      alert('Error al guardar el progreso');
+      setModal({
+        visible: true,
+        tipo: 'error',
+        titulo: 'Error al guardar',
+        mensaje: 'No se pudo guardar el progreso. Intenta nuevamente.',
+      });
     } finally {
       setGuardando(false);
     }
@@ -251,7 +283,12 @@ export default function CompletarAutoevaluacionPage() {
     // Validar que todas las preguntas estén respondidas
     const preguntasRespondidas = Object.keys(respuestas).length;
     if (preguntasRespondidas < plantilla.preguntas.length) {
-      alert(`⚠️ Faltan responder ${plantilla.preguntas.length - preguntasRespondidas} preguntas`);
+      setModal({
+        visible: true,
+        tipo: 'advertencia',
+        titulo: 'Preguntas sin responder',
+        mensaje: `Faltan responder ${plantilla.preguntas.length - preguntasRespondidas} pregunta(s) antes de enviar.`,
+      });
       return;
     }
 
@@ -441,21 +478,26 @@ export default function CompletarAutoevaluacionPage() {
       const incorrectas = resultadosPorPregunta.filter(r => r.esCorrecta === false).length;
       const manuales = resultadosPorPregunta.filter(r => r.esCorrecta === null).length;
 
-      let mensaje = `🎉 ¡Autoevaluación completada!\n\n`;
-      mensaje += `📊 Puntaje: ${puntajeFinal}/10 (${porcentaje}%)\n`;
-      mensaje += `✅ Correctas: ${correctas}\n`;
-      if (incorrectas > 0) mensaje += `❌ Incorrectas: ${incorrectas}\n`;
-      if (manuales > 0) mensaje += `📝 Revisión pendiente: ${manuales}\n`;
-
-      if (porcentaje < 70) {
-        mensaje += `\n⚠️ Tu puntaje es menor al 70%. Es posible que necesites completar capacitaciones adicionales.`;
-      }
-
-      alert(mensaje);
-      router.push('/dashboard/autoevaluaciones/mis-respuestas');
+      setModal({
+        visible: true,
+        tipo: 'resultado',
+        titulo: '¡Autoevaluación completada!',
+        mensaje: '',
+        puntaje: puntajeFinal,
+        porcentaje,
+        correctas,
+        incorrectas,
+        manuales,
+        onClose: () => router.push('/dashboard/autoevaluaciones/mis-respuestas'),
+      });
     } catch (error) {
       console.error('Error al enviar:', error);
-      alert('Error al enviar la autoevaluación');
+      setModal({
+        visible: true,
+        tipo: 'error',
+        titulo: 'Error al enviar',
+        mensaje: 'No se pudo enviar la autoevaluación. Intenta nuevamente.',
+      });
     } finally {
       setEnviando(false);
     }
@@ -465,14 +507,16 @@ export default function CompletarAutoevaluacionPage() {
     lenguaje: 'Lenguaje y Vocabulario',
     grafismo: 'Grafismo y Motricidad Fina',
     lectura_escritura: 'Lectura y Escritura',
-    matematicas: 'Nociones Matemáticas'
+    matematicas: 'Nociones Matemáticas',
+    mixta: 'Múltiples Áreas',
   };
 
   const areaColors: Record<string, string> = {
     lenguaje: 'from-sol-400 to-sol-500',
     grafismo: 'from-green-400 to-green-500',
     lectura_escritura: 'from-impulso-300 to-impulso-400',
-    matematicas: 'from-orange-400 to-orange-500'
+    matematicas: 'from-orange-400 to-orange-500',
+    mixta: 'from-impulso-400 via-sol-400 to-crecimiento-500',
   };
 
   if (loading) {
@@ -508,6 +552,12 @@ export default function CompletarAutoevaluacionPage() {
   const totalRespondidas = preguntasRespondidas;
   const progresoPocentaje = totalPreguntas > 0 ? (totalRespondidas / totalPreguntas) * 100 : 0;
 
+  // Derive real areas from questions (instead of hardcoding all 4)
+  const areasReales = Array.from(
+    new Set(plantilla.preguntas.map(p => p.categoria).filter(Boolean))
+  );
+  const esMixta = areasReales.length > 1;
+
   return (
     <div className="min-h-screen pb-24">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
@@ -521,16 +571,22 @@ export default function CompletarAutoevaluacionPage() {
             Volver
           </Link>
 
-          <div className={`bg-gradient-to-r ${areaColors[plantilla.area] || 'from-sol-400 to-crecimiento-500'} text-white rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.1)] mb-6`}>
+          <div className={`bg-gradient-to-r ${esMixta ? 'from-impulso-400 via-sol-400 to-crecimiento-500' : (areaColors[plantilla.area] || 'from-sol-400 to-crecimiento-500')} text-white rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.1)] mb-6`}>
             <h1 className="text-3xl md:text-4xl font-bold font-quicksand mb-2">
               {plantilla.titulo}
             </h1>
             <div className="flex flex-wrap gap-2 mb-4">
-              {Object.entries(areaLabels).map(([key, label]) => (
-                <span key={key} className="inline-block px-3 py-1 rounded-full bg-white/20 text-white/95 text-sm font-outfit font-medium">
-                  {label}
+              {areasReales.length > 0 ? (
+                areasReales.map((areaKey) => (
+                  <span key={areaKey} className="inline-block px-3 py-1 rounded-full bg-white/20 text-white/95 text-sm font-outfit font-medium">
+                    {areaLabels[areaKey] || areaKey}
+                  </span>
+                ))
+              ) : (
+                <span className="inline-block px-3 py-1 rounded-full bg-white/20 text-white/95 text-sm font-outfit font-medium">
+                  {areaLabels[plantilla.area] || plantilla.area}
                 </span>
-              ))}
+              )}
             </div>
             <p className="text-white/80 font-outfit">
               {plantilla.descripcion}
@@ -581,7 +637,7 @@ export default function CompletarAutoevaluacionPage() {
                       {pregunta.texto}
                     </p>
                     <span className="text-xs text-neutro-piedra font-outfit">
-                      {pregunta.categoria}
+                      {areaLabels[pregunta.categoria] || pregunta.categoria}
                     </span>
                   </div>
                 </div>
@@ -894,6 +950,129 @@ export default function CompletarAutoevaluacionPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Modal de notificación ─────────────────────────────── */}
+        {modal.visible && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-[0_16px_64px_rgba(0,0,0,0.15)] w-full max-w-md p-8 animate-in fade-in zoom-in-95 border border-white/60">
+              {/* ─ Resultado modal ─ */}
+              {modal.tipo === 'resultado' ? (
+                <div className="text-center space-y-5">
+                  {/* Icon */}
+                  <div className={`mx-auto w-20 h-20 rounded-full flex items-center justify-center ${
+                    (modal.porcentaje ?? 0) >= 70
+                      ? 'bg-gradient-to-br from-crecimiento-400 to-crecimiento-500'
+                      : 'bg-gradient-to-br from-amarillo-400 to-orange-400'
+                  }`}>
+                    <Trophy className="w-10 h-10 text-white" />
+                  </div>
+
+                  <h3 className="text-2xl font-bold text-neutro-carbon font-quicksand">
+                    {modal.titulo}
+                  </h3>
+
+                  {/* Puntaje circle */}
+                  <div className="relative mx-auto w-32 h-32">
+                    <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
+                      <circle cx="60" cy="60" r="52" fill="none" stroke="#e5e7eb" strokeWidth="10" />
+                      <circle
+                        cx="60" cy="60" r="52" fill="none"
+                        stroke={(modal.porcentaje ?? 0) >= 70 ? '#a4c639' : '#f59e0b'}
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeDasharray={`${((modal.porcentaje ?? 0) / 100) * 327} 327`}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-3xl font-bold text-neutro-carbon font-quicksand">{modal.puntaje}/10</span>
+                      <span className="text-sm text-neutro-piedra font-outfit">{modal.porcentaje}%</span>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex justify-center gap-4 flex-wrap">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-crecimiento-50 border border-crecimiento-200">
+                      <CheckCircle className="w-5 h-5 text-crecimiento-500" />
+                      <span className="text-sm font-outfit font-semibold text-crecimiento-700">{modal.correctas} correcta{modal.correctas !== 1 ? 's' : ''}</span>
+                    </div>
+                    {(modal.incorrectas ?? 0) > 0 && (
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-red-50 border border-red-200">
+                        <XCircle className="w-5 h-5 text-red-500" />
+                        <span className="text-sm font-outfit font-semibold text-red-700">{modal.incorrectas} incorrecta{modal.incorrectas !== 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    {(modal.manuales ?? 0) > 0 && (
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-amber-50 border border-amber-200">
+                        <FileText className="w-5 h-5 text-amber-500" />
+                        <span className="text-sm font-outfit font-semibold text-amber-700">{modal.manuales} revisión manual</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Warning if low score */}
+                  {(modal.porcentaje ?? 0) < 70 && (
+                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4 text-left">
+                      <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-800 font-outfit">
+                        Tu puntaje es menor al 70%. Es posible que necesites completar capacitaciones adicionales.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Action button */}
+                  <button
+                    onClick={() => {
+                      setModal(m => ({ ...m, visible: false }));
+                      if (modal.onClose) modal.onClose();
+                    }}
+                    className="w-full px-6 py-4 min-h-[52px] rounded-2xl bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white font-outfit font-semibold hover:shadow-[0_8px_24px_rgba(164,198,57,0.3)] transition-all active:scale-95"
+                  >
+                    Ver mis respuestas
+                  </button>
+                </div>
+              ) : (
+                /* ─ Generic modals (exito, error, advertencia) ─ */
+                <div className="text-center space-y-5">
+                  {/* Icon */}
+                  <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center ${
+                    modal.tipo === 'exito'
+                      ? 'bg-gradient-to-br from-crecimiento-400 to-crecimiento-500'
+                      : modal.tipo === 'error'
+                        ? 'bg-gradient-to-br from-red-400 to-red-500'
+                        : 'bg-gradient-to-br from-amarillo-400 to-orange-400'
+                  }`}>
+                    {modal.tipo === 'exito' && <Check className="w-8 h-8 text-white" />}
+                    {modal.tipo === 'error' && <X className="w-8 h-8 text-white" />}
+                    {modal.tipo === 'advertencia' && <AlertTriangle className="w-8 h-8 text-white" />}
+                  </div>
+
+                  <h3 className="text-xl font-bold text-neutro-carbon font-quicksand">
+                    {modal.titulo}
+                  </h3>
+                  <p className="text-neutro-piedra font-outfit leading-relaxed">
+                    {modal.mensaje}
+                  </p>
+
+                  <button
+                    onClick={() => {
+                      setModal(m => ({ ...m, visible: false }));
+                      if (modal.onClose) modal.onClose();
+                    }}
+                    className={`w-full px-6 py-3.5 min-h-[48px] rounded-2xl font-outfit font-semibold transition-all active:scale-95 ${
+                      modal.tipo === 'exito'
+                        ? 'bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white hover:shadow-[0_8px_24px_rgba(164,198,57,0.3)]'
+                        : modal.tipo === 'error'
+                          ? 'bg-gradient-to-r from-red-400 to-red-500 text-white hover:shadow-[0_8px_24px_rgba(239,68,68,0.3)]'
+                          : 'bg-gradient-to-r from-amarillo-400 to-amarillo-500 text-white hover:shadow-[0_8px_24px_rgba(242,201,76,0.3)]'
+                    }`}
+                  >
+                    Entendido
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -42,6 +42,9 @@ function MisNinosPageContent() {
   const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director', 'admin', 'trabajador_social'];
   const tieneAccesoTotal = perfil?.rol && rolesConAccesoTotal.includes(perfil.rol);
 
+  // Detectar si es voluntario (solo lectura, sin poder registrar)
+  const esVoluntario = perfil?.rol === 'voluntario';
+
   useEffect(() => {
     if (!authLoading && user) {
       fetchZonas();
@@ -273,7 +276,7 @@ function MisNinosPageContent() {
                 <span className="hidden sm:inline">Volver</span>
               </Link>
               <h1 className="text-xl sm:text-2xl font-bold text-neutro-carbon font-quicksand">
-                Niños
+                {esVoluntario ? 'Mis Niños' : 'Niños'}
               </h1>
               <div className="w-16 sm:w-24"></div>
             </div>
@@ -305,12 +308,14 @@ function MisNinosPageContent() {
 
         {/* Botón para registrar nuevo niño + Filtros */}
         <div className="mb-6 flex flex-col lg:flex-row gap-4 justify-between items-start lg:items-center">
-          <Link
-            href="/dashboard/ninos/nuevo"
-            className="inline-flex items-center justify-center gap-2 w-full lg:w-auto px-6 py-4 min-h-[56px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(164,198,57,0.15)] active:scale-95"
-          >
-            <UserPlus className="w-6 h-6" /> Registrar Nuevo Niño
-          </Link>
+          {!esVoluntario && (
+            <Link
+              href="/dashboard/ninos/nuevo"
+              className="inline-flex items-center justify-center gap-2 w-full lg:w-auto px-6 py-4 min-h-[56px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(164,198,57,0.15)] active:scale-95"
+            >
+              <UserPlus className="w-6 h-6" /> Registrar Nuevo Niño
+            </Link>
+          )}
 
           {/* Filtros */}
           {tieneAccesoTotal && (
@@ -339,6 +344,19 @@ function MisNinosPageContent() {
               />
             </div>
           )}
+
+          {/* Búsqueda para voluntarios con niños asignados */}
+          {esVoluntario && ninos.length > 1 && (
+            <div className="w-full lg:w-auto">
+              <input
+                type="text"
+                placeholder="Buscar por alias, legajo..."
+                value={filtroBusqueda}
+                onChange={(e) => setFiltroBusqueda(e.target.value)}
+                className="px-4 py-3 bg-white/60 backdrop-blur-md border border-white/60 rounded-2xl focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] w-full sm:w-72 placeholder:text-neutro-piedra/60 transition-all"
+              />
+            </div>
+          )}
         </div>
 
         {/* Contador de resultados */}
@@ -358,10 +376,17 @@ function MisNinosPageContent() {
               </div>
               <p className="text-neutro-carbon font-outfit text-lg mb-3">
                 {ninos.length === 0 
-                  ? "No tenés niños asignados todavía."
+                  ? (esVoluntario 
+                      ? "Todavía no tenés niños asignados." 
+                      : "No tenés niños asignados todavía.")
                   : "No se encontraron niños con los filtros seleccionados."}
               </p>
-              {ninos.length === 0 && (
+              {ninos.length === 0 && esVoluntario && (
+                <p className="text-sm text-neutro-piedra font-outfit">
+                  Tu coordinador/a te asignará niños próximamente. ¡Mientras tanto, podés explorar la biblioteca y las capacitaciones!
+                </p>
+              )}
+              {ninos.length === 0 && !esVoluntario && (
                 <>
                   <p className="text-sm text-neutro-piedra mb-6 font-outfit">
                     Registrá tu primer niño para empezar a trabajar.

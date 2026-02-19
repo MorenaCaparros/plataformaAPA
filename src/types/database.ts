@@ -35,7 +35,7 @@ export interface Escuela {
 // PERFILES
 // =====================================================
 
-export type RolUsuario = 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajadora_social' | 'director' | 'admin';
+export type RolUsuario = 'voluntario' | 'coordinador' | 'psicopedagogia' | 'trabajadora_social' | 'trabajador_social' | 'director' | 'admin' | 'equipo_profesional';
 
 export interface Perfil {
   id: string;

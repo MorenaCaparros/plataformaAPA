@@ -197,12 +197,13 @@ export default function CrearDesdeBancoPage() {
 
     try {
       // 1. Determine the area for the capacitacion.
-      // If all questions are from one area, use that. Otherwise, use 'mixta' or the predominant one.
+      // If all questions are from one area, use that. Otherwise, use 'mixta'.
       const areasCounts: Record<string, number> = {};
       preguntasSeleccionadas.forEach((p) => {
         areasCounts[p.area] = (areasCounts[p.area] || 0) + 1;
       });
-      const areaPrincipal = Object.entries(areasCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'lenguaje';
+      const areasUnicas = Object.keys(areasCounts);
+      const areaPrincipal = areasUnicas.length === 1 ? areasUnicas[0] : 'mixta';
 
       // 2. Create capacitacion
       const { data: capacitacion, error: capError } = await supabase

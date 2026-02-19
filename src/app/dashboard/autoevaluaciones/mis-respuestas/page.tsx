@@ -96,7 +96,8 @@ export default function MisRespuestasPage() {
     lenguaje: 'Lenguaje y Vocabulario',
     grafismo: 'Grafismo y Motricidad Fina',
     lectura_escritura: 'Lectura y Escritura',
-    matematicas: 'Nociones Matemáticas'
+    matematicas: 'Nociones Matemáticas',
+    mixta: 'Múltiples Áreas',
   };
 
   if (loading) {

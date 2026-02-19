@@ -41,6 +41,8 @@ export default function HistorialPage() {
   const [filtroNino, setFiltroNino] = useState<string>('todos');
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
 
+  const esVoluntario = perfil?.rol === 'voluntario';
+
   // Query de niños para el filtro
   const { data: ninos = [] } = useQuery<Array<{ id: string; alias: string }>>({
     queryKey: ['sesiones-ninos-filtro', user?.id, perfil?.rol],
@@ -279,12 +281,27 @@ export default function HistorialPage() {
                 <FileText className="w-12 h-12 text-sol-600" />
               </div>
               <p className="text-neutro-carbon font-outfit text-lg mb-6">No hay sesiones registradas todavía.</p>
-              <Link
-                href="/dashboard/ninos"
-                className="inline-flex items-center justify-center gap-2 px-6 py-4 min-h-[56px] bg-gradient-to-r from-sol-400 to-sol-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(242,201,76,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(242,201,76,0.15)] active:scale-95"
-              >
-                Registrar primera sesión
-              </Link>
+              {esVoluntario ? (
+                ninos.length > 0 ? (
+                  <Link
+                    href="/dashboard/ninos"
+                    className="inline-flex items-center justify-center gap-2 px-6 py-4 min-h-[56px] bg-gradient-to-r from-sol-400 to-sol-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(242,201,76,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(242,201,76,0.15)] active:scale-95"
+                  >
+                    Ver mis niños asignados
+                  </Link>
+                ) : (
+                  <p className="text-sm text-neutro-piedra font-outfit">
+                    Tu coordinador/a te asignará niños próximamente. Cuando tengas niños asignados, podrás registrar sesiones desde acá.
+                  </p>
+                )
+              ) : (
+                <Link
+                  href="/dashboard/ninos"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-4 min-h-[56px] bg-gradient-to-r from-sol-400 to-sol-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(242,201,76,0.25)] transition-all font-outfit font-semibold shadow-[0_4px_16px_rgba(242,201,76,0.15)] active:scale-95"
+                >
+                  Registrar primera sesión
+                </Link>
+              )}
             </div>
           </div>
         ) : (

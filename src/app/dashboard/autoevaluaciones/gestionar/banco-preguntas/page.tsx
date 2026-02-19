@@ -65,6 +65,7 @@ const areaLabels: Record<string, string> = {
   grafismo: 'Grafismo y Motricidad Fina',
   lectura_escritura: 'Lectura y Escritura',
   matematicas: 'Nociones Matemáticas',
+  mixta: 'Múltiples Áreas',
 };
 
 function emptyNuevaPregunta(area: Area = 'lenguaje'): NuevaPregunta {

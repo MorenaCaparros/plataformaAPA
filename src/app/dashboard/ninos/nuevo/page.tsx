@@ -112,6 +112,13 @@ export default function NuevoNinoPage() {
   const { user, perfil } = useAuth();
   const [loading, setLoading] = useState(false);
 
+  // Voluntarios no pueden registrar niños — redirigir
+  useEffect(() => {
+    if (perfil?.rol === 'voluntario') {
+      router.replace('/dashboard/ninos');
+    }
+  }, [perfil, router]);
+
   // Reference data
   const [zonas, setZonas] = useState<Pick<Zona, 'id' | 'nombre'>[]>([]);
   const [escuelas, setEscuelas] = useState<Pick<Escuela, 'id' | 'nombre'>[]>([]);

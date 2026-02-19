@@ -2081,14 +2081,19 @@ export type Database = {
         | "coordinador"
         | "psicopedagogia"
         | "trabajador_social"
+        | "trabajadora_social"
         | "admin"
+        | "director"
+        | "equipo_profesional"
       rol_usuario:
         | "voluntario"
         | "coordinador"
         | "psicopedagogia"
         | "admin"
         | "trabajador_social"
+        | "trabajadora_social"
         | "director"
+        | "equipo_profesional"
     }
     CompositeTypes: {
       [_ in never]: never

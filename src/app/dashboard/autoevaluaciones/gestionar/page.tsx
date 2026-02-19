@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Loader2, BookOpen, Shuffle } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Loader2, BookOpen, Shuffle, ClipboardCheck } from 'lucide-react';
 import Link from 'next/link';
 
 interface Plantilla {
@@ -118,7 +118,8 @@ function GestionarPlantillasContent() {
     lenguaje: 'Lenguaje y Vocabulario',
     grafismo: 'Grafismo y Motricidad Fina',
     lectura_escritura: 'Lectura y Escritura',
-    matematicas: 'Nociones Matemáticas'
+    matematicas: 'Nociones Matemáticas',
+    mixta: 'Múltiples Áreas',
   };
 
   if (!tienePermiso && perfil) {
@@ -190,6 +191,23 @@ function GestionarPlantillasContent() {
               <span className="font-outfit font-semibold text-white text-sm">Crear desde Banco</span>
               <p className="text-xs text-white/80 font-outfit">Asignar preguntas aleatorias por área</p>
             </div>
+          </Link>
+        </div>
+
+        {/* Revisar Respuestas */}
+        <div className="mb-6">
+          <Link
+            href="/dashboard/autoevaluaciones/gestionar/revisar"
+            className="flex items-center gap-4 px-6 py-4 min-h-[56px] bg-white/60 backdrop-blur-md border border-amber-200/40 rounded-2xl hover:shadow-[0_8px_24px_rgba(245,158,11,0.15)] transition-all active:scale-95"
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0">
+              <ClipboardCheck className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <span className="font-outfit font-semibold text-neutro-carbon text-sm">Revisar Respuestas</span>
+              <p className="text-xs text-neutro-piedra font-outfit">Corregir respuestas de texto libre y ver resultados</p>
+            </div>
+            <ArrowLeft className="w-5 h-5 text-neutro-piedra rotate-180" />
           </Link>
         </div>
 
