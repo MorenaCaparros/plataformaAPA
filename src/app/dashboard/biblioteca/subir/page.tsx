@@ -16,7 +16,8 @@ export default function SubirDocumentoPage() {
     titulo: '',
     autor: '',
     tipo: 'guia' as 'paper' | 'guia' | 'manual',
-    descripcion: ''
+    descripcion: '',
+    tags: ''
   });
   const [file, setFile] = useState<File | null>(null);
 
@@ -56,6 +57,10 @@ export default function SubirDocumentoPage() {
       data.append('autor', formData.autor);
       data.append('tipo', formData.tipo);
       data.append('descripcion', formData.descripcion);
+      // Tags manuales opcionales (si el usuario los ingresó, se usan; si no, la IA los genera sola)
+      if (formData.tags.trim()) {
+        data.append('tags', formData.tags);
+      }
 
       // Simular progreso inicial
       setProgressPercent(10);
@@ -193,6 +198,36 @@ export default function SubirDocumentoPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
                 placeholder="Breve resumen del contenido..."
               />
+            </div>
+
+            {/* Tags manuales */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tags / palabras clave (opcional)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Separalas con coma. Si las dejás vacías, la IA las genera automáticamente al finalizar el procesamiento.
+              </p>
+              <input
+                type="text"
+                value={formData.tags}
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400"
+                placeholder="ej: lectura, fonemas, dislexia, escritura..."
+              />
+              {/* Preview de tags */}
+              {formData.tags.trim() && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.tags.split(',').map((t) => t.trim()).filter((t) => t.length > 1).map((tag, i) => (
+                    <span
+                      key={i}
+                      className="px-2 py-0.5 rounded-full text-xs font-medium bg-crecimiento-100 text-crecimiento-800 border border-crecimiento-200"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Archivo */}

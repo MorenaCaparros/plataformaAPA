@@ -97,8 +97,8 @@ export async function POST() {
       .insert({
         usuario_id: user.id,
         tipo: 'recordatorio_capacitacion',
-        titulo: '📚 Capacitaciones pendientes',
-        mensaje: `Tenés capacitaciones pendientes en: ${areasTexto}. Completalas para poder registrar sesiones con tus niños.`,
+        titulo: '📚 Capacitaciones sugeridas',
+        mensaje: `Tenés capacitaciones opcionales disponibles en: ${areasTexto}. Completarlas puede ayudarte a mejorar tus habilidades con los niños.`,
         enlace: '/dashboard/capacitaciones',
         leida: false,
       });

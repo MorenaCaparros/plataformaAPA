@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     let autor = formData.get('autor') as string;
     const tipo = formData.get('tipo') as string;
     const descripcion = formData.get('descripcion') as string;
+    const tagsRaw = formData.get('tags') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'Archivo requerido' }, { status: 400 });
@@ -47,6 +48,11 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Metadata:', { titulo, autor });
 
+    // Tags manuales opcionales (si se enviaron desde el formulario)
+    const tagsManuales: string[] = tagsRaw
+      ? tagsRaw.split(',').map((t) => t.trim().toLowerCase()).filter((t) => t.length > 1).slice(0, 10)
+      : [];
+
     // Crear registro del documento
     const { data: documento, error: docError } = await supabase
       .from('documentos')
@@ -55,6 +61,7 @@ export async function POST(request: NextRequest) {
         autor,
         tipo,
         contenido: textoLimpio,
+        tags: tagsManuales,
         metadata: {
           descripcion: descripcion || null,
           nombre_archivo: file.name,
@@ -88,6 +95,25 @@ export async function POST(request: NextRequest) {
       autor: documento.autor,
       chunks: chunks.length
     });
+
+    // Auto-generar tags con IA en background SOLO si el usuario no los puso manualmente
+    // (no bloqueante — un fallo en los tags no rompe el upload)
+    if (tagsManuales.length === 0) {
+      try {
+        const baseUrl = request.nextUrl.origin;
+        const cookieHeader = request.headers.get('cookie') || '';
+        fetch(`${baseUrl}/api/documentos/autotag`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'cookie': cookieHeader
+          },
+          body: JSON.stringify({ documentoId: documento.id })
+        }).catch((e) => console.warn('Auto-tag background task failed:', e));
+      } catch (tagErr) {
+        console.warn('No se pudo iniciar auto-tag:', tagErr);
+      }
+    }
 
     return NextResponse.json({
       success: true,

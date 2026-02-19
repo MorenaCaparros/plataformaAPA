@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
-    const { pregunta, tipo = 'biblioteca', ninoId, sesionIds } = await request.json();
+    const { pregunta, tipo = 'biblioteca', ninoId, sesionIds, tags: tagsFiltro } = await request.json();
 
     if (!pregunta) {
       return NextResponse.json({ error: 'Pregunta requerida' }, { status: 400 });
@@ -75,36 +75,64 @@ ${listaNinos}
         }
       }
 
-      // Primero: Obtener lista completa de documentos
-      const { data: todosDocumentos, error: listError } = await supabase
+      // Primero: Obtener lista de documentos (con filtro por tags si viene)
+      let docQuery = supabase
         .from('documentos')
-        .select('id, titulo, autor, tipo, metadata')
+        .select('id, titulo, autor, tipo, metadata, tags')
         .order('subido_at', { ascending: false });
+
+      // Si hay filtro de tags activo: solo traer docs que contengan ALGUNO de esos tags
+      // Esto reduce el contexto enviado a Gemini y ahorra tokens significativamente
+      if (tagsFiltro && Array.isArray(tagsFiltro) && tagsFiltro.length > 0) {
+        // El operador && en pgvector/postgres arrays = "contiene alguno de"
+        docQuery = docQuery.overlaps('tags', tagsFiltro);
+      }
+
+      const { data: todosDocumentos, error: listError } = await docQuery;
 
       if (listError) {
         console.error('Error al listar documentos:', listError);
       }
 
-      // Lista de documentos disponibles
+      // Lista de documentos disponibles (ya filtrada por tags si aplica)
       const listaDocumentos = todosDocumentos && todosDocumentos.length > 0
-        ? todosDocumentos.map((doc: any, i: number) => 
-            `${i + 1}. "${doc.titulo}" - ${doc.autor} (${doc.tipo})`
-          ).join('\n')
-        : 'No hay documentos en la biblioteca.';
+        ? todosDocumentos.map((doc: any, i: number) => {
+            const tagsStr = doc.tags && doc.tags.length > 0 ? ` [${doc.tags.join(', ')}]` : '';
+            return `${i + 1}. "${doc.titulo}" - ${doc.autor} (${doc.tipo})${tagsStr}`;
+          }).join('\n')
+        : tagsFiltro?.length > 0
+          ? `No hay documentos con los tags: ${tagsFiltro.join(', ')}`
+          : 'No hay documentos en la biblioteca.';
 
-      // Segundo: Búsqueda semántica en los chunks
+      // Segundo: Búsqueda semántica — restringida a los docs del filtro si hay tags
       const queryEmbedding = await generateEmbedding(pregunta);
 
-      const { data: chunks, error: searchError } = await supabase
-        .rpc('match_documents', {
+      // Si hay filtro de tags y tenemos IDs concretos, pasarlos al RPC para restringir la búsqueda
+      const documentoIds = todosDocumentos?.map((d: any) => d.id) || [];
+
+      let chunks = null;
+      let searchError = null;
+
+      if (documentoIds.length > 0) {
+        // Búsqueda vectorial limitada a los docs filtrados
+        const rpcResult = await supabase.rpc('match_documents', {
           query_embedding: JSON.stringify(queryEmbedding),
           match_threshold: 0.65,
-          match_count: 8
+          match_count: tagsFiltro?.length > 0 ? 6 : 8  // menos chunks si ya filtramos por tag
         });
+        chunks = rpcResult.data;
+        searchError = rpcResult.error;
+
+        // Si hay filtro activo, descartar chunks de documentos no incluidos
+        if (tagsFiltro?.length > 0 && chunks) {
+          chunks = chunks.filter((c: any) =>
+            documentoIds.includes(c.documento_id || c.documento?.id)
+          );
+        }
+      }
 
       if (searchError) {
         console.error('Error en búsqueda vectorial:', searchError);
-        // No lanzar error, continuar sin chunks
       }
 
       // Formatear fragmentos relevantes
@@ -119,9 +147,13 @@ ${chunk.texto}
         : '';
 
       // Construir prompt enriquecido
-      const promptEnriquecido = `${PROMPT_CHAT_BIBLIOTECA}
+      const filtroTagsInfo = tagsFiltro?.length > 0
+        ? `\n⚠️ NOTA: La búsqueda está FILTRADA por los tags: [${tagsFiltro.join(', ')}]. Solo considerá los documentos listados abajo.\n`
+        : '';
 
-DOCUMENTOS DISPONIBLES EN LA BIBLIOTECA:
+      const promptEnriquecido = `${PROMPT_CHAT_BIBLIOTECA}
+${filtroTagsInfo}
+DOCUMENTOS DISPONIBLES EN LA BIBLIOTECA${tagsFiltro?.length > 0 ? ` (filtrados por tags: ${tagsFiltro.join(', ')})` : ''}:
 ${listaDocumentos}
 
 ${fragmentosRelevantes ? `FRAGMENTOS RELEVANTES PARA LA CONSULTA:\n${fragmentosRelevantes}` : 'No se encontraron fragmentos específicamente relevantes, pero podés consultar los documentos listados arriba.'}
@@ -146,7 +178,8 @@ INSTRUCCIONES:
           titulo: c.documento.titulo,
           autor: c.documento.autor
         })) || [],
-        totalDocumentos: todosDocumentos?.length || 0
+        totalDocumentos: todosDocumentos?.length || 0,
+        filtradoPorTags: tagsFiltro?.length > 0 ? tagsFiltro : null
       });
     }
 

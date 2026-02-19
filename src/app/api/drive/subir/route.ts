@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     const archivo = formData.get('file') as File;
     const carpetaId = formData.get('folderId') as string;
     const nombreArchivo = formData.get('fileName') as string;
+    const descripcion = formData.get('description') as string | null;
+    const tags = formData.get('tags') as string | null;
 
     if (!archivo) {
       return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
@@ -36,10 +38,17 @@ export async function POST(req: NextRequest) {
     stream.push(null);
 
     // 5. Subir el archivo
+    // Guardar descripción y tags como appProperties de Drive (metadata custom)
+    const appProperties: Record<string, string> = {};
+    if (descripcion) appProperties.descripcion = descripcion.slice(0, 500);
+    if (tags) appProperties.tags = tags.slice(0, 500);
+
     const response = await drive.files.create({
       requestBody: {
         name: nombreArchivo || archivo.name,
         parents: carpetaId ? [carpetaId] : [],
+        description: descripcion || undefined,
+        ...(Object.keys(appProperties).length > 0 ? { appProperties } : {}),
       },
       media: {
         mimeType: archivo.type,

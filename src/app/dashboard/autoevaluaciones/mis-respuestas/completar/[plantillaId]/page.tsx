@@ -405,6 +405,15 @@ export default function CompletarAutoevaluacionPage() {
       // Determinar si tiene preguntas de texto sin corregir
       const tienePreguntasManuales = resultadosPorPregunta.some(r => r.esCorrecta === null);
 
+      // Si NO hay preguntas manuales, auto-aprobar/reprobar según porcentaje
+      // Si hay preguntas manuales, dejar en 'completada' para revisión manual
+      let estadoFinal: string;
+      if (tienePreguntasManuales) {
+        estadoFinal = 'completada'; // Needs manual review
+      } else {
+        estadoFinal = porcentaje >= 70 ? 'aprobada' : 'reprobada';
+      }
+
       if (respuestaExistente) {
         // Delete old individual responses and recreate
         await supabase
@@ -425,11 +434,11 @@ export default function CompletarAutoevaluacionPage() {
             });
         }
 
-        // Mark as completed
+        // Mark with appropriate estado
         const { error } = await supabase
           .from('voluntarios_capacitaciones')
           .update({
-            estado: tienePreguntasManuales ? 'completada' : 'completada',
+            estado: estadoFinal,
             fecha_completado: new Date().toISOString(),
             puntaje_final: puntajeFinal,
             puntaje_maximo: 10,
@@ -439,13 +448,13 @@ export default function CompletarAutoevaluacionPage() {
 
         if (error) throw error;
       } else {
-        // Create new completed record
+        // Create new record with appropriate estado
         const { data, error } = await supabase
           .from('voluntarios_capacitaciones')
           .insert({
             voluntario_id: perfil.id,
             capacitacion_id: plantilla.id,
-            estado: 'completada',
+            estado: estadoFinal,
             fecha_inicio: new Date().toISOString(),
             fecha_completado: new Date().toISOString(),
             puntaje_final: puntajeFinal,

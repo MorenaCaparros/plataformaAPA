@@ -70,8 +70,11 @@ export default function PsicopedagogiaDashboard() {
         }
       });
 
-      // Planes activos (planes_intervencion no longer exists in new schema)
-      const planesActivos = 0;
+      // Planes activos
+      const { count: planesActivos } = await supabase
+        .from('planes_intervencion')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado', 'activo');
 
       // Sesiones este mes
       const inicioMes = new Date();

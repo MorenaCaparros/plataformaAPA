@@ -214,13 +214,13 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
       const haCompletadoAlgunaAutoeval = (completadas || []).length > 0;
 
-      // 3. Get autoevaluación puntaje (most recent completed)
+      // 3. Get autoevaluación puntaje (best score across all attempts)
       const { data: volCaps } = await supabase
         .from('voluntarios_capacitaciones')
         .select('puntaje_final, puntaje_maximo, porcentaje, capacitacion_id')
         .eq('voluntario_id', userId)
         .in('estado', ['completada', 'aprobada', 'reprobada'])
-        .order('fecha_completado', { ascending: false })
+        .order('porcentaje', { ascending: false })
         .limit(1);
 
       const autoevalResult = volCaps?.[0] || null;
@@ -342,8 +342,13 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
     ultima_sesion: null
   };
 
-  // Volunteer is blocked from operations if they need capacitación
-  const operacionBloqueada = !!(trainingStatus?.necesitaCapacitacion && trainingStatus.haCompletadoAlgunaAutoeval);
+  // Capacitación is OPTIONAL — volunteer is NOT blocked from operating.
+  // They can still register sessions even if they didn't score 100%.
+  // The only real block: they haven't completed ANY autoevaluación yet.
+  const operacionBloqueada = false;
+  
+  // Areas where score < 100% → suggest (not require) capacitación  
+  const tieneCapacitacionesSugeridas = !!(trainingStatus?.necesitaCapacitacion && trainingStatus.haCompletadoAlgunaAutoeval);
 
   // Check for active session timer (runs after data is available)
   useEffect(() => {
@@ -527,47 +532,43 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
         </Link>
       )}
 
-      {/* 🔴 Training Gate — Necesita capacitación (score no perfecto) */}
-      {trainingStatus?.necesitaCapacitacion && trainingStatus.haCompletadoAlgunaAutoeval && (
-        <div className="w-full bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-2 border-red-300 rounded-2xl p-5 sm:p-6 shadow-lg relative overflow-hidden">
-          {/* Decorative blocked icon */}
-          <div className="absolute -right-4 -top-4 opacity-[0.06] pointer-events-none">
-            <span className="text-[120px]">🚫</span>
-          </div>
+      {/* 💡 Training Suggestion — Capacitaciones opcionales para áreas < 100% */}
+      {tieneCapacitacionesSugeridas && (
+        <div className="w-full bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/60 rounded-2xl p-5 sm:p-6 shadow-md relative overflow-hidden">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 border border-red-200">
-              <span className="text-2xl">⛔</span>
+            <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 border border-amber-200">
+              <span className="text-2xl">📚</span>
             </div>
             <div className="flex-1">
-              <p className="font-bold text-red-900 text-base sm:text-lg">
-                Operación bloqueada — Capacitación requerida
+              <p className="font-bold text-amber-900 text-base sm:text-lg">
+                Capacitaciones sugeridas
               </p>
-              <p className="text-sm text-red-700 mt-1 leading-relaxed">
+              <p className="text-sm text-amber-700 mt-1 leading-relaxed">
                 Tu puntaje en las siguientes áreas no fue perfecto en la autoevaluación. 
-                No podés registrar sesiones ni operar con niños hasta completar las capacitaciones correspondientes.
+                Podés completar capacitaciones opcionales para mejorar tus habilidades.
               </p>
               <div className="flex flex-wrap gap-1.5 mt-3">
-                {trainingStatus.areasPendientes.map((area) => (
+                {trainingStatus!.areasPendientes.map((area) => (
                   <span
                     key={area}
-                    className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-red-100 text-red-800 border border-red-300/60"
+                    className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300/60"
                   >
-                    ⚠️ {AREA_LABELS[area] || area}
+                    💡 {AREA_LABELS[area] || area}
                   </span>
                 ))}
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
                   href="/dashboard/capacitaciones"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition-all active:scale-95 shadow-md hover:shadow-lg"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-sm transition-all active:scale-95 shadow-md hover:shadow-lg"
                 >
-                  📚 Completar Capacitaciones
+                  📚 Ver Capacitaciones
                 </Link>
                 <Link
                   href="/dashboard/autoevaluaciones"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-red-50 text-red-700 border border-red-200 rounded-xl font-semibold text-sm transition-all active:scale-95"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-semibold text-sm transition-all active:scale-95"
                 >
-                  📋 Ver Autoevaluaciones
+                  📋 Reintentar Autoevaluación
                 </Link>
               </div>
             </div>
@@ -660,7 +661,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                       </div>
                       {necesita && (
                         <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 font-medium">
-                          Capacitación pendiente
+                          Capacitación sugerida
                         </p>
                       )}
                     </div>

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { supabase } from '@/lib/supabase/client';
 
 interface Message {
   id: string;
@@ -12,6 +13,20 @@ interface Message {
   timestamp: Date;
   fuentes?: Array<{ titulo: string; autor: string }>;
   totalDocumentos?: number;
+  filtradoPorTags?: string[] | null;
+}
+
+const TAG_COLORS = [
+  'bg-sol-100 text-sol-800 border-sol-200',
+  'bg-crecimiento-100 text-crecimiento-800 border-crecimiento-200',
+  'bg-impulso-100 text-impulso-800 border-impulso-200',
+  'bg-blue-100 text-blue-800 border-blue-200',
+  'bg-purple-100 text-purple-800 border-purple-200',
+  'bg-teal-100 text-teal-800 border-teal-200',
+  'bg-orange-100 text-orange-800 border-orange-200',
+];
+function tagColor(tag: string) {
+  return TAG_COLORS[tag.charCodeAt(0) % TAG_COLORS.length];
 }
 
 export default function ChatBibliotecaPage() {
@@ -19,7 +34,7 @@ export default function ChatBibliotecaPage() {
     {
       id: '0',
       role: 'assistant',
-      content: '¡Hola! Soy tu asistente de la Biblioteca Psicopedagógica. Podés preguntarme sobre los documentos disponibles y te responderé con referencias exactas. ¿En qué puedo ayudarte?',
+      content: '¡Hola! Soy tu asistente de la Biblioteca Psicopedagógica. Podés preguntarme sobre los documentos disponibles y te responderé con referencias exactas.\n\n💡 **Tip:** Filtrá por tags para obtener respuestas más precisas y ahorrar tokens de IA. ¿En qué puedo ayudarte?',
       timestamp: new Date()
     }
   ]);
@@ -27,9 +42,32 @@ export default function ChatBibliotecaPage() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Tags disponibles en la biblioteca
+  const [todosLosTags, setTodosLosTags] = useState<string[]>([]);
+  const [tagsSeleccionados, setTagsSeleccionados] = useState<string[]>([]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    // Cargar todos los tags únicos de la biblioteca
+    supabase
+      .from('documentos')
+      .select('tags')
+      .then(({ data }: { data: Array<{ tags: string[] | null }> | null }) => {
+        if (data) {
+          const todos = [...new Set(data.flatMap((d: any) => d.tags || []))].sort();
+          setTodosLosTags(todos as string[]);
+        }
+      });
+  }, []);
+
+  const toggleTag = (tag: string) => {
+    setTagsSeleccionados((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +76,7 @@ export default function ChatBibliotecaPage() {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: input + (tagsSeleccionados.length > 0 ? `\n\n_[Filtrado por tags: ${tagsSeleccionados.join(', ')}]_` : ''),
       timestamp: new Date()
     };
 
@@ -47,15 +85,13 @@ export default function ChatBibliotecaPage() {
     setLoading(true);
 
     try {
-      // Llamar al API endpoint
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pregunta: input,
-          tipo: 'biblioteca'
+          tipo: 'biblioteca',
+          tags: tagsSeleccionados.length > 0 ? tagsSeleccionados : undefined
         })
       });
 
@@ -66,26 +102,25 @@ export default function ChatBibliotecaPage() {
 
       const data = await response.json();
 
-      // Agregar respuesta
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.respuesta,
         timestamp: new Date(),
         fuentes: data.fuentes || [],
-        totalDocumentos: data.totalDocumentos
+        totalDocumentos: data.totalDocumentos,
+        filtradoPorTags: data.filtradoPorTags
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
       console.error('Error:', error);
-      const errorMessage: Message = {
+      setMessages((prev) => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: '❌ Hubo un error al procesar tu pregunta. Por favor intentá de nuevo.',
         timestamp: new Date()
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      }]);
     } finally {
       setLoading(false);
     }
@@ -106,6 +141,45 @@ export default function ChatBibliotecaPage() {
         </div>
       </nav>
 
+      {/* Tag filter bar */}
+      {todosLosTags.length > 0 && (
+        <div className="bg-white border-b border-gray-100 py-2 px-4">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium shrink-0">
+                🏷️ Filtrar por tema:
+              </span>
+              {todosLosTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    tagsSeleccionados.includes(tag)
+                      ? tagColor(tag) + ' ring-2 ring-offset-1 ring-gray-400 shadow-sm'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  {tagsSeleccionados.includes(tag) ? '✓ ' : ''}{tag}
+                </button>
+              ))}
+              {tagsSeleccionados.length > 0 && (
+                <button
+                  onClick={() => setTagsSeleccionados([])}
+                  className="text-xs text-gray-400 hover:text-gray-700 underline ml-1"
+                >
+                  limpiar
+                </button>
+              )}
+            </div>
+            {tagsSeleccionados.length > 0 && (
+              <p className="text-xs text-crecimiento-700 mt-1 font-medium">
+                ⚡ Modo enfocado activo — la IA solo consultará documentos con tags: <b>{tagsSeleccionados.join(', ')}</b> (ahorra tokens)
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-3 sm:space-y-4">
@@ -124,18 +198,14 @@ export default function ChatBibliotecaPage() {
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0">
                     {message.role === 'user' ? (
-                      <div className="w-8 h-8 rounded-full bg-crecimiento-500 flex items-center justify-center text-white font-bold">
-                        U
-                      </div>
+                      <div className="w-8 h-8 rounded-full bg-crecimiento-600 flex items-center justify-center text-white font-bold text-sm">U</div>
                     ) : (
-                      <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                      </svg>
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-xl">🧠</div>
                     )}
                   </div>
                   <div className="flex-1 overflow-hidden">
                     {message.role === 'user' ? (
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                      <p className="whitespace-pre-wrap text-sm">{message.content}</p>
                     ) : (
                       <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-bold prose-p:my-2 prose-ul:my-2 prose-li:my-1">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -143,33 +213,37 @@ export default function ChatBibliotecaPage() {
                         </ReactMarkdown>
                       </div>
                     )}
-                    
-                    {/* Mostrar fuentes si las hay */}
+
+                    {/* Fuentes */}
                     {message.role === 'assistant' && message.fuentes && message.fuentes.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-gray-200">
                         <p className="text-xs font-semibold text-gray-600 mb-1">📚 Fuentes consultadas:</p>
                         <ul className="text-xs text-gray-600 space-y-1">
                           {message.fuentes.map((fuente, idx) => (
-                            <li key={idx}>• {fuente.titulo} - {fuente.autor}</li>
+                            <li key={idx}>• {fuente.titulo} — {fuente.autor}</li>
                           ))}
                         </ul>
                       </div>
                     )}
 
-                    {/* Mostrar total de documentos disponibles */}
-                    {message.role === 'assistant' && message.totalDocumentos !== undefined && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        💡 {message.totalDocumentos} documento{message.totalDocumentos !== 1 ? 's' : ''} disponible{message.totalDocumentos !== 1 ? 's' : ''} en la biblioteca
-                      </p>
+                    {/* Info del contexto */}
+                    {message.role === 'assistant' && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        {message.totalDocumentos !== undefined && (
+                          <span className="text-xs text-gray-400">
+                            💡 {message.totalDocumentos} doc{message.totalDocumentos !== 1 ? 's' : ''} consultado{message.totalDocumentos !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {message.filtradoPorTags && message.filtradoPorTags.length > 0 && (
+                          <span className="text-xs text-crecimiento-600 font-medium">
+                            ⚡ Filtrado por: {message.filtradoPorTags.join(', ')}
+                          </span>
+                        )}
+                      </div>
                     )}
 
-                    <p className={`text-xs mt-2 ${
-                      message.role === 'user' ? 'text-crecimiento-100' : 'text-gray-400'
-                    }`}>
-                      {message.timestamp.toLocaleTimeString('es-AR', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                    <p className={`text-xs mt-1 ${message.role === 'user' ? 'text-crecimiento-100' : 'text-gray-400'}`}>
+                      {message.timestamp.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>
@@ -181,11 +255,11 @@ export default function ChatBibliotecaPage() {
             <div className="flex justify-start">
               <div className="bg-white shadow-sm border border-gray-200 rounded-lg px-4 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">🤖</span>
+                  <span className="text-2xl">🧠</span>
                   <div className="flex gap-1">
-                    <span className="animate-bounce">●</span>
-                    <span className="animate-bounce delay-100">●</span>
-                    <span className="animate-bounce delay-200">●</span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:'0.1s'}}></span>
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:'0.2s'}}></span>
                   </div>
                 </div>
               </div>
@@ -227,7 +301,9 @@ export default function ChatBibliotecaPage() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Preguntá sobre los documentos..."
+              placeholder={tagsSeleccionados.length > 0
+                ? `Preguntá sobre: ${tagsSeleccionados.join(', ')}...`
+                : 'Preguntá sobre los documentos...'}
               className="flex-1 px-3 sm:px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
               disabled={loading}
             />
@@ -241,7 +317,9 @@ export default function ChatBibliotecaPage() {
           </form>
 
           <p className="text-xs text-gray-500 mt-2 hidden sm:block">
-            📚 El asistente conoce TODOS los documentos de la biblioteca y cita las fuentes
+            {tagsSeleccionados.length > 0
+              ? `⚡ Modo enfocado: solo busca en documentos con tags [${tagsSeleccionados.join(', ')}] — menos tokens, más precisión`
+              : '📚 El asistente conoce todos los documentos de la biblioteca y cita las fuentes'}
           </p>
         </div>
       </div>

@@ -17,6 +17,7 @@ import {
   UserCircleIcon,
   UserGroupIcon,
   ClipboardDocumentCheckIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -33,6 +34,7 @@ const navigation: NavItem[] = [
   { name: 'Asistencia', href: '/dashboard/asistencia', icon: ClipboardDocumentCheckIcon },
   { name: 'Autoevaluaciones', href: '/dashboard/autoevaluaciones', icon: AcademicCapIcon },
   { name: 'Biblioteca', href: '/dashboard/biblioteca', icon: BookOpenIcon },
+  { name: 'Módulo IA', href: '/dashboard/ia', icon: SparklesIcon, roles: ['director', 'psicopedagogia', 'equipo_profesional'] },
   { name: 'Usuarios', href: '/dashboard/usuarios', icon: UserGroupIcon, roles: ['director', 'admin', 'psicopedagogia', 'equipo_profesional'] },
   { name: 'Mi Perfil', href: '/dashboard/mi-perfil', icon: UserCircleIcon },
   { name: 'Configuración', href: '/dashboard/configuracion', icon: Cog6ToothIcon, roles: ['director', 'admin'] },

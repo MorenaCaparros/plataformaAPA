@@ -332,10 +332,10 @@ export default function PerfilVoluntarioPage() {
               <AlertTriangle className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <h3 className="font-quicksand font-bold text-amber-900 mb-1">Capacitación requerida</h3>
+              <h3 className="font-quicksand font-bold text-amber-900 mb-1">Capacitaciones sugeridas</h3>
               <p className="text-sm text-amber-700 font-outfit">
-                Este voluntario no obtuvo puntaje perfecto en todas las áreas de autoevaluación. Debe completar capacitaciones
-                en las áreas débiles antes de poder operar.
+                Este voluntario no obtuvo puntaje perfecto en todas las áreas de autoevaluación. Se sugieren capacitaciones
+                opcionales en las siguientes áreas para mejorar sus habilidades.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {scores.filter(s => s.necesita_capacitacion).map(s => (
@@ -520,7 +520,7 @@ export default function PerfilVoluntarioPage() {
                         </span>
                         {score.necesita_capacitacion && (
                           <span className="text-xs text-amber-600 font-outfit font-medium">
-                            Requiere capacitación
+                            Capacitación sugerida
                           </span>
                         )}
                       </div>
