@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
-import { ArrowLeft, Save, Send, Star, Check, X, Clock, Users } from 'lucide-react';
+import { ArrowLeft, Save, Send, Star, Check, X, Clock, Users, GripVertical } from 'lucide-react';
 
 interface OpcionPregunta {
   id: string;
@@ -17,11 +17,13 @@ interface OpcionPregunta {
 interface Pregunta {
   id: string;
   texto: string;
-  tipo: 'escala_1_5' | 'si_no' | 'texto_abierto' | 'multiple_choice';
+  tipo: 'escala_1_5' | 'si_no' | 'texto_abierto' | 'multiple_choice' | 'ordenar_palabras' | 'respuesta_imagen';
   categoria: string;
   opciones: OpcionPregunta[];
   respuesta_correcta: string;
   puntaje: number;
+  imagen_url: string;
+  datos_extra: any;
 }
 
 interface Plantilla {
@@ -89,7 +91,7 @@ export default function CompletarAutoevaluacionPage() {
         .select(`
           *,
           preguntas_db:preguntas_capacitacion(
-            id, orden, pregunta, tipo_pregunta, puntaje, respuesta_correcta,
+            id, orden, pregunta, tipo_pregunta, puntaje, respuesta_correcta, imagen_url, datos_extra,
             opciones:opciones_pregunta(id, orden, texto_opcion, es_correcta)
           )
         `)
@@ -111,6 +113,8 @@ export default function CompletarAutoevaluacionPage() {
             if (p.tipo_pregunta === 'verdadero_falso') tipo = 'si_no';
             else if (p.tipo_pregunta === 'texto_libre') tipo = 'texto_abierto';
             else if (p.tipo_pregunta === 'multiple_choice') tipo = 'multiple_choice';
+            else if (p.tipo_pregunta === 'ordenar_palabras') tipo = 'ordenar_palabras';
+            else if (p.tipo_pregunta === 'respuesta_imagen') tipo = 'respuesta_imagen';
             return {
               id: p.id,
               texto: p.pregunta,
@@ -119,6 +123,8 @@ export default function CompletarAutoevaluacionPage() {
               opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
               respuesta_correcta: p.respuesta_correcta || '',
               puntaje: p.puntaje || 10,
+              imagen_url: p.imagen_url || '',
+              datos_extra: p.datos_extra || null,
             };
           }),
       };
@@ -307,6 +313,26 @@ export default function CompletarAutoevaluacionPage() {
             // Texto libre: no se puede corregir automáticamente, asignar puntaje parcial
             esCorrecta = null; // Requiere revisión manual
             puntajeObtenido = 0; // Se asigna manualmente después
+            break;
+          }
+          case 'ordenar_palabras': {
+            // Comparar orden: respuesta_correcta es "palabra1|palabra2|palabra3"
+            const ordenCorrecto = pregunta.respuesta_correcta.split('|').map(w => w.trim().toLowerCase());
+            const respVol = String(respuestaVoluntario).split('|').map(w => w.trim().toLowerCase());
+            esCorrecta = JSON.stringify(ordenCorrecto) === JSON.stringify(respVol);
+            puntajeObtenido = esCorrecta ? puntajeMax : 0;
+            break;
+          }
+          case 'respuesta_imagen': {
+            // Same as multiple_choice: compare selected option with correct
+            const respVolImg = String(respuestaVoluntario).trim().toLowerCase();
+            const opcionCorrectaImg = pregunta.opciones.find(o => o.es_correcta);
+            if (opcionCorrectaImg) {
+              esCorrecta = respVolImg === opcionCorrectaImg.texto_opcion.trim().toLowerCase();
+            } else {
+              esCorrecta = respVolImg === pregunta.respuesta_correcta.trim().toLowerCase();
+            }
+            puntajeObtenido = esCorrecta ? puntajeMax : 0;
             break;
           }
         }
@@ -644,6 +670,122 @@ export default function CompletarAutoevaluacionPage() {
                         <span className="font-medium">{opcion.texto_opcion}</span>
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {/* Tipo: Ordenar palabras */}
+                {pregunta.tipo === 'ordenar_palabras' && (() => {
+                  const palabrasCorrectas = pregunta.datos_extra?.palabras || pregunta.respuesta_correcta?.split('|') || [];
+                  // Shuffle for display (deterministic based on pregunta.id if not answered yet)
+                  const currentOrder: string[] = respuestas[pregunta.id]
+                    ? String(respuestas[pregunta.id]).split('|')
+                    : [...palabrasCorrectas].sort(() => 0.5 - Math.random());
+
+                  // Initialize if not set
+                  if (!respuestas[pregunta.id] && currentOrder.length > 0) {
+                    // Don't auto-set here, let user interact
+                  }
+
+                  const moveWord = (fromIdx: number, toIdx: number) => {
+                    const newOrder = [...currentOrder];
+                    const [moved] = newOrder.splice(fromIdx, 1);
+                    newOrder.splice(toIdx, 0, moved);
+                    handleRespuesta(pregunta.id, newOrder.join('|'));
+                  };
+
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-xs text-neutro-piedra font-outfit text-center">
+                        Tocá las flechas para ordenar las palabras correctamente
+                      </p>
+                      <div className="space-y-2">
+                        {currentOrder.map((palabra, wIdx) => (
+                          <div key={wIdx} className="flex items-center gap-2 bg-white/80 rounded-xl p-3 border border-white/60">
+                            <span className="flex-shrink-0 w-7 h-7 rounded-full bg-sol-100 text-sol-700 flex items-center justify-center text-sm font-bold font-quicksand">
+                              {wIdx + 1}
+                            </span>
+                            <span className="flex-1 font-outfit font-medium text-neutro-carbon">
+                              {palabra}
+                            </span>
+                            <div className="flex flex-col gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => wIdx > 0 && moveWord(wIdx, wIdx - 1)}
+                                disabled={wIdx === 0}
+                                className="p-1 rounded hover:bg-sol-100 text-neutro-piedra disabled:opacity-30 transition-all"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => wIdx < currentOrder.length - 1 && moveWord(wIdx, wIdx + 1)}
+                                disabled={wIdx === currentOrder.length - 1}
+                                className="p-1 rounded hover:bg-sol-100 text-neutro-piedra disabled:opacity-30 transition-all"
+                              >
+                                ▼
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {!respuestas[pregunta.id] && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const shuffled = [...palabrasCorrectas].sort(() => 0.5 - Math.random());
+                            handleRespuesta(pregunta.id, shuffled.join('|'));
+                          }}
+                          className="w-full py-3 bg-sol-100 hover:bg-sol-200 text-sol-700 rounded-xl font-outfit font-medium text-sm transition-all"
+                        >
+                          🔀 Empezar a ordenar
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Tipo: Respuesta con imagen */}
+                {pregunta.tipo === 'respuesta_imagen' && (
+                  <div className="space-y-4">
+                    {pregunta.imagen_url && (
+                      <div className="flex justify-center">
+                        <div className="rounded-2xl overflow-hidden border-2 border-white/60 shadow-md max-w-md">
+                          <img
+                            src={pregunta.imagen_url}
+                            alt="Imagen de la pregunta"
+                            className="w-full max-h-64 object-contain bg-white"
+                            onError={(e) => { (e.target as HTMLImageElement).alt = 'Error al cargar imagen'; }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {pregunta.opciones && (
+                      <div className="space-y-2">
+                        {pregunta.opciones.map((opcion) => (
+                          <button
+                            key={opcion.id}
+                            type="button"
+                            onClick={() => handleRespuesta(pregunta.id, opcion.texto_opcion)}
+                            className={`w-full text-left px-5 py-4 min-h-[52px] rounded-2xl font-outfit transition-all flex items-center gap-3 ${
+                              respuestas[pregunta.id] === opcion.texto_opcion
+                                ? 'bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white shadow-lg'
+                                : 'bg-neutro-nube hover:bg-neutro-carbon/10 text-neutro-carbon'
+                            }`}
+                          >
+                            <div className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                              respuestas[pregunta.id] === opcion.texto_opcion
+                                ? 'border-white bg-white/20'
+                                : 'border-neutro-piedra/40'
+                            }`}>
+                              {respuestas[pregunta.id] === opcion.texto_opcion && (
+                                <div className="w-3 h-3 rounded-full bg-white" />
+                              )}
+                            </div>
+                            <span className="font-medium">{opcion.texto_opcion}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

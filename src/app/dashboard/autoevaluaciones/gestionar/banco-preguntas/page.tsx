@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 type Area = 'lenguaje' | 'grafismo' | 'lectura_escritura' | 'matematicas';
-type TipoPregunta = 'escala' | 'verdadero_falso' | 'texto_libre' | 'multiple_choice';
+type TipoPregunta = 'escala' | 'verdadero_falso' | 'texto_libre' | 'multiple_choice' | 'ordenar_palabras' | 'respuesta_imagen';
 
 interface OpcionPregunta {
   id?: string;
@@ -29,6 +29,8 @@ interface PreguntaBanco {
   orden: number;
   respuesta_correcta: string;
   opciones: OpcionPregunta[];
+  imagen_url: string;
+  datos_extra: any;
   created_at: string;
 }
 
@@ -38,6 +40,8 @@ interface NuevaPregunta {
   area: Area;
   respuesta_correcta: string;
   opciones: OpcionPregunta[];
+  imagen_url: string;
+  datos_extra: any;
 }
 
 const AREAS: { value: Area; label: string; color: string; bg: string }[] = [
@@ -52,6 +56,8 @@ const TIPOS_PREGUNTA: { value: TipoPregunta; label: string; desc: string }[] = [
   { value: 'verdadero_falso', label: 'Sí / No', desc: 'Verdadero o falso' },
   { value: 'multiple_choice', label: 'Selección múltiple', desc: 'Varias opciones, una correcta' },
   { value: 'texto_libre', label: 'Texto abierto', desc: 'Respuesta libre (revisión manual)' },
+  { value: 'ordenar_palabras', label: 'Ordenar palabras', desc: 'Ordenar o unir palabras en el orden correcto' },
+  { value: 'respuesta_imagen', label: 'Respuesta con imagen', desc: 'Pregunta con imagen, el voluntario elige la respuesta' },
 ];
 
 const areaLabels: Record<string, string> = {
@@ -62,7 +68,7 @@ const areaLabels: Record<string, string> = {
 };
 
 function emptyNuevaPregunta(area: Area = 'lenguaje'): NuevaPregunta {
-  return { pregunta: '', tipo_pregunta: 'escala', area, respuesta_correcta: '', opciones: [] };
+  return { pregunta: '', tipo_pregunta: 'escala', area, respuesta_correcta: '', opciones: [], imagen_url: '', datos_extra: null };
 }
 
 export default function BancoPreguntasPage() {
@@ -87,6 +93,8 @@ export default function BancoPreguntasPage() {
   const [editArea, setEditArea] = useState<Area>('lenguaje');
   const [editRespuestaCorrecta, setEditRespuestaCorrecta] = useState('');
   const [editOpciones, setEditOpciones] = useState<OpcionPregunta[]>([]);
+  const [editImagenUrl, setEditImagenUrl] = useState('');
+  const [editDatosExtra, setEditDatosExtra] = useState<any>(null);
 
   const rolesPermitidos = ['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin', 'equipo_profesional'];
   const tienePermiso = perfil?.rol ? rolesPermitidos.includes(perfil.rol) : false;
@@ -123,6 +131,8 @@ export default function BancoPreguntasPage() {
         orden: p.orden,
         respuesta_correcta: p.respuesta_correcta || '',
         opciones: (p.opciones || []).sort((a: any, b: any) => a.orden - b.orden),
+        imagen_url: p.imagen_url || '',
+        datos_extra: p.datos_extra || null,
         created_at: p.created_at,
       }));
 
@@ -154,9 +164,14 @@ export default function BancoPreguntasPage() {
       // Reset respuesta_correcta and opciones when tipo changes
       if (campo === 'tipo_pregunta') {
         updated.respuesta_correcta = '';
-        updated.opciones = valor === 'multiple_choice'
+        updated.imagen_url = '';
+        updated.datos_extra = null;
+        updated.opciones = valor === 'multiple_choice' || valor === 'respuesta_imagen'
           ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
           : [];
+        if (valor === 'ordenar_palabras') {
+          updated.datos_extra = { palabras: ['', '', ''] };
+        }
       }
       return updated;
     }));
@@ -204,7 +219,7 @@ export default function BancoPreguntasPage() {
 
     // Validate respuesta_correcta for non-texto_libre
     for (const p of validas) {
-      if (p.tipo_pregunta === 'multiple_choice') {
+      if (p.tipo_pregunta === 'multiple_choice' || p.tipo_pregunta === 'respuesta_imagen') {
         if (p.opciones.length < 2) {
           alert(`La pregunta "${p.pregunta.substring(0, 40)}..." necesita al menos 2 opciones`);
           return;
@@ -218,7 +233,23 @@ export default function BancoPreguntasPage() {
           return;
         }
       }
-      if (p.tipo_pregunta !== 'texto_libre' && !p.respuesta_correcta.trim()) {
+      if (p.tipo_pregunta === 'ordenar_palabras') {
+        const palabras = p.datos_extra?.palabras || [];
+        if (palabras.filter((w: string) => w.trim()).length < 2) {
+          alert(`La pregunta "${p.pregunta.substring(0, 40)}..." necesita al menos 2 palabras para ordenar`);
+          return;
+        }
+        // respuesta_correcta = palabras en orden correcto separadas por |
+        // Auto-set if empty
+        if (!p.respuesta_correcta.trim()) {
+          p.respuesta_correcta = palabras.filter((w: string) => w.trim()).join('|');
+        }
+      }
+      if (p.tipo_pregunta === 'respuesta_imagen' && !p.imagen_url?.trim()) {
+        alert(`La pregunta "${p.pregunta.substring(0, 40)}..." necesita una URL de imagen`);
+        return;
+      }
+      if (p.tipo_pregunta !== 'texto_libre' && p.tipo_pregunta !== 'ordenar_palabras' && !p.respuesta_correcta.trim()) {
         alert(`La pregunta "${p.pregunta.substring(0, 40)}..." necesita una respuesta correcta`);
         return;
       }
@@ -242,9 +273,13 @@ export default function BancoPreguntasPage() {
           orden: ordenMaxPorArea[p.area],
           pregunta: p.pregunta.trim(),
           tipo_pregunta: p.tipo_pregunta,
-          respuesta_correcta: p.respuesta_correcta,
+          respuesta_correcta: p.tipo_pregunta === 'ordenar_palabras'
+            ? (p.datos_extra?.palabras || []).filter((w: string) => w.trim()).join('|')
+            : p.respuesta_correcta,
           puntaje: 10,
           area_especifica: p.area,
+          imagen_url: p.imagen_url?.trim() || null,
+          datos_extra: p.datos_extra || null,
         };
       });
 
@@ -255,12 +290,12 @@ export default function BancoPreguntasPage() {
 
       if (error) throw error;
 
-      // Insert opciones for multiple_choice
+      // Insert opciones for multiple_choice and respuesta_imagen
       if (insertedPreguntas) {
         for (let i = 0; i < insertedPreguntas.length; i++) {
           const preguntaDB = insertedPreguntas[i];
           const original = validas[i];
-          if (original.tipo_pregunta === 'multiple_choice' && original.opciones.length > 0) {
+          if ((original.tipo_pregunta === 'multiple_choice' || original.tipo_pregunta === 'respuesta_imagen') && original.opciones.length > 0) {
             const opInserts = original.opciones.map((op, idx) => ({
               pregunta_id: preguntaDB.id,
               orden: op.orden ?? idx + 1,
@@ -290,9 +325,11 @@ export default function BancoPreguntasPage() {
     setEditTipo(p.tipo_pregunta);
     setEditArea(p.area);
     setEditRespuestaCorrecta(p.respuesta_correcta);
-    setEditOpciones(p.tipo_pregunta === 'multiple_choice' && p.opciones.length > 0
+    setEditImagenUrl(p.imagen_url || '');
+    setEditDatosExtra(p.datos_extra || (p.tipo_pregunta === 'ordenar_palabras' ? { palabras: p.respuesta_correcta.split('|') } : null));
+    setEditOpciones((p.tipo_pregunta === 'multiple_choice' || p.tipo_pregunta === 'respuesta_imagen') && p.opciones.length > 0
       ? p.opciones.map(o => ({ ...o }))
-      : p.tipo_pregunta === 'multiple_choice'
+      : (p.tipo_pregunta === 'multiple_choice' || p.tipo_pregunta === 'respuesta_imagen')
         ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
         : []);
   };
@@ -321,31 +358,45 @@ export default function BancoPreguntasPage() {
     if (!editandoId || !editTexto.trim()) return;
 
     // Validate
-    if (editTipo === 'multiple_choice') {
+    if (editTipo === 'multiple_choice' || editTipo === 'respuesta_imagen') {
       if (editOpciones.length < 2) { alert('Se necesitan al menos 2 opciones'); return; }
       if (!editOpciones.some(o => o.es_correcta)) { alert('Marcá una opción como correcta'); return; }
       if (editOpciones.some(o => !o.texto_opcion.trim())) { alert('Todas las opciones deben tener texto'); return; }
     }
-    if (editTipo !== 'texto_libre' && !editRespuestaCorrecta.trim()) {
+    if (editTipo === 'ordenar_palabras') {
+      const palabras = editDatosExtra?.palabras || [];
+      if (palabras.filter((w: string) => w.trim()).length < 2) { alert('Se necesitan al menos 2 palabras para ordenar'); return; }
+    }
+    if (editTipo === 'respuesta_imagen' && !editImagenUrl.trim()) {
+      alert('Ingresá la URL de la imagen');
+      return;
+    }
+    if (editTipo !== 'texto_libre' && editTipo !== 'ordenar_palabras' && !editRespuestaCorrecta.trim()) {
       alert('Ingresá la respuesta correcta');
       return;
     }
 
     try {
+      const respCorrecta = editTipo === 'ordenar_palabras'
+        ? (editDatosExtra?.palabras || []).filter((w: string) => w.trim()).join('|')
+        : editRespuestaCorrecta;
+
       const { error } = await supabase
         .from('preguntas_capacitacion')
         .update({
           pregunta: editTexto.trim(),
           tipo_pregunta: editTipo,
           area_especifica: editArea,
-          respuesta_correcta: editRespuestaCorrecta,
+          respuesta_correcta: respCorrecta,
+          imagen_url: editImagenUrl?.trim() || null,
+          datos_extra: editDatosExtra || null,
         })
         .eq('id', editandoId);
 
       if (error) throw error;
 
       // Update opciones
-      if (editTipo === 'multiple_choice') {
+      if (editTipo === 'multiple_choice' || editTipo === 'respuesta_imagen') {
         await supabase.from('opciones_pregunta').delete().eq('pregunta_id', editandoId);
         if (editOpciones.length > 0) {
           const opInserts = editOpciones.map((op, idx) => ({
@@ -423,6 +474,22 @@ export default function BancoPreguntasPage() {
   // --- Helper: render respuesta correcta indicator ---
   const renderRespuestaCorrectaBadge = (p: PreguntaBanco) => {
     if (p.tipo_pregunta === 'texto_libre') return null;
+    if (p.tipo_pregunta === 'ordenar_palabras') {
+      const palabras = p.datos_extra?.palabras || p.respuesta_correcta?.split('|') || [];
+      return (
+        <span className="text-xs text-sol-700 font-outfit px-2 py-0.5 bg-sol-50 rounded-lg border border-sol-200/30 flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3" />
+          {palabras.length} palabras
+        </span>
+      );
+    }
+    if (p.tipo_pregunta === 'respuesta_imagen') {
+      return (
+        <span className="text-xs text-crecimiento-700 font-outfit px-2 py-0.5 bg-crecimiento-50 rounded-lg border border-crecimiento-200/30 flex items-center gap-1">
+          🖼️ Con imagen
+        </span>
+      );
+    }
     if (!p.respuesta_correcta) {
       return (
         <span className="text-xs text-impulso-600 font-outfit px-2 py-0.5 bg-impulso-50 rounded-lg border border-impulso-200/30">
@@ -549,6 +616,113 @@ export default function BancoPreguntasPage() {
         </div>
       );
     }
+    if (np.tipo_pregunta === 'ordenar_palabras') {
+      const palabras = np.datos_extra?.palabras || ['', '', ''];
+      return (
+        <div className="space-y-2">
+          <span className="text-xs text-neutro-piedra font-outfit">
+            Palabras en el orden correcto (el voluntario las recibirá desordenadas):
+          </span>
+          {palabras.map((palabra: string, wIdx: number) => (
+            <div key={wIdx} className="flex items-center gap-2">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-sol-100 flex items-center justify-center text-sol-700 text-xs font-bold">
+                {wIdx + 1}
+              </span>
+              <input
+                type="text"
+                value={palabra}
+                onChange={(e) => {
+                  const newPalabras = [...palabras];
+                  newPalabras[wIdx] = e.target.value;
+                  actualizarNuevaPregunta(index, 'datos_extra', { palabras: newPalabras });
+                }}
+                placeholder={`Palabra ${wIdx + 1}`}
+                className="flex-1 px-3 py-1.5 bg-white border border-neutro-piedra/20 rounded-lg text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+              />
+              {palabras.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newPalabras = palabras.filter((_: string, i: number) => i !== wIdx);
+                    actualizarNuevaPregunta(index, 'datos_extra', { palabras: newPalabras });
+                  }}
+                  className="p-1 text-impulso-500 hover:bg-impulso-50 rounded-lg"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              actualizarNuevaPregunta(index, 'datos_extra', { palabras: [...palabras, ''] });
+            }}
+            className="text-xs text-sol-600 hover:text-sol-700 font-outfit font-medium flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" /> Agregar palabra
+          </button>
+        </div>
+      );
+    }
+    if (np.tipo_pregunta === 'respuesta_imagen') {
+      return (
+        <div className="space-y-3">
+          <div>
+            <span className="text-xs text-neutro-piedra font-outfit block mb-1">URL de la imagen:</span>
+            <input
+              type="url"
+              value={np.imagen_url || ''}
+              onChange={(e) => actualizarNuevaPregunta(index, 'imagen_url', e.target.value)}
+              placeholder="https://ejemplo.com/imagen.jpg"
+              className="w-full px-3 py-2 bg-white border border-neutro-piedra/20 rounded-xl text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+            />
+            {np.imagen_url && (
+              <div className="mt-2 rounded-xl overflow-hidden border border-white/60 max-w-xs">
+                <img src={np.imagen_url} alt="Preview" className="w-full h-32 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <span className="text-xs text-neutro-piedra font-outfit">Opciones de respuesta (marcá la correcta):</span>
+            {np.opciones.map((op, opIdx) => (
+              <div key={opIdx} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => actualizarOpcionNueva(index, opIdx, 'es_correcta', true)}
+                  className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                    op.es_correcta
+                      ? 'bg-crecimiento-400 border-crecimiento-500 text-white'
+                      : 'border-neutro-piedra/30 hover:border-crecimiento-300'
+                  }`}
+                >
+                  {op.es_correcta && <CheckCircle2 className="w-4 h-4" />}
+                </button>
+                <input
+                  type="text"
+                  value={op.texto_opcion}
+                  onChange={(e) => actualizarOpcionNueva(index, opIdx, 'texto_opcion', e.target.value)}
+                  placeholder={`Opción ${opIdx + 1}`}
+                  className="flex-1 px-3 py-1.5 bg-white border border-neutro-piedra/20 rounded-lg text-sm font-outfit focus:ring-2 focus:ring-sol-400"
+                />
+                {np.opciones.length > 2 && (
+                  <button type="button" onClick={() => quitarOpcionNueva(index, opIdx)} className="p-1 text-impulso-500 hover:bg-impulso-50 rounded-lg">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => agregarOpcionNueva(index)}
+              className="text-xs text-crecimiento-600 hover:text-crecimiento-700 font-outfit font-medium flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" /> Agregar opción
+            </button>
+          </div>
+        </div>
+      );
+    }
     return null;
   };
 
@@ -625,6 +799,95 @@ export default function BancoPreguntasPage() {
             className="text-xs text-crecimiento-600 font-outfit font-medium flex items-center gap-1">
             <Plus className="w-3 h-3" /> Agregar opción
           </button>
+        </div>
+      );
+    }
+    if (editTipo === 'ordenar_palabras') {
+      const palabras = editDatosExtra?.palabras || editRespuestaCorrecta?.split('|') || ['', '', ''];
+      return (
+        <div className="space-y-2">
+          <span className="text-xs text-neutro-piedra font-outfit">Palabras en orden correcto:</span>
+          {palabras.map((palabra: string, wIdx: number) => (
+            <div key={wIdx} className="flex items-center gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-sol-100 flex items-center justify-center text-sol-700 text-[10px] font-bold">
+                {wIdx + 1}
+              </span>
+              <input type="text" value={palabra}
+                onChange={(e) => {
+                  const newPalabras = [...palabras];
+                  newPalabras[wIdx] = e.target.value;
+                  setEditDatosExtra({ palabras: newPalabras });
+                }}
+                placeholder={`Palabra ${wIdx + 1}`}
+                className="flex-1 px-2 py-1 bg-white border border-neutro-piedra/20 rounded-lg text-xs font-outfit focus:ring-2 focus:ring-sol-400"
+              />
+              {palabras.length > 2 && (
+                <button type="button"
+                  onClick={() => {
+                    const newPalabras = palabras.filter((_: string, i: number) => i !== wIdx);
+                    setEditDatosExtra({ palabras: newPalabras });
+                  }}
+                  className="p-0.5 text-impulso-500 hover:bg-impulso-50 rounded">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button"
+            onClick={() => setEditDatosExtra({ palabras: [...palabras, ''] })}
+            className="text-xs text-sol-600 font-outfit font-medium flex items-center gap-1">
+            <Plus className="w-3 h-3" /> Agregar palabra
+          </button>
+        </div>
+      );
+    }
+    if (editTipo === 'respuesta_imagen') {
+      return (
+        <div className="space-y-3">
+          <div>
+            <span className="text-xs text-neutro-piedra font-outfit block mb-1">URL de la imagen:</span>
+            <input type="url" value={editImagenUrl}
+              onChange={(e) => setEditImagenUrl(e.target.value)}
+              placeholder="https://ejemplo.com/imagen.jpg"
+              className="w-full px-2 py-1 bg-white border border-neutro-piedra/20 rounded-lg text-xs font-outfit focus:ring-2 focus:ring-sol-400"
+            />
+            {editImagenUrl && (
+              <div className="mt-1 rounded-lg overflow-hidden border border-white/60 max-w-[200px]">
+                <img src={editImagenUrl} alt="Preview" className="w-full h-20 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <span className="text-xs text-neutro-piedra font-outfit">Opciones:</span>
+            {editOpciones.map((op, opIdx) => (
+              <div key={opIdx} className="flex items-center gap-2">
+                <button type="button"
+                  onClick={() => actualizarEditOpcion(opIdx, 'es_correcta', true)}
+                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                    op.es_correcta ? 'bg-crecimiento-400 border-crecimiento-500 text-white' : 'border-neutro-piedra/30'
+                  }`}>
+                  {op.es_correcta && <CheckCircle2 className="w-3.5 h-3.5" />}
+                </button>
+                <input type="text" value={op.texto_opcion}
+                  onChange={(e) => actualizarEditOpcion(opIdx, 'texto_opcion', e.target.value)}
+                  placeholder={`Opción ${opIdx + 1}`}
+                  className="flex-1 px-2 py-1 bg-white border border-neutro-piedra/20 rounded-lg text-xs font-outfit focus:ring-2 focus:ring-sol-400"
+                />
+                {editOpciones.length > 2 && (
+                  <button type="button"
+                    onClick={() => setEditOpciones(prev => prev.filter((_, i) => i !== opIdx).map((o, i) => ({ ...o, orden: i + 1 })))}
+                    className="p-0.5 text-impulso-500 hover:bg-impulso-50 rounded">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button"
+              onClick={() => setEditOpciones(prev => [...prev, { texto_opcion: '', es_correcta: false, orden: prev.length + 1 }])}
+              className="text-xs text-crecimiento-600 font-outfit font-medium flex items-center gap-1">
+              <Plus className="w-3 h-3" /> Agregar opción
+            </button>
+          </div>
         </div>
       );
     }
@@ -892,7 +1155,9 @@ export default function BancoPreguntasPage() {
                                 const newTipo = e.target.value as TipoPregunta;
                                 setEditTipo(newTipo);
                                 setEditRespuestaCorrecta('');
-                                setEditOpciones(newTipo === 'multiple_choice'
+                                setEditImagenUrl('');
+                                setEditDatosExtra(newTipo === 'ordenar_palabras' ? { palabras: ['', '', ''] } : null);
+                                setEditOpciones((newTipo === 'multiple_choice' || newTipo === 'respuesta_imagen')
                                   ? [{ texto_opcion: '', es_correcta: true, orden: 1 }, { texto_opcion: '', es_correcta: false, orden: 2 }]
                                   : []);
                               }}
@@ -943,6 +1208,16 @@ export default function BancoPreguntasPage() {
                                   {p.opciones.length} opciones
                                 </span>
                               )}
+                              {p.tipo_pregunta === 'respuesta_imagen' && p.opciones.length > 0 && (
+                                <span className="text-xs text-neutro-piedra font-outfit px-2 py-0.5 bg-neutro-nube rounded-lg">
+                                  {p.opciones.length} opciones
+                                </span>
+                              )}
+                              {p.tipo_pregunta === 'ordenar_palabras' && (
+                                <span className="text-xs text-sol-700 font-outfit px-2 py-0.5 bg-sol-50 rounded-lg border border-sol-200/30">
+                                  🔤 Ordenar
+                                </span>
+                              )}
                               {!p.activa && (
                                 <span className="text-xs text-neutro-piedra font-outfit px-2 py-0.5 bg-neutro-piedra/10 rounded-lg">
                                   Inactiva
@@ -963,6 +1238,42 @@ export default function BancoPreguntasPage() {
                                     </span>
                                     {op.texto_opcion}
                                   </div>
+                                ))}
+                              </div>
+                            )}
+                            {/* Show image + opciones for respuesta_imagen */}
+                            {p.tipo_pregunta === 'respuesta_imagen' && (
+                              <div className="mt-2 space-y-2">
+                                {p.imagen_url && (
+                                  <div className="rounded-xl overflow-hidden border border-white/60 max-w-[200px]">
+                                    <img src={p.imagen_url} alt="Imagen pregunta" className="w-full h-24 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                  </div>
+                                )}
+                                {p.opciones.length > 0 && (
+                                  <div className="space-y-1">
+                                    {p.opciones.map((op, oi) => (
+                                      <div key={oi} className={`flex items-center gap-2 text-xs font-outfit px-2 py-1 rounded-lg ${
+                                        op.es_correcta ? 'bg-crecimiento-50 text-crecimiento-700' : 'text-neutro-piedra'
+                                      }`}>
+                                        <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                          op.es_correcta ? 'bg-crecimiento-400 border-crecimiento-500 text-white' : 'border-neutro-piedra/30'
+                                        }`}>
+                                          {op.es_correcta && <CheckCircle2 className="w-3 h-3" />}
+                                        </span>
+                                        {op.texto_opcion}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {/* Show palabras for ordenar_palabras */}
+                            {p.tipo_pregunta === 'ordenar_palabras' && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {(p.datos_extra?.palabras || p.respuesta_correcta?.split('|') || []).map((palabra: string, wi: number) => (
+                                  <span key={wi} className="inline-flex items-center gap-1 px-2 py-1 bg-sol-50 text-sol-700 rounded-lg text-xs font-outfit border border-sol-200/30">
+                                    <span className="font-bold">{wi + 1}.</span> {palabra}
+                                  </span>
                                 ))}
                               </div>
                             )}

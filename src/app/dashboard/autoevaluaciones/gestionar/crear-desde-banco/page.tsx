@@ -17,6 +17,8 @@ interface PreguntaBanco {
   puntaje: number;
   orden: number;
   respuesta_correcta: string;
+  imagen_url: string;
+  datos_extra: any;
 }
 
 interface ConfigArea {
@@ -47,13 +49,14 @@ export default function CrearDesdeBancoPage() {
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
 
-  // Cantidad por área
+  // Cantidad por área (loaded from config or defaults)
   const [cantidadPorArea, setCantidadPorArea] = useState<Record<Area, number>>({
     lenguaje: 5,
     grafismo: 5,
     lectura_escritura: 5,
     matematicas: 5,
   });
+  const [configCargada, setConfigCargada] = useState(false);
 
   // Preview de preguntas seleccionadas
   const [preguntasSeleccionadas, setPreguntasSeleccionadas] = useState<PreguntaBanco[]>([]);
@@ -70,8 +73,36 @@ export default function CrearDesdeBancoPage() {
       router.push('/dashboard/autoevaluaciones');
       return;
     }
-    if (perfil) fetchBanco();
+    if (perfil) {
+      fetchBanco();
+      fetchConfigDefault();
+    }
   }, [perfil, tienePermiso]);
+
+  const fetchConfigDefault = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('configuracion_sistema')
+        .select('valor')
+        .eq('clave', 'autoevaluacion_preguntas_por_area')
+        .single();
+
+      if (data?.valor) {
+        const defaultQty = parseInt(data.valor) || 5;
+        if (!configCargada) {
+          setCantidadPorArea({
+            lenguaje: defaultQty,
+            grafismo: defaultQty,
+            lectura_escritura: defaultQty,
+            matematicas: defaultQty,
+          });
+          setConfigCargada(true);
+        }
+      }
+    } catch (e) {
+      // Use default 5 if config table doesn't exist yet
+    }
+  }, [configCargada]);
 
   const fetchBanco = useCallback(async () => {
     try {
@@ -93,6 +124,8 @@ export default function CrearDesdeBancoPage() {
         puntaje: p.puntaje,
         orden: p.orden,
         respuesta_correcta: p.respuesta_correcta || '',
+        imagen_url: p.imagen_url || '',
+        datos_extra: p.datos_extra || null,
       }));
 
       // Store raw opciones indexed by pregunta id for later copy
@@ -201,6 +234,8 @@ export default function CrearDesdeBancoPage() {
             respuesta_correcta: p.respuesta_correcta || '',
             puntaje: p.puntaje,
             area_especifica: p.area,
+            imagen_url: p.imagen_url || null,
+            datos_extra: p.datos_extra || null,
           })
           .select()
           .single();

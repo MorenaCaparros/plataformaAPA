@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatearEdad } from '@/lib/utils/date-helpers';
 import Link from 'next/link';
 
@@ -46,6 +46,16 @@ interface TrainingStatus {
   scoresPorArea: { area: string; score_final: number; necesita_capacitacion: boolean }[];
 }
 
+interface Notificacion {
+  id: string;
+  tipo: string;
+  titulo: string;
+  mensaje: string;
+  enlace: string | null;
+  leida: boolean;
+  created_at: string;
+}
+
 const AREA_LABELS: Record<string, string> = {
   lenguaje: 'Lenguaje y Vocabulario',
   lenguaje_vocabulario: 'Lenguaje y Vocabulario',
@@ -58,8 +68,11 @@ const AREA_LABELS: Record<string, string> = {
 
 export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifPanelRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['voluntario-dashboard', userId],
@@ -233,6 +246,94 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
     staleTime: 1000 * 60 * 5,
   });
 
+  // Notifications query
+  const { data: notificaciones = [] } = useQuery<Notificacion[]>({
+    queryKey: ['voluntario-notificaciones', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('notificaciones')
+        .select('*')
+        .eq('usuario_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('Error al cargar notificaciones:', error);
+        return [];
+      }
+      return (data || []) as Notificacion[];
+    },
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const unreadCount = notificaciones.filter((n) => !n.leida).length;
+
+  // Trigger notification generation on dashboard load (if volunteer has pending capacitaciones)
+  useEffect(() => {
+    if (!userId || !trainingStatus?.necesitaCapacitacion) return;
+
+    const generateNotification = async () => {
+      try {
+        await fetch('/api/notificaciones/generar', { method: 'POST' });
+        // Refresh notifications after potential creation
+        queryClient.invalidateQueries({ queryKey: ['voluntario-notificaciones', userId] });
+      } catch (e) {
+        // Silently fail — notifications are non-critical
+        console.error('Error generando notificación:', e);
+      }
+    };
+
+    // Small delay to avoid blocking initial render
+    const timer = setTimeout(generateNotification, 2000);
+    return () => clearTimeout(timer);
+  }, [userId, trainingStatus?.necesitaCapacitacion, queryClient]);
+
+  // Close notification panel when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifPanelRef.current && !notifPanelRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showNotifications]);
+
+  const marcarLeida = async (notifId: string) => {
+    await supabase
+      .from('notificaciones')
+      .update({ leida: true })
+      .eq('id', notifId);
+    queryClient.invalidateQueries({ queryKey: ['voluntario-notificaciones', userId] });
+  };
+
+  const marcarTodasLeidas = async () => {
+    await supabase
+      .from('notificaciones')
+      .update({ leida: true })
+      .eq('usuario_id', userId)
+      .eq('leida', false);
+    queryClient.invalidateQueries({ queryKey: ['voluntario-notificaciones', userId] });
+  };
+
+  const formatearFechaNotif = (fecha: string) => {
+    const date = new Date(fecha);
+    const ahora = new Date();
+    const diffMs = ahora.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHoras = Math.floor(diffMs / 3600000);
+    const diffDias = Math.floor(diffMs / 86400000);
+
+    if (diffMin < 1) return 'Ahora';
+    if (diffMin < 60) return `Hace ${diffMin} min`;
+    if (diffHoras < 24) return `Hace ${diffHoras}h`;
+    if (diffDias < 7) return `Hace ${diffDias}d`;
+    return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  };
+
   const ninos = data?.ninos || [];
   const estadisticas = data?.estadisticas || {
     total_ninos: 0,
@@ -303,6 +404,85 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* 🔔 Notification Bell — Fixed position on top right */}
+      <div className="flex justify-end" ref={notifPanelRef}>
+        <div className="relative">
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="relative p-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md hover:shadow-lg transition-all active:scale-95"
+            aria-label="Notificaciones"
+          >
+            <span className="text-xl">🔔</span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[20px] h-5 px-1 bg-red-500 text-white text-[11px] font-bold rounded-full shadow-lg animate-pulse">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notification Dropdown Panel */}
+          {showNotifications && (
+            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+              {/* Header */}
+              <div className="px-4 py-3 bg-gradient-to-r from-sol-50 to-amber-50 dark:from-gray-750 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 className="font-bold text-gray-900 dark:text-white text-sm">Notificaciones</h3>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={marcarTodasLeidas}
+                    className="text-xs text-crecimiento-600 hover:text-crecimiento-700 font-medium transition-colors"
+                  >
+                    Marcar todas como leídas
+                  </button>
+                )}
+              </div>
+
+              {/* Notification List */}
+              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+                {notificaciones.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <span className="text-3xl mb-2 block">🔕</span>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Sin notificaciones</p>
+                  </div>
+                ) : (
+                  notificaciones.map((notif) => (
+                    <button
+                      key={notif.id}
+                      onClick={() => {
+                        if (!notif.leida) marcarLeida(notif.id);
+                        if (notif.enlace) {
+                          setShowNotifications(false);
+                          router.push(notif.enlace);
+                        }
+                      }}
+                      className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                        !notif.leida ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {!notif.leida && (
+                          <span className="w-2 h-2 mt-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+                        )}
+                        <div className={`flex-1 min-w-0 ${notif.leida ? 'ml-5' : ''}`}>
+                          <p className={`text-sm ${!notif.leida ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+                            {notif.titulo}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                            {notif.mensaje}
+                          </p>
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                            {formatearFechaNotif(notif.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 🔴 Active Session Banner */}
       {activeSession && (
         <button
