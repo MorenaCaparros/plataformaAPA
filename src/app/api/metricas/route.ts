@@ -210,6 +210,9 @@ export async function GET(request: NextRequest) {
         break;
       case 'coordinador':
       case 'trabajo_social':
+      case 'trabajador_social':
+      case 'trabajadora_social':
+      case 'equipo_profesional':
         metricas = await getMetricasEquipo(userId, zonaId || undefined);
         break;
       case 'psicopedagogia':

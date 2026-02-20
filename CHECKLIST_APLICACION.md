@@ -1,6 +1,6 @@
 <!-- filepath: /Users/santiago/Desktop/plataformaAPA/CHECKLIST_APLICACION.md -->
 # 📋 CHECKLIST — Plataforma APA (Acompañar Para Aprender)
-### ONG Adelante | Actualizado: 19/02/2026
+### Asociación Civil Adelante | Actualizado: 19/02/2026
 
 ---
 
@@ -98,7 +98,7 @@
 
 ## 10. Perfil de Voluntarios
 - [x] Página de perfil del voluntario visible para coordinadores/profesionales — `/dashboard/usuarios/[id]/perfil`
-- [x] Datos: estudios, fecha de ingreso a la ONG
+- [x] Datos: estudios, fecha de ingreso a la Asociación Civil
 - [x] Resultados de autoevaluación visibles — vista expandible de respuestas individuales
 - [x] Historial de capacitaciones completadas
 - [x] Última conexión del voluntario visible

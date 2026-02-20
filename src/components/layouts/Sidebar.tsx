@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { 
   HomeIcon, 
@@ -18,6 +18,7 @@ import {
   UserGroupIcon,
   ClipboardDocumentCheckIcon,
   SparklesIcon,
+  ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface NavItem {
@@ -33,7 +34,7 @@ const navigation: NavItem[] = [
   { name: 'Sesiones', href: '/dashboard/sesiones', icon: DocumentTextIcon },
   { name: 'Asistencia', href: '/dashboard/asistencia', icon: ClipboardDocumentCheckIcon },
   { name: 'Autoevaluaciones', href: '/dashboard/autoevaluaciones', icon: AcademicCapIcon },
-  { name: 'Biblioteca', href: '/dashboard/biblioteca', icon: BookOpenIcon },
+  { name: 'Biblioteca', href: '/dashboard/biblioteca/drive', icon: BookOpenIcon },
   { name: 'Módulo IA', href: '/dashboard/ia', icon: SparklesIcon, roles: ['director', 'psicopedagogia', 'equipo_profesional'] },
   { name: 'Usuarios', href: '/dashboard/usuarios', icon: UserGroupIcon, roles: ['director', 'admin', 'psicopedagogia', 'equipo_profesional'] },
   { name: 'Mi Perfil', href: '/dashboard/mi-perfil', icon: UserCircleIcon },
@@ -45,7 +46,13 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
-  const { user, perfil } = useAuth();
+  const router = useRouter();
+  const { user, perfil, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
 
   // Mapeo de roles para mostrar
   const rolesLabels: Record<string, string> = {
@@ -195,27 +202,45 @@ export default function Sidebar() {
           </nav>
 
           {/* User Section */}
-          <Link
-            href="/dashboard/mi-perfil"
-            className={`
-              mt-4 p-4 lg:p-3 rounded-2xl bg-sol-400/10 border border-sol-400/20
-              hover:bg-sol-400/20 transition-colors cursor-pointer block
-              ${collapsed && !isMobile ? 'lg:text-center' : ''}
-            `}
-          >
-            {(isMobile || !collapsed) ? (
-              <div>
-                <p className="text-base lg:text-sm font-medium text-neutro-carbon truncate">
-                  {(perfil as any)?.nombre || user?.email || 'Usuario'}
-                </p>
-                <p className="text-sm lg:text-xs text-neutro-piedra font-semibold">
-                  {rolDisplay} · Mi Perfil →
-                </p>
-              </div>
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sol-400 to-crecimiento-400 mx-auto" />
-            )}
-          </Link>
+          <div className="mt-4 space-y-2">
+            <Link
+              href="/dashboard/mi-perfil"
+              className={`
+                p-4 lg:p-3 rounded-2xl bg-sol-400/10 border border-sol-400/20
+                hover:bg-sol-400/20 transition-colors cursor-pointer block
+                ${collapsed && !isMobile ? 'lg:text-center' : ''}
+              `}
+            >
+              {(isMobile || !collapsed) ? (
+                <div>
+                  <p className="text-base lg:text-sm font-medium text-neutro-carbon truncate">
+                    {(perfil as any)?.nombre || user?.email || 'Usuario'}
+                  </p>
+                  <p className="text-sm lg:text-xs text-neutro-piedra font-semibold">
+                    {rolDisplay}
+                  </p>
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sol-400 to-crecimiento-400 mx-auto" />
+              )}
+            </Link>
+
+            <button
+              onClick={handleSignOut}
+              className={`
+                w-full flex items-center gap-3 px-4 py-3 lg:px-3 lg:py-2.5 rounded-2xl
+                text-impulso-600 hover:bg-impulso-50 border border-impulso-200/50
+                transition-colors active:scale-95 min-h-[44px]
+                ${collapsed && !isMobile ? 'lg:justify-center' : ''}
+              `}
+              title={(collapsed && !isMobile) ? 'Cerrar sesión' : undefined}
+            >
+              <ArrowRightOnRectangleIcon className="w-5 h-5 flex-shrink-0" />
+              {(isMobile || !collapsed) && (
+                <span className="font-outfit font-medium text-sm">Cerrar sesión</span>
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 

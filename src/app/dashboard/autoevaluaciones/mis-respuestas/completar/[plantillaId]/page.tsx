@@ -45,6 +45,20 @@ interface RespuestaGuardada {
   completada: boolean;
 }
 
+interface IntentoPrevio {
+  id: string;
+  estado: 'completada' | 'aprobada' | 'reprobada';
+  porcentaje: number | null;
+  fecha_completado: string | null;
+  tiene_manuales: boolean; // esperando revisión manual
+}
+
+interface CooldownInfo {
+  bloqueado: boolean;
+  diasRestantes: number;
+  fechaHabilitacion: string | null;
+}
+
 interface ModalState {
   visible: boolean;
   tipo: 'exito' | 'error' | 'advertencia' | 'resultado';
@@ -70,6 +84,8 @@ export default function CompletarAutoevaluacionPage() {
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [intentoPrevio, setIntentoPrevio] = useState<IntentoPrevio | null>(null);
+  const [cooldown, setCooldown] = useState<CooldownInfo | null>(null);
 
   // Special questions state
   const [maxNinos, setMaxNinos] = useState<number>(3);
@@ -146,6 +162,52 @@ export default function CompletarAutoevaluacionPage() {
           }),
       };
       setPlantilla(mappedPlantilla);
+
+      // ── Buscar intentos previos (completados / aprobados / reprobados) ──
+      const { data: previosData } = await supabase
+        .from('voluntarios_capacitaciones')
+        .select('id, estado, porcentaje, fecha_completado')
+        .eq('capacitacion_id', plantillaId)
+        .in('estado', ['completada', 'aprobada', 'reprobada'])
+        .order('fecha_completado', { ascending: false })
+        .limit(1);
+
+      if (previosData && previosData.length > 0) {
+        const prev = previosData[0];
+        // Detectar si tiene preguntas manuales pendientes (estado === 'completada')
+        const tieneManuales = prev.estado === 'completada';
+        setIntentoPrevio({
+          id: prev.id,
+          estado: prev.estado as IntentoPrevio['estado'],
+          porcentaje: prev.porcentaje,
+          fecha_completado: prev.fecha_completado,
+          tiene_manuales: tieneManuales,
+        });
+
+        // ── Verificar cooldown configurado en el sistema ──
+        const { data: configCooldown } = await supabase
+          .from('configuracion_sistema')
+          .select('valor')
+          .eq('clave', 'autoevaluacion_cooldown_dias')
+          .single();
+
+        const diasCooldown = configCooldown?.valor ? parseInt(configCooldown.valor) : 0;
+        if (diasCooldown > 0 && prev.fecha_completado) {
+          const fechaCompletado = new Date(prev.fecha_completado);
+          const fechaHabilitacion = new Date(fechaCompletado);
+          fechaHabilitacion.setDate(fechaHabilitacion.getDate() + diasCooldown);
+          const ahora = new Date();
+          if (ahora < fechaHabilitacion) {
+            const msRestantes = fechaHabilitacion.getTime() - ahora.getTime();
+            const diasRestantes = Math.ceil(msRestantes / (1000 * 60 * 60 * 24));
+            setCooldown({
+              bloqueado: true,
+              diasRestantes,
+              fechaHabilitacion: fechaHabilitacion.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            });
+          }
+        }
+      }
 
       // Buscar respuesta existente (voluntarios_capacitaciones, not completed)
       const { data: volCapData, error: volCapError } = await supabase
@@ -563,6 +625,74 @@ export default function CompletarAutoevaluacionPage() {
     );
   }
 
+  // ── Bloqueo: cooldown activo ──
+  if (cooldown?.bloqueado) {
+    return (
+      <div className="min-h-screen pb-12">
+        <div className="container mx-auto px-4 py-6 max-w-2xl">
+          <Link href="/dashboard/autoevaluaciones" className="flex items-center text-neutro-piedra hover:text-neutro-carbon mb-6 font-outfit transition-colors">
+            <ArrowLeft className="w-5 h-5 mr-2" /> Volver
+          </Link>
+          <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-impulso-200/40 shadow-[0_8px_32px_rgba(230,57,70,0.12)] p-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-impulso-100 flex items-center justify-center mx-auto mb-5">
+              <Clock className="w-10 h-10 text-impulso-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-neutro-carbon font-quicksand mb-3">
+              Podés reintentar en {cooldown.diasRestantes} {cooldown.diasRestantes === 1 ? 'día' : 'días'}
+            </h2>
+            <p className="text-neutro-piedra font-outfit mb-2">
+              Completaste esta autoevaluación el <strong>{intentoPrevio?.fecha_completado ? new Date(intentoPrevio.fecha_completado).toLocaleDateString('es-AR') : '–'}</strong> con un resultado de <strong>{intentoPrevio?.porcentaje ?? '–'}%</strong>.
+            </p>
+            <p className="text-neutro-piedra font-outfit text-sm mb-6">
+              Para asegurar que aprovechás el tiempo para capacitarte, el siguiente intento se habilita el <strong>{cooldown.fechaHabilitacion}</strong>.
+            </p>
+            <Link
+              href="/dashboard/capacitaciones"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl font-outfit font-semibold hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all active:scale-95"
+            >
+              📚 Ver Capacitaciones disponibles
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Bloqueo: ya completada y pendiente de revisión manual ──
+  if (intentoPrevio?.tiene_manuales && !respuestaExistente) {
+    return (
+      <div className="min-h-screen pb-12">
+        <div className="container mx-auto px-4 py-6 max-w-2xl">
+          <Link href="/dashboard/autoevaluaciones" className="flex items-center text-neutro-piedra hover:text-neutro-carbon mb-6 font-outfit transition-colors">
+            <ArrowLeft className="w-5 h-5 mr-2" /> Volver
+          </Link>
+          <div className="bg-white/70 backdrop-blur-md rounded-3xl border border-sol-200/40 shadow-[0_8px_32px_rgba(242,201,76,0.12)] p-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-sol-100 flex items-center justify-center mx-auto mb-5">
+              <FileText className="w-10 h-10 text-sol-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-neutro-carbon font-quicksand mb-3">
+              Autoevaluación enviada — pendiente de revisión
+            </h2>
+            <p className="text-neutro-piedra font-outfit mb-2">
+              Ya completaste esta autoevaluación. Algunas respuestas de texto libre requieren revisión por parte del equipo profesional.
+            </p>
+            <p className="text-neutro-piedra font-outfit text-sm mb-6">
+              Una vez que el equipo revise tus respuestas, recibirás tu resultado final y podrás continuar.
+            </p>
+            <div className="bg-sol-50 border border-sol-200/40 rounded-2xl p-4 mb-6 text-left">
+              <p className="text-xs text-sol-700 font-outfit font-semibold mb-1">Puntaje automático parcial</p>
+              <p className="text-2xl font-bold text-sol-800 font-quicksand">{intentoPrevio.porcentaje ?? 0}%</p>
+              <p className="text-xs text-sol-600 font-outfit mt-1">Este puntaje puede subir cuando se corrijan las respuestas abiertas.</p>
+            </div>
+            <Link href="/dashboard/autoevaluaciones" className="text-crecimiento-600 font-outfit font-medium hover:underline">
+              ← Volver a mis autoevaluaciones
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const preguntasRespondidas = Object.keys(respuestas).length;
   // Only count actual scored questions in progress (max_ninos and horas don't affect the 10-point score)
   const totalPreguntas = plantilla.preguntas.length;
@@ -653,9 +783,21 @@ export default function CompletarAutoevaluacionPage() {
                     <p className="text-neutro-carbon font-outfit text-lg font-medium mb-1">
                       {pregunta.texto}
                     </p>
-                    <span className="text-xs text-neutro-piedra font-outfit">
-                      {areaLabels[pregunta.categoria] || pregunta.categoria}
-                    </span>
+                    {pregunta.categoria ? (
+                      <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-semibold font-outfit border ${
+                        pregunta.categoria === 'lenguaje' ? 'bg-impulso-50 text-impulso-700 border-impulso-200/40' :
+                        pregunta.categoria === 'grafismo' ? 'bg-crecimiento-50 text-crecimiento-700 border-crecimiento-200/40' :
+                        pregunta.categoria === 'lectura_escritura' ? 'bg-sol-50 text-sol-700 border-sol-200/40' :
+                        pregunta.categoria === 'matematicas' ? 'bg-orange-50 text-orange-700 border-orange-200/40' :
+                        'bg-neutro-nube text-neutro-piedra border-neutro-piedra/20'
+                      }`}>
+                        {areaLabels[pregunta.categoria] || pregunta.categoria}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-neutro-piedra/60 font-outfit italic">
+                        {areaLabels[plantilla.area] || plantilla.area}
+                      </span>
+                    )}
                   </div>
                 </div>
 

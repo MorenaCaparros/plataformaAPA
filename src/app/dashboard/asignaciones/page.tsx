@@ -88,7 +88,7 @@ function AsignacionesPageContent() {
   const [vistaActiva, setVistaActiva] = useState<'ninos' | 'voluntarios'>('ninos');
 
   // Verificar permisos
-  const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia'];
+  const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia', 'equipo_profesional'];
   const tieneAcceso = perfil?.rol && rolesPermitidos.includes(perfil.rol);
 
   useEffect(() => {
@@ -110,16 +110,10 @@ function AsignacionesPageContent() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/login');
-        return;
-      }
-
       await Promise.all([
         fetchZonas(),
-        fetchNinosConAsignaciones(session.access_token),
-        fetchVoluntariosConCarga(session.access_token),
+        fetchNinosConAsignaciones(''),
+        fetchVoluntariosConCarga(''),
       ]);
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -139,7 +133,7 @@ function AsignacionesPageContent() {
     }
   };
 
-  const fetchNinosConAsignaciones = async (token: string) => {
+  const fetchNinosConAsignaciones = async (_token: string) => {
     try {
       // Obtener todos los niños
       const { data: ninosData, error: ninosError } = await supabase
@@ -155,22 +149,40 @@ function AsignacionesPageContent() {
 
       if (ninosError) throw ninosError;
 
-      // Obtener todas las asignaciones activas
-      const response = await fetch('/api/asignaciones?activo=true', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!response.ok) throw new Error('Error al obtener asignaciones');
-      
-      const { asignaciones } = await response.json();
+      // Obtener todas las asignaciones activas con voluntario y niño via Supabase directly
+      const { data: asignacionesData, error: asigError } = await supabase
+        .from('asignaciones')
+        .select(`
+          id,
+          nino_id,
+          voluntario_id,
+          fecha_asignacion,
+          score_matching,
+          voluntario:perfiles!asignaciones_voluntario_id_fkey(id, nombre, apellido)
+        `)
+        .eq('activa', true);
 
-      // Obtener déficits activos para cada niño
-      const { data: deficitsData } = await supabase
-        .from('historico_deficits')
-        .select('nino_id')
-        .is('resuelto_en', null);
-      
-      const ninosConDeficits = new Set((deficitsData || []).map((d: any) => d.nino_id));
+      if (asigError) throw asigError;
+
+      // Normalize voluntario_nombre
+      const asignaciones = (asignacionesData || []).map((a: any) => ({
+        ...a,
+        voluntario_nombre: a.voluntario
+          ? [a.voluntario.nombre, a.voluntario.apellido].filter(Boolean).join(' ')
+          : 'Voluntario',
+      }));
+
+      // Obtener niños que YA tienen evaluación psicopedagógica (entrevista tipo='inicial')
+      let ninosConEvaluacion = new Set<string>();
+      try {
+        const { data: evalData } = await supabase
+          .from('entrevistas')
+          .select('nino_id')
+          .eq('tipo', 'inicial');
+        ninosConEvaluacion = new Set((evalData || []).map((d: any) => d.nino_id));
+      } catch {
+        // ignorar si falla
+      }
 
       // Combinar datos
       const ninosConAsignacion: NinoConAsignacion[] = (ninosData || []).map((nino: any) => {
@@ -182,11 +194,11 @@ function AsignacionesPageContent() {
           rango_etario: nino.rango_etario,
           zona_id: nino.zona_id,
           zona_nombre: nino.zona?.nombre || null,
-          tiene_deficits: ninosConDeficits.has(nino.id),
+          tiene_deficits: ninosConEvaluacion.has(nino.id),
           asignacion: asignacion ? {
             id: asignacion.id,
             voluntario_id: asignacion.voluntario_id,
-            voluntario_nombre: asignacion.voluntario_nombre || 'Voluntario',
+            voluntario_nombre: asignacion.voluntario_nombre,
             fecha_asignacion: asignacion.fecha_asignacion,
             score_matching: asignacion.score_matching,
           } : null,
@@ -211,7 +223,7 @@ function AsignacionesPageContent() {
     }
   };
 
-  const fetchVoluntariosConCarga = async (token: string) => {
+  const fetchVoluntariosConCarga = async (_token: string) => {
     try {
       // Obtener voluntarios con sus zonas
       const { data: voluntariosData, error: volError } = await supabase
@@ -227,16 +239,21 @@ function AsignacionesPageContent() {
 
       if (volError) throw volError;
 
-      // Obtener asignaciones activas
-      const response = await fetch('/api/asignaciones?activo=true', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!response.ok) throw new Error('Error al obtener asignaciones');
-      
-      const { asignaciones } = await response.json();
+      // Obtener asignaciones activas directamente
+      const { data: asignacionesData } = await supabase
+        .from('asignaciones')
+        .select(`
+          id,
+          nino_id,
+          voluntario_id,
+          score_matching,
+          nino:ninos(id, alias)
+        `)
+        .eq('activa', true);
 
-      // Obtener autoevaluaciones completadas (migrated from respuestas_autoevaluacion → voluntarios_capacitaciones)
+      const asignaciones = asignacionesData || [];
+
+      // Obtener autoevaluaciones completadas
       const { data: autoevaluaciones } = await supabase
         .from('voluntarios_capacitaciones')
         .select('voluntario_id')
@@ -248,7 +265,7 @@ function AsignacionesPageContent() {
 
       // Combinar datos
       const voluntariosConCarga: VoluntarioConCarga[] = (voluntariosData || []).map((vol: any) => {
-        const asignacionesVol = asignaciones?.filter((a: any) => a.voluntario_id === vol.id) || [];
+        const asignacionesVol = asignaciones.filter((a: any) => a.voluntario_id === vol.id);
         const numAsignaciones = asignacionesVol.length;
         
         let disponibilidad: 'alta' | 'media' | 'baja' = 'alta';
@@ -598,10 +615,24 @@ function AsignacionesPageContent() {
                             >
                               {nino.alias}
                             </Link>
-                            {nino.tiene_deficits && (
-                              <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">
-                                Con evaluación
-                              </span>
+                            {nino.tiene_deficits ? (
+                              <Link
+                                href={`/dashboard/psicopedagogia/evaluaciones?ninoId=${nino.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-2 py-0.5 text-xs bg-crecimiento-100 text-crecimiento-700 dark:bg-crecimiento-900/20 dark:text-crecimiento-400 rounded-full hover:underline"
+                                title="Ver evaluación psicopedagógica"
+                              >
+                                ✅ Con evaluación
+                              </Link>
+                            ) : (
+                              <Link
+                                href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${nino.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-2 py-0.5 text-xs bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-full hover:underline"
+                                title="Crear evaluación psicopedagógica inicial"
+                              >
+                                ⚠️ Sin evaluación
+                              </Link>
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-sm text-gray-500">
@@ -695,9 +726,12 @@ function AsignacionesPageContent() {
                                 Evaluado
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full flex items-center gap-1">
+                              <span
+                                className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full flex items-center gap-1 cursor-help"
+                                title="Este voluntario no ha completado su autoevaluación. No puede ser asignado a niños hasta completarla."
+                              >
                                 <AlertCircle className="w-3 h-3" />
-                                Sin evaluación
+                                Sin autoevaluación
                               </span>
                             )}
                           </div>
@@ -713,6 +747,11 @@ function AsignacionesPageContent() {
                                vol.disponibilidad === 'media' ? 'Media disponibilidad' : 'Baja disponibilidad'}
                             </span>
                           </div>
+                          {!vol.tiene_autoevaluacion && (
+                            <p className="text-xs text-yellow-600 mt-1">
+                              ⚠️ Requiere completar autoevaluación antes de ser asignado
+                            </p>
+                          )}
                         </div>
                       </div>
 

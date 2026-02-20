@@ -5,13 +5,19 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Check, CheckCircle, XCircle, Users, Calendar, Save, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle, XCircle, Users, Calendar, Save, AlertTriangle, Filter } from 'lucide-react';
 
 interface NinoAsistencia {
   id: string;
   alias: string;
   rango_etario: string | null;
   zona_nombre: string | null;
+  zona_id: string | null;
+}
+
+interface Zona {
+  id: string;
+  nombre: string;
 }
 
 interface AsistenciaExistente {
@@ -26,30 +32,36 @@ export default function AsistenciaPage() {
   const router = useRouter();
 
   const [ninos, setNinos] = useState<NinoAsistencia[]>([]);
+  const [zonas, setZonas] = useState<Zona[]>([]);
+  const [zonaFiltro, setZonaFiltro] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [seleccion, setSeleccion] = useState<Record<string, 'presente' | 'ausente' | null>>({});
+  const [seleccionOriginal, setSeleccionOriginal] = useState<Record<string, 'presente' | 'ausente' | null>>({});
   const [motivos, setMotivos] = useState<Record<string, string>>({});
   const [existentes, setExistentes] = useState<Record<string, AsistenciaExistente>>({});
   const [saved, setSaved] = useState(false);
 
   const esVoluntario = perfil?.rol === 'voluntario';
   const esCoordinadorOSuperior = perfil?.rol && ['coordinador', 'psicopedagogia', 'director', 'admin', 'trabajador_social'].includes(perfil.rol);
+  const puedeVerZonas = !esVoluntario;
 
-  // Fetch niños asignados (voluntario) o todos los de la zona (coordinador+)
   useEffect(() => {
     if (!authLoading && user && perfil) {
       fetchNinos();
+      if (puedeVerZonas) fetchZonas();
     }
   }, [authLoading, user, perfil]);
 
-  // When date changes, load existing attendance records
   useEffect(() => {
-    if (ninos.length > 0) {
-      fetchExistentes();
-    }
+    if (ninos.length > 0) fetchExistentes();
   }, [fecha, ninos]);
+
+  const fetchZonas = async () => {
+    const { data } = await supabase.from('zonas').select('id, nombre').order('nombre');
+    setZonas(data || []);
+  };
 
   const fetchNinos = async () => {
     try {
@@ -57,10 +69,10 @@ export default function AsistenciaPage() {
       let ninosData: NinoAsistencia[] = [];
 
       if (esVoluntario) {
-        // Voluntarios: only their assigned niños
+        // Voluntarios: SOLO sus niños asignados
         const { data, error } = await supabase
           .from('asignaciones')
-          .select('nino_id, ninos (id, alias, rango_etario, zonas (nombre))')
+          .select('nino_id, ninos (id, alias, rango_etario, zona_id, zonas (nombre))')
           .eq('voluntario_id', user!.id)
           .eq('activa', true);
 
@@ -72,17 +84,16 @@ export default function AsistenciaPage() {
             id: n.id,
             alias: n.alias,
             rango_etario: n.rango_etario,
+            zona_id: n.zona_id || null,
             zona_nombre: n.zonas?.nombre || null,
           }));
       } else {
-        // Coordinadores+: all active niños (optionally filtered by zona)
         const query = supabase
           .from('ninos')
-          .select('id, alias, rango_etario, zonas (nombre)')
+          .select('id, alias, rango_etario, zona_id, zonas (nombre)')
           .eq('activo', true)
           .order('alias', { ascending: true });
 
-        // If coordinador, filter by their zona
         if (perfil?.rol === 'coordinador' && perfil?.zona_id) {
           query.eq('zona_id', perfil.zona_id);
         }
@@ -93,6 +104,7 @@ export default function AsistenciaPage() {
           id: n.id,
           alias: n.alias,
           rango_etario: n.rango_etario,
+          zona_id: n.zona_id || null,
           zona_nombre: n.zonas?.nombre || null,
         }));
       }
@@ -130,6 +142,7 @@ export default function AsistenciaPage() {
 
       setExistentes(map);
       setSeleccion(sel);
+      setSeleccionOriginal({ ...sel });
       setMotivos(mot);
       setSaved(false);
     } catch (error) {
@@ -148,30 +161,39 @@ export default function AsistenciaPage() {
 
   const marcarTodos = (estado: 'presente' | 'ausente') => {
     const nuevo: Record<string, 'presente' | 'ausente' | null> = {};
-    ninos.forEach(n => { nuevo[n.id] = estado; });
-    setSeleccion(nuevo);
+    ninosFiltrados.forEach(n => { nuevo[n.id] = estado; });
+    setSeleccion(prev => ({ ...prev, ...nuevo }));
     setSaved(false);
   };
 
-  // Stats
+  // Detectar si hay cambios respecto al estado guardado
+  const haycambios = useMemo(() => {
+    const claves = new Set([...Object.keys(seleccion), ...Object.keys(seleccionOriginal)]);
+    for (const k of claves) {
+      if (seleccion[k] !== seleccionOriginal[k]) return true;
+    }
+    return false;
+  }, [seleccion, seleccionOriginal]);
+
+  // Filtrar niños por zona seleccionada
+  const ninosFiltrados = useMemo(() => {
+    if (!zonaFiltro) return ninos;
+    return ninos.filter(n => n.zona_id === zonaFiltro);
+  }, [ninos, zonaFiltro]);
+
   const stats = useMemo(() => {
     const presentes = Object.values(seleccion).filter(v => v === 'presente').length;
     const ausentes = Object.values(seleccion).filter(v => v === 'ausente').length;
-    const sinMarcar = ninos.length - presentes - ausentes;
+    const sinMarcar = ninosFiltrados.length - presentes - ausentes;
     return { presentes, ausentes, sinMarcar };
-  }, [seleccion, ninos]);
+  }, [seleccion, ninosFiltrados]);
 
   const handleGuardar = async () => {
-    // Validate: at least some niños marked
     const marcados = Object.entries(seleccion).filter(([_, v]) => v !== null);
-    if (marcados.length === 0) {
-      alert('Marcá al menos un niño como presente o ausente.');
-      return;
-    }
+    if (marcados.length === 0) return;
 
     setSaving(true);
     try {
-      // Build upsert array
       const registros = marcados.map(([ninoId, estado]) => ({
         nino_id: ninoId,
         fecha: fecha,
@@ -180,7 +202,6 @@ export default function AsistenciaPage() {
         registrado_por: user!.id,
       }));
 
-      // Upsert: if a record for (nino_id, fecha) exists, update it
       const { error } = await supabase
         .from('asistencias')
         .upsert(registros, { onConflict: 'nino_id,fecha' });
@@ -188,11 +209,9 @@ export default function AsistenciaPage() {
       if (error) throw error;
 
       setSaved(true);
-      // Refresh existing records
       await fetchExistentes();
     } catch (error: any) {
       console.error('Error guardando asistencia:', error);
-      alert('❌ Error al guardar: ' + (error.message || 'Intentá de nuevo'));
     } finally {
       setSaving(false);
     }
@@ -251,6 +270,33 @@ export default function AsistenciaPage() {
           )}
         </div>
 
+        {/* Filtro por zona (solo para coordinadores+) */}
+        {puedeVerZonas && zonas.length > 0 && (
+          <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mb-4">
+            <label className="text-sm font-medium mb-2 flex items-center gap-2 text-neutro-carbon font-outfit">
+              <Filter className="w-4 h-4" />
+              Filtrar por zona
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setZonaFiltro('')}
+                className={`px-3 py-1.5 rounded-xl text-sm font-outfit font-medium transition-all ${!zonaFiltro ? 'bg-crecimiento-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                Todas
+              </button>
+              {zonas.map(z => (
+                <button
+                  key={z.id}
+                  onClick={() => setZonaFiltro(z.id)}
+                  className={`px-3 py-1.5 rounded-xl text-sm font-outfit font-medium transition-all ${zonaFiltro === z.id ? 'bg-crecimiento-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {z.nombre}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Quick actions */}
         <div className="flex gap-2 mb-4">
           <button
@@ -291,14 +337,16 @@ export default function AsistenciaPage() {
         </div>
 
         {/* Niños list */}
-        {ninos.length === 0 ? (
+        {ninosFiltrados.length === 0 ? (
           <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-8 text-center">
             <div className="text-4xl mb-4">📚</div>
-            <p className="text-neutro-piedra font-outfit">No tenés niños asignados.</p>
+            <p className="text-neutro-piedra font-outfit">
+              {zonaFiltro ? 'No hay niños en esta zona.' : 'No tenés niños asignados.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-2">
-            {ninos.map((nino) => {
+            {ninosFiltrados.map((nino) => {
               const estado = seleccion[nino.id] || null;
               const yaExistia = !!existentes[nino.id];
 
@@ -314,13 +362,11 @@ export default function AsistenciaPage() {
                   } shadow-[0_2px_8px_rgba(242,201,76,0.06)]`}
                 >
                   <div className="flex items-center gap-3 p-4">
-                    {/* Tap to toggle */}
                     <button
                       type="button"
                       onClick={() => toggleNino(nino.id)}
                       className="flex-1 flex items-center gap-3 min-h-[48px] touch-manipulation text-left"
                     >
-                      {/* Status indicator */}
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
                         estado === 'presente'
                           ? 'bg-crecimiento-500 text-white'
@@ -351,7 +397,6 @@ export default function AsistenciaPage() {
                       </div>
                     </button>
 
-                    {/* Explicit present/absent buttons */}
                     <div className="flex gap-1.5 flex-shrink-0">
                       <button
                         type="button"
@@ -380,7 +425,6 @@ export default function AsistenciaPage() {
                     </div>
                   </div>
 
-                  {/* Motivo de ausencia (collapsible) */}
                   {estado === 'ausente' && (
                     <div className="px-4 pb-4 pt-0">
                       <input
@@ -400,10 +444,10 @@ export default function AsistenciaPage() {
       </main>
 
       {/* Fixed footer save button */}
-      {ninos.length > 0 && (
+      {ninosFiltrados.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-white/60 p-4 shadow-lg z-20">
           <div className="max-w-3xl mx-auto">
-            {saved && (
+            {saved && !haycambios && (
               <div className="text-center text-sm text-crecimiento-700 font-medium mb-2 flex items-center justify-center gap-2 font-outfit">
                 <CheckCircle className="w-4 h-4" />
                 Asistencia guardada correctamente
@@ -412,15 +456,24 @@ export default function AsistenciaPage() {
             <button
               type="button"
               onClick={handleGuardar}
-              disabled={saving || stats.presentes + stats.ausentes === 0}
-              className="w-full px-6 py-4 min-h-[56px] bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-2xl font-semibold active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-glow-crecimiento transition-all font-outfit text-lg"
+              disabled={saving || !haycambios}
+              className={`w-full px-6 py-4 min-h-[56px] rounded-2xl font-semibold active:scale-95 flex items-center justify-center gap-2 transition-all font-outfit text-lg ${
+                haycambios
+                  ? 'bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white shadow-glow-crecimiento'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
             >
               {saving ? (
                 'Guardando...'
-              ) : (
+              ) : haycambios ? (
                 <>
                   <Save className="w-5 h-5" />
-                  Guardar asistencia ({stats.presentes + stats.ausentes}/{ninos.length})
+                  Guardar asistencia ({stats.presentes + stats.ausentes}/{ninosFiltrados.length})
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5" />
+                  Sin cambios pendientes
                 </>
               )}
             </button>

@@ -67,6 +67,7 @@ export default function AsignarVoluntarioPage() {
   const [asignando, setAsignando] = useState(false);
   const [nino, setNino] = useState<any>(null);
   const [sugerencias, setSugerencias] = useState<SugerenciaMatching[]>([]);
+  const [sinDeficits, setSinDeficits] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -97,7 +98,8 @@ export default function AsignarVoluntarioPage() {
 
       const data = await response.json();
       setNino(data.nino);
-      setSugerencias(data.sugerencias);
+      setSugerencias(data.sugerencias || []);
+      setSinDeficits(data.sinDeficits || false);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -248,6 +250,20 @@ export default function AsignarVoluntarioPage() {
           </div>
         </div>
 
+        {/* Aviso cuando no hay evaluación psicopedagógica */}
+        {sinDeficits && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-blue-700">Sin evaluación psicopedagógica registrada</p>
+              <p className="text-sm text-blue-600">
+                Se muestran todos los voluntarios disponibles ordenados por disponibilidad y score general.
+                Para un matching preciso, realizá la evaluación psicopedagógica del niño primero.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Sugerencias */}
         {sugerencias.length === 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-8 text-center">
@@ -256,9 +272,8 @@ export default function AsignarVoluntarioPage() {
               No hay voluntarios disponibles
             </h3>
             <p className="text-yellow-600">
-              {nino?.deficits?.length === 0
-                ? 'Este niño no tiene déficits registrados. Realizar evaluación psicopedagógica primero.'
-                : 'No se encontraron voluntarios con autoevaluaciones completadas.'}
+              No se encontraron voluntarios con autoevaluaciones completadas.
+              Los voluntarios deben completar al menos una autoevaluación para poder ser asignados.
             </p>
           </div>
         ) : (

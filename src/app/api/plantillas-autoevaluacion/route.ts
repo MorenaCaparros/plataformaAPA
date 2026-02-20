@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin'].includes(perfil.rol)) {
+    if (!['director', 'psicopedagogia', 'coordinador', 'trabajador_social', 'admin', 'equipo_profesional'].includes(perfil.rol)) {
       return NextResponse.json(
         { error: 'No autorizado. Solo director, psicopedagogía, coordinador, trabajo social o admin pueden crear plantillas' },
         { status: 403 }

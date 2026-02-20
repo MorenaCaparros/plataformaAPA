@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 });
     }
 
-    if (!['coordinador', 'psicopedagogia', 'director'].includes(perfil.rol)) {
+    if (!['coordinador', 'psicopedagogia', 'director', 'admin', 'equipo_profesional'].includes(perfil.rol)) {
       return NextResponse.json(
         { error: 'No tienes permisos para esta operación' },
         { status: 403 }
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Obtener déficits del niño desde historico_deficits
+    // Obtener déficits del niño desde historico_deficits (puede estar vacío, no bloqueante)
     const { data: deficitsData } = await supabase
       .from('historico_deficits')
       .select('area, nivel_gravedad, descripcion')
@@ -127,14 +127,9 @@ export async function GET(request: NextRequest) {
       descripcion: d.descripcion || '',
     }));
 
-    if (deficits.length === 0) {
-      return NextResponse.json({
-        message: 'El niño no tiene déficits registrados. Realizar evaluación psicopedagógica primero.',
-        sugerencias: [],
-      });
-    }
+    const sinDeficits = deficits.length === 0;
 
-    // 2. Obtener todos los voluntarios  
+    // 2. Obtener todos los voluntarios
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -158,21 +153,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 3. Para cada voluntario, obtener su última autoevaluación completada
+    // 3. Para cada voluntario, obtener sus scores por área
+    //    Primero intenta scores_voluntarios_por_area (tabla consolidada),
+    //    si no hay datos hace fallback a voluntarios_capacitaciones (porcentaje completado)
     const sugerencias: SugerenciaMatching[] = [];
 
     for (const voluntario of voluntarios || []) {
-      // Obtener scores por área del voluntario (replaces respuestas_autoevaluacion)
-      const { data: scores, error: scoresError } = await supabase
-        .from('scores_voluntarios_por_area')
-        .select('area, score_final')
-        .eq('voluntario_id', voluntario.id);
-
-      if (scoresError || !scores || scores.length === 0) {
-        continue; // Voluntario sin evaluaciones, skip
-      }
-
-      // Build habilidades from scores (map area names to HabilidadesVoluntario keys)
       const areaMapping: Record<string, keyof HabilidadesVoluntario> = {
         'lenguaje_vocabulario': 'lenguaje',
         'lenguaje': 'lenguaje',
@@ -183,11 +169,65 @@ export async function GET(request: NextRequest) {
         'matematicas': 'matematicas',
       };
       const habilidades: HabilidadesVoluntario = { lenguaje: 0, grafismo: 0, lectura_escritura: 0, matematicas: 0 };
-      for (const s of scores) {
-        const key = areaMapping[s.area];
-        if (key) {
-          habilidades[key] = (s.score_final || 0) / 20; // 0-100 → 0-5
+      let tieneEvaluacion = false;
+
+      // Intentar primero scores consolidados
+      const { data: scores } = await supabase
+        .from('scores_voluntarios_por_area')
+        .select('area, score_final')
+        .eq('voluntario_id', voluntario.id);
+
+      if (scores && scores.length > 0) {
+        tieneEvaluacion = true;
+        for (const s of scores) {
+          const key = areaMapping[s.area];
+          if (key) {
+            habilidades[key] = (s.score_final || 0) / 20; // 0-100 → 0-5
+          }
         }
+      } else {
+        // Fallback: calcular scores desde respuestas individuales (para voluntarios
+        // cuyo backfill aún no corrió o que tienen autoevaluaciones muy recientes)
+        const { data: respuestas } = await supabase
+          .from('respuestas_capacitaciones')
+          .select(`
+            es_correcta,
+            pregunta:preguntas_capacitacion!inner(area_especifica),
+            vol_cap:voluntarios_capacitaciones!inner(
+              capacitacion:capacitaciones!inner(area, tipo),
+              estado
+            )
+          `)
+          .eq('vol_cap.voluntario_id', voluntario.id)
+          .in('vol_cap.estado', ['aprobada', 'completada']);
+
+        if (respuestas && respuestas.length > 0) {
+          tieneEvaluacion = true;
+          const contadorPorArea: Record<string, { correctas: number; total: number }> = {};
+
+          for (const r of respuestas as any[]) {
+            const areaPregunta = (r.pregunta?.area_especifica || r.vol_cap?.capacitacion?.area || '').trim();
+            const key = areaMapping[areaPregunta];
+            if (!key) continue;
+            if (!contadorPorArea[areaPregunta]) contadorPorArea[areaPregunta] = { correctas: 0, total: 0 };
+            contadorPorArea[areaPregunta].total += 1;
+            if (r.es_correcta) contadorPorArea[areaPregunta].correctas += 1;
+          }
+
+          for (const [area, counts] of Object.entries(contadorPorArea)) {
+            const key = areaMapping[area];
+            if (key && counts.total > 0) {
+              const pct = (counts.correctas / counts.total) * 100;
+              habilidades[key] = Math.max(habilidades[key], pct / 20); // 0-100 → 0-5
+            }
+          }
+        }
+      }
+
+      // Incluir voluntarios SIN evaluación solo cuando el niño no tiene déficits
+      // (modo "todos disponibles" — se muestran al final con score bajo)
+      if (!tieneEvaluacion && !sinDeficits) {
+        continue;
       }
 
       // Obtener asignaciones actuales del voluntario
@@ -241,6 +281,7 @@ export async function GET(request: NextRequest) {
       },
       sugerencias,
       total: sugerencias.length,
+      sinDeficits,
     });
 
   } catch (error) {
@@ -287,7 +328,8 @@ function calcularHabilidadesPorArea(respuestas: any): HabilidadesVoluntario {
 }
 
 /**
- * Calcula el score de matching entre déficits del niño y habilidades del voluntario
+ * Calcula el score de matching entre déficits del niño y habilidades del voluntario.
+ * Si no hay déficits registrados, usa el promedio de habilidades del voluntario como score.
  */
 function calcularScoreMatching(
   deficits: DeficitNino[],
@@ -298,36 +340,38 @@ function calcularScoreMatching(
 ): { total: number; habilidades: number; disponibilidad: number; zona: number } {
   let scoreHabilidades = 0;
 
-  // 1. Score por habilidades (peso: 70%)
-  deficits.forEach((deficit) => {
-    const area = deficit.area.toLowerCase().replace(/\s+/g, '_');
-    const areaKey = MAPEO_AREAS[area];
-
-    if (areaKey) {
-      const habilidadVoluntario = habilidades[areaKey];
-      const prioridad = deficit.nivel_gravedad; // 1-5
-
-      // Score = habilidad (1-5) * prioridad (1-5) * 2.8 para normalizar a ~70
-      scoreHabilidades += habilidadVoluntario * prioridad * 2.8;
-    }
-  });
-
-  // Normalizar a 70 máximo (si tiene 5 déficits críticos y voluntario 5 estrellas)
-  const maxScoreHabilidades = deficits.length * 5 * 5 * 2.8;
-  scoreHabilidades = (scoreHabilidades / maxScoreHabilidades) * 70;
+  if (deficits.length === 0) {
+    // Sin déficits: score basado en promedio general de habilidades (peso: 70%)
+    const promedioHabilidades =
+      (habilidades.lenguaje + habilidades.grafismo + habilidades.lectura_escritura + habilidades.matematicas) / 4;
+    scoreHabilidades = (promedioHabilidades / 5) * 70; // normalizar 0-5 → 0-70
+  } else {
+    // Con déficits: peso por área según prioridad
+    deficits.forEach((deficit) => {
+      const area = deficit.area.toLowerCase().replace(/\s+/g, '_');
+      const areaKey = MAPEO_AREAS[area];
+      if (areaKey) {
+        const habilidadVoluntario = habilidades[areaKey];
+        const prioridad = deficit.nivel_gravedad; // 1-5
+        scoreHabilidades += habilidadVoluntario * prioridad * 2.8;
+      }
+    });
+    const maxScoreHabilidades = deficits.length * 5 * 5 * 2.8;
+    scoreHabilidades = maxScoreHabilidades > 0 ? (scoreHabilidades / maxScoreHabilidades) * 70 : 0;
+  }
 
   // 2. Score por disponibilidad (peso: 20%)
   let scoreDisponibilidad = 20;
-  if (numAsignaciones >= 3) scoreDisponibilidad = 5;  // Sobrecargado
-  else if (numAsignaciones === 2) scoreDisponibilidad = 12; // Media carga
-  else if (numAsignaciones === 1) scoreDisponibilidad = 16; // Buena carga
+  if (numAsignaciones >= 3) scoreDisponibilidad = 5;
+  else if (numAsignaciones === 2) scoreDisponibilidad = 12;
+  else if (numAsignaciones === 1) scoreDisponibilidad = 16;
 
   // 3. Score por zona (peso: 10%)
   let scoreZona = 10;
   if (!zonaVoluntario || !zonaNino) {
-    scoreZona = 5; // Sin info de zona
+    scoreZona = 5;
   } else if (zonaVoluntario !== zonaNino) {
-    scoreZona = 3; // Zona diferente
+    scoreZona = 3;
   }
 
   const total = scoreHabilidades + scoreDisponibilidad + scoreZona;
@@ -344,7 +388,7 @@ function calcularScoreMatching(
  * Calcula promedio de un array de números
  */
 function calcularPromedio(numeros: number[]): number {
-  if (numeros.length === 0) return 2.5; // Default neutral
+  if (numeros.length === 0) return 2.5;
   const suma = numeros.reduce((acc, num) => acc + num, 0);
   return suma / numeros.length;
 }

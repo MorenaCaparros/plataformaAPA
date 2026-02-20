@@ -1,19 +1,12 @@
 'use client';
 
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
 import VoluntarioDashboard from '@/components/dashboard/VoluntarioDashboard';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import EquipoProfesionalDashboard from '@/components/dashboard/EquipoProfesionalDashboard';
 
 export default function DashboardPage() {
-  const { user, perfil, loading, signOut } = useAuth();
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
-  };
+  const { user, perfil, loading } = useAuth();
 
   if (loading) {
     return (
@@ -26,41 +19,8 @@ export default function DashboardPage() {
     );
   }
 
-  // 🔍 DEBUG: Ver qué datos tenemos
-  console.log('🔍 Dashboard Debug:', {
-    user: user?.id,
-    email: user?.email,
-    perfil: perfil,
-    rol: perfil?.rol,
-    loading
-  });
-
   return (
     <div className="min-h-screen">
-      <nav className="sticky top-0 bg-white/60 backdrop-blur-lg border-b border-sol-400/20" style={{ zIndex: 30 }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="lg:flex-1">
-              <h1 className="font-quicksand text-xl font-bold text-neutro-carbon ml-16 lg:ml-0">
-                Plataforma APA
-              </h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="hidden sm:inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium bg-crecimiento-50 text-crecimiento-700 border border-crecimiento-400/30">
-                {perfil?.rol}
-              </span>
-              <button
-                onClick={handleSignOut}
-                className="px-4 py-2 bg-gradient-to-r from-impulso-400 to-impulso-500 hover:shadow-glow-impulso text-white font-medium rounded-2xl transition-all duration-200 text-sm"
-                style={{ minHeight: '44px' }}
-              >
-                Cerrar sesión
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Dashboard específico por rol */}
         {perfil?.rol === 'voluntario' ? (

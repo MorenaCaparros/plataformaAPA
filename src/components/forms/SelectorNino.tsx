@@ -9,30 +9,39 @@ interface Nino {
   alias: string;
   rango_etario: string;
   fecha_nacimiento: string | null;
-  numero_legajo: string;
+  legajo: string | null;
 }
 
 interface SelectorNinoProps {
   onSelect: (ninoId: string) => void;
+  initialNinoId?: string | null;
 }
 
 export default function SelectorNino({
   onSelect,
+  initialNinoId,
 }: SelectorNinoProps) {
   const [ninos, setNinos] = useState<Nino[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedNino, setSelectedNino] = useState<string | null>(null);
+  const [selectedNino, setSelectedNino] = useState<string | null>(initialNinoId ?? null);
 
   useEffect(() => {
     loadNinos();
   }, []);
 
+  // Pre-select when ninos load and initialNinoId is provided
+  useEffect(() => {
+    if (initialNinoId && ninos.length > 0 && !selectedNino) {
+      handleSelect(initialNinoId);
+    }
+  }, [ninos, initialNinoId]);
+
   const loadNinos = async () => {
     try {
       const { data, error } = await supabase
         .from('ninos')
-        .select('id, alias, rango_etario, fecha_nacimiento, numero_legajo')
+        .select('id, alias, rango_etario, fecha_nacimiento, legajo')
         .order('alias', { ascending: true });
 
       if (error) throw error;
@@ -49,7 +58,7 @@ export default function SelectorNino({
     const search = searchTerm.toLowerCase();
     return (
       nino.alias.toLowerCase().includes(search) ||
-      nino.numero_legajo.toLowerCase().includes(search)
+      (nino.legajo || '').toLowerCase().includes(search)
     );
   });
 
@@ -108,7 +117,7 @@ export default function SelectorNino({
                     {nino.alias}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Legajo: {nino.numero_legajo} • {formatearEdad(nino.fecha_nacimiento, nino.rango_etario)}
+                    {nino.legajo ? `Legajo: ${nino.legajo} • ` : ''}{formatearEdad(nino.fecha_nacimiento, nino.rango_etario)}
                   </p>
                 </div>
                 {selectedNino === nino.id && (

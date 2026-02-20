@@ -28,6 +28,9 @@ export default function Home() {
           <h1 className="text-5xl sm:text-6xl font-quicksand font-bold text-neutro-carbon">
             Plataforma APA
           </h1>
+          <p className="text-base sm:text-lg text-crecimiento-600 font-semibold tracking-wide">
+            Acompañar Para Aprender
+          </p>
           <p className="text-lg sm:text-xl text-neutro-piedra font-medium">
             Sistema de seguimiento educativo
           </p>
@@ -36,7 +39,7 @@ export default function Home() {
         <div className="flex items-center justify-center gap-2 text-sm text-neutro-piedra">
           <span className="font-semibold">GlobalIA</span>
           <span>×</span>
-          <span className="font-semibold">ONG Adelante</span>
+          <span className="font-semibold">Asociación Civil Adelante</span>
         </div>
 
         {/* Botones */}

@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
         nino:ninos (
           id,
           alias,
-          rango_etario
+          rango_etario,
+          fecha_nacimiento,
+          nivel_alfabetizacion
         )
       `)
       .eq('activa', activo)
@@ -113,7 +115,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia'];
+    const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia', 'equipo_profesional'];
     if (!perfil || !rolesPermitidos.includes(perfil.rol)) {
       return NextResponse.json(
         { error: 'No tienes permisos para crear asignaciones' },
@@ -237,7 +239,7 @@ export async function PATCH(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia'];
+    const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia', 'equipo_profesional'];
     if (!perfil || !rolesPermitidos.includes(perfil.rol)) {
       return NextResponse.json(
         { error: 'No tienes permisos para actualizar asignaciones' },

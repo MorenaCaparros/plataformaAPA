@@ -97,23 +97,23 @@ function ModoIcon({ name, className }: { name: ModoConfig['iconName']; className
 
 const SUGERENCIAS: Record<Modo, string[]> = {
   biblioteca: [
-    '¿Qué documentos hay sobre dislexia?',
+    'Estrategias para trabajar la conciencia fonológica',
     'Estrategias para niños con dificultades de atención',
-    'Métodos de evaluación de lectura',
-    '¿Qué dice la bibliografía sobre alfabetización inicial?',
+    'Métodos de evaluación de lectura inicial',
+    '¿Qué dice la bibliografía sobre alfabetización emergente?',
   ],
   analisis_nino: [
     '¿Cómo evolucionó su nivel de lectura?',
-    '¿Qué patrones de frustración se observan?',
+    '¿Qué patrones de dificultad se observan en las sesiones?',
     'Generá un informe psicopedagógico completo',
     '¿En qué áreas muestra más fortalezas?',
-    'Qué estrategias recomiendas para mejorar su atención',
+    '¿Qué estrategias recomiendas para mejorar su atención?',
   ],
   tema_libre: [
     '¿Qué es la conciencia fonológica?',
-    'Diferencias entre dislexia y retraso lector',
     'Estrategias para trabajar comprensión lectora',
     'Cómo motivar a niños con experiencias escolares negativas',
+    'Actividades para desarrollar el lenguaje oral en niños',
   ],
 };
 

@@ -30,7 +30,7 @@ interface ConsentimientoGrabacionModalProps {
 const CANVAS_WIDTH = 500;
 const CANVAS_HEIGHT = 180;
 
-const TEXTO_CONSENTIMIENTO = `Autorizo a la ONG Adelante y su programa de alfabetización a grabar esta conversación con fines exclusivamente educativos y de seguimiento psicopedagógico.
+const TEXTO_CONSENTIMIENTO = `Autorizo a la Asociación Civil Adelante y su programa de alfabetización a grabar esta conversación con fines exclusivamente educativos y de seguimiento psicopedagógico.
 
 Entiendo y acepto que:
 • La conversación será grabada en formato de audio.

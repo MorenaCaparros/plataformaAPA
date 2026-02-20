@@ -284,6 +284,82 @@ export async function POST(request: NextRequest) {
       console.error('Error al actualizar puntaje:', updateError);
     }
 
+    // 4. Actualizar scores_voluntarios_por_area por ÁREA DE PREGUNTA individual
+    //    Funciona para autoevaluaciones mixtas: calcula % de correctas por área
+    //    usando area_especifica de cada pregunta (no el área global de la capacitación).
+    {
+      const tipo = capacitacion.tipo || 'autoevaluacion';
+      const scoreField = tipo === 'autoevaluacion' ? 'score_autoevaluacion' : 'score_capacitaciones';
+
+      // Agrupar respuestas por area_especifica de la pregunta
+      const AREAS_VALIDAS = new Set([
+        'lenguaje', 'lenguaje_vocabulario',
+        'grafismo', 'grafismo_motricidad',
+        'lectura_escritura',
+        'matematicas', 'nociones_matematicas',
+      ]);
+
+      // Mapa: area → { correctas, total }
+      const contadorPorArea: Record<string, { correctas: number; total: number }> = {};
+
+      for (const respuesta of respuestas) {
+        const pregunta = capacitacion.preguntas?.find((p: any) => p.id === respuesta.pregunta_id);
+        if (!pregunta) continue;
+
+        // Determinar área: primero area_especifica de la pregunta, luego área de la capacitación
+        const areaPregunta = (pregunta.area_especifica || capacitacion.area || '').trim();
+        if (!areaPregunta || !AREAS_VALIDAS.has(areaPregunta)) continue;
+
+        if (!contadorPorArea[areaPregunta]) {
+          contadorPorArea[areaPregunta] = { correctas: 0, total: 0 };
+        }
+
+        const esCorrecta = checkRespuestaCorrecta(pregunta, respuesta.respuesta);
+        contadorPorArea[areaPregunta].total += 1;
+        if (esCorrecta) contadorPorArea[areaPregunta].correctas += 1;
+      }
+
+      // Upsert score por cada área encontrada
+      for (const [area, counts] of Object.entries(contadorPorArea)) {
+        if (counts.total === 0) continue;
+        const scoreArea = Math.round((counts.correctas / counts.total) * 100);
+
+        const { data: scoreExistente } = await supabase
+          .from('scores_voluntarios_por_area')
+          .select('id, score_autoevaluacion, score_capacitaciones')
+          .eq('voluntario_id', perfil.id)
+          .eq('area', area)
+          .maybeSingle();
+
+        if (scoreExistente) {
+          const scorePrevio = scoreField === 'score_autoevaluacion'
+            ? (scoreExistente.score_autoevaluacion || 0)
+            : (scoreExistente.score_capacitaciones || 0);
+          const nuevoScore = Math.max(scorePrevio, scoreArea);
+
+          await supabase
+            .from('scores_voluntarios_por_area')
+            .update({
+              [scoreField]: nuevoScore,
+              necesita_capacitacion: nuevoScore < 100,
+              fecha_ultima_evaluacion: new Date().toISOString(),
+            })
+            .eq('id', scoreExistente.id);
+        } else {
+          await supabase
+            .from('scores_voluntarios_por_area')
+            .insert({
+              voluntario_id: perfil.id,
+              area,
+              score_autoevaluacion: tipo === 'autoevaluacion' ? scoreArea : 0,
+              score_capacitaciones: tipo === 'capacitacion' ? scoreArea : 0,
+              necesita_capacitacion: scoreArea < 100,
+              fecha_ultima_evaluacion: new Date().toISOString(),
+            });
+        }
+      }
+    }
+
     // Map to old response shape
     const respuestaFormateada = {
       id: volCap.id,

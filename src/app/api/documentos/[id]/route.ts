@@ -86,27 +86,45 @@ export async function PATCH(
     }
 
     const { id: documentoId } = await params;
-    const { tags } = await request.json();
+    const body = await request.json();
+    const { tags, rango_etario } = body;
 
-    if (!Array.isArray(tags)) {
-      return NextResponse.json({ error: 'tags debe ser un array de strings' }, { status: 400 });
+    const updatePayload: Record<string, any> = {};
+
+    // Actualizar tags si se proveen
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        return NextResponse.json({ error: 'tags debe ser un array de strings' }, { status: 400 });
+      }
+      // Sanitizar tags: minúsculas, trim, deduplicar, max 10
+      updatePayload.tags = [...new Set(
+        tags
+          .map((t: any) => String(t).toLowerCase().trim().slice(0, 30))
+          .filter((t: string) => t.length > 1)
+      )].slice(0, 10);
     }
 
-    // Sanitizar tags: minúsculas, trim, deduplicar, max 10
-    const tagsSanitizados = [...new Set(
-      tags
-        .map((t: any) => String(t).toLowerCase().trim().slice(0, 30))
-        .filter((t: string) => t.length > 1)
-    )].slice(0, 10);
+    // Actualizar rango_etario si se provee
+    if ('rango_etario' in body) {
+      const RANGOS_VALIDOS = ['3-4', '4-5', '5-6', '6-8', '8-10', '10+', null];
+      if (!RANGOS_VALIDOS.includes(rango_etario)) {
+        return NextResponse.json({ error: 'rango_etario no válido' }, { status: 400 });
+      }
+      updatePayload.rango_etario = rango_etario;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 });
+    }
 
     const { error } = await supabase
       .from('documentos')
-      .update({ tags: tagsSanitizados })
+      .update(updatePayload)
       .eq('id', documentoId);
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true, tags: tagsSanitizados });
+    return NextResponse.json({ success: true, ...updatePayload });
   } catch (error: any) {
     console.error('Error en PATCH documento:', error);
     return NextResponse.json(

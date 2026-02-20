@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { calcularEdad, formatearEdad } from '@/lib/utils/date-helpers';
@@ -9,7 +10,8 @@ import {
   ArrowLeft, Plus, BookOpen, ClipboardList, Target, Info, ChevronRight,
   UserCheck, Camera, Heart, GraduationCap, Phone, StickyNote, Calendar,
   Users, CheckCircle, XCircle, Upload, Trash2, Save, Stethoscope,
-  Mic, Volume2, FileText, ChevronDown, ChevronUp
+  Mic, Volume2, FileText, ChevronDown, ChevronUp, AlertTriangle, Pencil,
+  X, History, MapPin
 } from 'lucide-react';
 import type { Nino, NinoSensible, Zona, Escuela, Perfil, FamiliarApoyo } from '@/types/database';
 
@@ -99,9 +101,23 @@ export default function NinoPerfilPage() {
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
   const [asignacionActiva, setAsignacionActiva] = useState<AsignacionActiva | null>(null);
   const [familiares, setFamiliares] = useState<FamiliarApoyo[]>([]);
+  const [familiarEditandoId, setFamiliarEditandoId] = useState<string | null>(null);
+  const [familiarEditForm, setFamiliarEditForm] = useState<Partial<FamiliarApoyo>>({});
+  const [guardandoFamiliar, setGuardandoFamiliar] = useState(false);
   const [notas, setNotas] = useState<NotaBitacora[]>([]);
   const [grabaciones, setGrabaciones] = useState<GrabacionReunion[]>([]);
+  const [evaluacionesPsico, setEvaluacionesPsico] = useState<{
+    id: string;
+    fecha: string;
+    conclusiones: string | null;
+    acciones_sugeridas: string | null;
+    autor_nombre: string;
+  }[]>([]);
   const [nuevaNota, setNuevaNota] = useState('');
+  const [notaEditandoId, setNotaEditandoId] = useState<string | null>(null);
+  const [notaEditandoTexto, setNotaEditandoTexto] = useState('');
+  const [guardandoNota, setGuardandoNota] = useState(false);
+  const [eliminandoNotaId, setEliminandoNotaId] = useState<string | null>(null);
   const [asistenciaPorcentaje, setAsistenciaPorcentaje] = useState<number | null>(null);
   const [asistenciaHistorial, setAsistenciaHistorial] = useState<{ fecha: string; presente: boolean; motivo_ausencia: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,13 +131,53 @@ export default function NinoPerfilPage() {
     ultima_sesion: null as string | null,
   });
 
-  // Editable fields (only for roles with full access)
+  // Editable fields (only for roles with edit access)
   const [editPermanencia, setEditPermanencia] = useState<boolean>(true);
   const [editAnoPermanencia, setEditAnoPermanencia] = useState<number>(new Date().getFullYear());
   const [editTerapia, setEditTerapia] = useState<string[]>([]);
+  const [editComentariosSalud, setEditComentariosSalud] = useState<string>('');
+  const [guardandoSalud, setGuardandoSalud] = useState(false);
+  const [exitoSalud, setExitoSalud] = useState(false);
+  const [editandoSalud, setEditandoSalud] = useState(false); // false = vista, true = formulario
+  const [tieneEvaluacionInicial, setTieneEvaluacionInicial] = useState<boolean | null>(null);
+
+  // ─── Modo edición inline ───────────────────────────────────
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [editForm, setEditForm] = useState({
+    alias: '',
+    legajo: '',
+    fecha_nacimiento: '',
+    rango_etario: '',
+    genero: '',
+    nivel_alfabetizacion: '',
+    escolarizado: false,
+    grado_escolar: '',
+    turno_escolar: '',
+    activo: true,
+    fecha_ingreso: '',
+    zona_id: '',
+    escuela_id: '',
+  });
+  const [editFormOriginal, setEditFormOriginal] = useState<typeof editForm | null>(null);
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+  const [exitoEdicion, setExitoEdicion] = useState(false);
+  const [ultimaEdicion, setUltimaEdicion] = useState<{ usuario: string; fecha: string } | null>(null);
+  const [zonas, setZonas] = useState<{ id: string; nombre: string }[]>([]);
+  const [escuelas, setEscuelas] = useState<{ id: string; nombre: string }[]>([]);
+  const [zonasCargadas, setZonasCargadas] = useState(false);
+  const [showZonaModal, setShowZonaModal] = useState(false);
+  const [nuevaZonaNombre, setNuevaZonaNombre] = useState('');
+  const [creandoZona, setCreandoZona] = useState(false);
+  const [showEscuelaModal, setShowEscuelaModal] = useState(false);
+  const [nuevaEscuelaNombre, setNuevaEscuelaNombre] = useState('');
+  const [creandoEscuela, setCreandoEscuela] = useState(false);
 
   const isVoluntario = perfil?.rol === 'voluntario';
   const tieneAccesoCompleto = perfil?.rol && ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social'].includes(perfil.rol);
+  // equipo_profesional can edit basic nino fields + health, but can't see encrypted sensitive data
+  const esEquipoProfesional = perfil?.rol === 'equipo_profesional';
+  const puedeEditar = tieneAccesoCompleto || esEquipoProfesional;
 
   useEffect(() => {
     if (user) fetchDatos();
@@ -134,23 +190,103 @@ export default function NinoPerfilPage() {
       setLoading(true);
 
       // 1. Niño with relations (CRITICAL — if this fails, redirect)
-      const selectFields = tieneAccesoCompleto
-        ? `*, zonas(id, nombre), escuelas(id, nombre), ninos_sensibles(*)`
-        : `*, zonas(id, nombre), escuelas(id, nombre)`;
+      // Para voluntarios usamos la API route (service_role) ya que RLS bloquea
+      // la lectura directa de la tabla ninos con anon key.
+      let ninoCompleto: NinoCompleto;
 
-      const { data: ninoData, error: ninoError } = await supabase
-        .from('ninos')
-        .select(selectFields)
-        .eq('id', ninoId)
-        .single();
+      if (isVoluntario) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Sin sesión');
+        const res = await fetch(`/api/ninos/${ninoId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`No se pudo cargar el niño (${res.status})`);
+        const json = await res.json();
+        ninoCompleto = json.nino as NinoCompleto;
+      } else {
+        const selectFields = tieneAccesoCompleto
+          ? `*, zonas(id, nombre), escuelas(id, nombre), ninos_sensibles(*)`
+          : `*, zonas(id, nombre), escuelas(id, nombre)`;
 
-      if (ninoError) throw ninoError;
-      const ninoCompleto = ninoData as NinoCompleto;
+        const { data: ninoData, error: ninoError } = await supabase
+          .from('ninos')
+          .select(selectFields)
+          .eq('id', ninoId)
+          .single();
+
+        if (ninoError) throw ninoError;
+        ninoCompleto = ninoData as NinoCompleto;
+      }
+
       setNino(ninoCompleto);
 
       // Init editable fields from nino data
       setEditPermanencia(ninoCompleto.activo);
       setEditAnoPermanencia(new Date().getFullYear());
+      // 2a. Load salud_ninos (non-critical) — terapia + comentarios
+      try {
+        const { data: saludData } = await supabase
+          .from('salud_ninos')
+          .select('observaciones, condiciones_preexistentes')
+          .eq('nino_id', ninoId)
+          .maybeSingle();
+
+        // condiciones_preexistentes stores terapia as "PROFESIONALES:val1,val2"
+        const condiciones = saludData?.condiciones_preexistentes || '';
+        if (condiciones.startsWith('PROFESIONALES:')) {
+          const valores = condiciones.replace('PROFESIONALES:', '').split(',').filter(Boolean);
+          setEditTerapia(valores);
+        } else {
+          setEditTerapia([]);
+        }
+        setEditComentariosSalud(saludData?.observaciones || '');
+      } catch (e) {
+        setEditTerapia([]);
+        setEditComentariosSalud('');
+      }
+
+      // 2b. Check if child has a real psicopedagogical evaluation (entrevistas tipo='inicial')
+      try {
+        const { data: evalData } = await supabase
+          .from('entrevistas')
+          .select('id')
+          .eq('nino_id', ninoId)
+          .eq('tipo', 'inicial')
+          .limit(1)
+          .maybeSingle();
+        setTieneEvaluacionInicial(!!evalData);
+      } catch (e) {
+        setTieneEvaluacionInicial(false);
+      }
+
+      // 2c. Load psicopedagogical evaluations for the dedicated section
+      if (tieneAccesoCompleto || perfil?.rol === 'equipo_profesional') {
+        try {
+          const { data: evalsData } = await supabase
+            .from('entrevistas')
+            .select('id, fecha, conclusiones, acciones_sugeridas, perfiles:entrevistador_id(nombre, apellido)')
+            .eq('nino_id', ninoId)
+            .eq('tipo', 'inicial')
+            .order('fecha', { ascending: false });
+
+          if (evalsData) {
+            setEvaluacionesPsico(
+              evalsData.map((e: any) => ({
+                id: e.id,
+                fecha: e.fecha,
+                conclusiones: e.conclusiones,
+                acciones_sugeridas: e.acciones_sugeridas,
+                autor_nombre: e.perfiles
+                  ? `${e.perfiles.nombre} ${e.perfiles.apellido}`.trim()
+                  : 'Desconocido',
+              }))
+            );
+          }
+        } catch (e) {
+          // non-critical
+        }
+      }
 
       // 2. Active assignment (non-critical)
       try {
@@ -279,13 +415,16 @@ export default function NinoPerfilPage() {
         console.warn('No se pudieron cargar asistencias:', e);
       }
 
-      // 7. Notas / bitácora + Grabaciones (non-critical)
-      if (tieneAccesoCompleto) {
+      // 7. Notas / bitácora + Grabaciones (full access + equipo_profesional)
+      // NOTE: Only fetch entrevistas that are NOT tipo='inicial' (those are psicopedagogical evaluations)
+      const puedeEditarLocal = tieneAccesoCompleto || perfil?.rol === 'equipo_profesional';
+      if (puedeEditarLocal) {
         try {
           const { data: notasData } = await supabase
             .from('entrevistas')
             .select('id, observaciones, fecha, entrevistador_id, perfiles:entrevistador_id(nombre, apellido)')
             .eq('nino_id', ninoId)
+            .neq('tipo', 'inicial')
             .order('fecha', { ascending: false })
             .limit(20);
 
@@ -336,7 +475,7 @@ export default function NinoPerfilPage() {
     } catch (error) {
       console.error('Error fetching datos del niño:', error);
       alert('Error al cargar los datos del niño. Verificá que el niño existe.');
-      router.push('/dashboard/ninos');
+      router.push(isVoluntario ? '/dashboard' : '/dashboard/ninos');
     } finally {
       setLoading(false);
     }
@@ -446,6 +585,363 @@ export default function NinoPerfilPage() {
     }
   };
 
+  const handleGuardarSalud = async () => {
+    if (!nino) return;
+    try {
+      setGuardandoSalud(true);
+
+      // Upsert salud_ninos — tipo_terapia stored as "PROFESIONALES:val1,val2" in condiciones_preexistentes
+      const condicionesTexto = editTerapia.length > 0
+        ? `PROFESIONALES:${editTerapia.join(',')}`
+        : null;
+
+      const { error: saludError } = await supabase
+        .from('salud_ninos')
+        .upsert(
+          {
+            nino_id: ninoId,
+            condiciones_preexistentes: condicionesTexto,
+            observaciones: editComentariosSalud.trim() || null,
+            ultima_actualizacion: new Date().toISOString().split('T')[0],
+          },
+          { onConflict: 'nino_id' }
+        );
+      if (saludError) throw saludError;
+
+      setExitoSalud(true);
+      setEditandoSalud(false); // volver a modo vista
+      setTimeout(() => setExitoSalud(false), 3000);
+
+    } catch (error) {
+      console.error('Error guardando salud:', error);
+      alert('Error al guardar datos de salud');
+    } finally {
+      setGuardandoSalud(false);
+    }
+  };
+
+  // ─── Notas: editar y eliminar ─────────────────────────────
+
+  const handleEditarNota = (nota: NotaBitacora) => {
+    setNotaEditandoId(nota.id);
+    setNotaEditandoTexto(nota.texto);
+  };
+
+  const handleGuardarNotaEditada = async () => {
+    if (!notaEditandoId || !notaEditandoTexto.trim()) return;
+    try {
+      setGuardandoNota(true);
+      const { error } = await supabase
+        .from('entrevistas')
+        .update({ observaciones: notaEditandoTexto.trim() })
+        .eq('id', notaEditandoId);
+      if (error) throw error;
+      setNotas((prev) =>
+        prev.map((n) => n.id === notaEditandoId ? { ...n, texto: notaEditandoTexto.trim() } : n)
+      );
+      setNotaEditandoId(null);
+      setNotaEditandoTexto('');
+    } catch (err) {
+      console.error('Error editando nota:', err);
+      alert('Error al editar la nota');
+    } finally {
+      setGuardandoNota(false);
+    }
+  };
+
+  const handleEliminarNota = async (id: string) => {
+    if (!confirm('¿Eliminás esta nota? Esta acción no se puede deshacer.')) return;
+    try {
+      setEliminandoNotaId(id);
+      const { error } = await supabase.from('entrevistas').delete().eq('id', id);
+      if (error) throw error;
+      setNotas((prev) => prev.filter((n) => n.id !== id));
+    } catch (err) {
+      console.error('Error eliminando nota:', err);
+      alert('Error al eliminar la nota');
+    } finally {
+      setEliminandoNotaId(null);
+    }
+  };
+
+  // ─── Familiares: editar / crear ──────────────────────────
+
+  const handleAbrirEditarFamiliar = (familiar: FamiliarApoyo) => {
+    setFamiliarEditandoId(familiar.id);
+    setFamiliarEditForm({
+      nombre: familiar.nombre || '',
+      telefono: familiar.telefono || '',
+      email: familiar.email || '',
+      relacion: familiar.relacion || '',
+      vive_con_nino: familiar.vive_con_nino ?? false,
+      es_contacto_principal: familiar.es_contacto_principal ?? false,
+      notas: familiar.notas || '',
+    });
+  };
+
+  const handleAbrirCrearFamiliar = (tipo: string) => {
+    setFamiliarEditandoId(`__nuevo__${tipo}`);
+    setFamiliarEditForm({
+      nombre: '',
+      telefono: '',
+      email: '',
+      relacion: '',
+      vive_con_nino: false,
+      es_contacto_principal: false,
+      notas: '',
+    });
+  };
+
+  const handleGuardarFamiliar = async () => {
+    if (!familiarEditandoId) return;
+    const esNuevo = familiarEditandoId.startsWith('__nuevo__');
+    try {
+      setGuardandoFamiliar(true);
+      if (esNuevo) {
+        const tipo = familiarEditandoId.replace('__nuevo__', '');
+        const { data, error } = await supabase
+          .from('familiares_apoyo')
+          .insert({
+            nino_id: ninoId,
+            tipo,
+            nombre: familiarEditForm.nombre || null,
+            telefono: familiarEditForm.telefono || null,
+            email: familiarEditForm.email || null,
+            relacion: familiarEditForm.relacion || null,
+            vive_con_nino: familiarEditForm.vive_con_nino ?? false,
+            es_contacto_principal: familiarEditForm.es_contacto_principal ?? false,
+            notas: familiarEditForm.notas || null,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        setFamiliares((prev) => [...prev, data as FamiliarApoyo]);
+      } else {
+        const { error } = await supabase
+          .from('familiares_apoyo')
+          .update({
+            nombre: familiarEditForm.nombre || null,
+            telefono: familiarEditForm.telefono || null,
+            email: familiarEditForm.email || null,
+            relacion: familiarEditForm.relacion || null,
+            vive_con_nino: familiarEditForm.vive_con_nino,
+            es_contacto_principal: familiarEditForm.es_contacto_principal,
+            notas: familiarEditForm.notas || null,
+          })
+          .eq('id', familiarEditandoId);
+        if (error) throw error;
+        setFamiliares((prev) =>
+          prev.map((f) => f.id === familiarEditandoId ? { ...f, ...familiarEditForm } as FamiliarApoyo : f)
+        );
+      }
+      setFamiliarEditandoId(null);
+      setFamiliarEditForm({});
+    } catch (err) {
+      console.error('Error guardando familiar:', err);
+      alert('Error al guardar los datos del familiar');
+    } finally {
+      setGuardandoFamiliar(false);
+    }
+  };
+
+  // ─── Crear nueva zona / escuela desde modal ───────────────
+
+  const handleCrearZona = async () => {
+    const nombre = nuevaZonaNombre.trim();
+    if (!nombre) return;
+    setCreandoZona(true);
+    try {
+      const { data, error } = await supabase
+        .from('zonas')
+        .insert({ nombre, activa: true })
+        .select('id, nombre')
+        .single();
+      if (error) throw error;
+      setZonas((prev) => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setEditForm((prev) => ({ ...prev, zona_id: data.id }));
+      setShowZonaModal(false);
+      setNuevaZonaNombre('');
+    } catch (err: any) {
+      alert('Error al crear zona: ' + err.message);
+    } finally {
+      setCreandoZona(false);
+    }
+  };
+
+  const handleCrearEscuela = async () => {
+    const nombre = nuevaEscuelaNombre.trim();
+    if (!nombre) return;
+    setCreandoEscuela(true);
+    try {
+      const { data, error } = await supabase
+        .from('escuelas')
+        .insert({ nombre, activa: true })
+        .select('id, nombre')
+        .single();
+      if (error) throw error;
+      setEscuelas((prev) => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+      setEditForm((prev) => ({ ...prev, escuela_id: data.id }));
+      setShowEscuelaModal(false);
+      setNuevaEscuelaNombre('');
+    } catch (err: any) {
+      alert('Error al crear escuela: ' + err.message);
+    } finally {
+      setCreandoEscuela(false);
+    }
+  };
+
+  // ─── Edición inline datos del niño ────────────────────────
+
+  const abrirEdicion = async () => {    if (!nino) return;
+    const form = {
+      alias: nino.alias || '',
+      legajo: nino.legajo || '',
+      fecha_nacimiento: nino.fecha_nacimiento || '',
+      rango_etario: nino.rango_etario || '',
+      genero: nino.genero || '',
+      nivel_alfabetizacion: nino.nivel_alfabetizacion || '',
+      escolarizado: nino.escolarizado ?? false,
+      grado_escolar: nino.grado_escolar || '',
+      turno_escolar: nino.turno_escolar || '',
+      activo: nino.activo ?? true,
+      fecha_ingreso: nino.fecha_ingreso || '',
+      zona_id: nino.zona_id || '',
+      escuela_id: nino.escuela_id || '',
+    };
+    setEditForm(form);
+    setEditFormOriginal(form);
+    setErrorEdicion(null);
+    setExitoEdicion(false);
+
+    // Cargar zonas y escuelas si no están cargadas
+    if (!zonasCargadas) {
+      const [{ data: z }, { data: e }] = await Promise.all([
+        supabase.from('zonas').select('id, nombre').eq('activa', true).order('nombre'),
+        supabase.from('escuelas').select('id, nombre').eq('activa', true).order('nombre'),
+      ]);
+      setZonas(z || []);
+      setEscuelas(e || []);
+      setZonasCargadas(true);
+    }
+
+    // Cargar última edición del historial
+    try {
+      const { data: historialData } = await supabase
+        .from('historial_cambios')
+        .select('created_at, usuario_id')
+        .eq('tabla', 'ninos')
+        .eq('registro_id', ninoId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (historialData) {
+        const { data: perfilData } = await supabase
+          .from('perfiles')
+          .select('nombre, apellido')
+          .eq('id', historialData.usuario_id)
+          .single();
+        setUltimaEdicion({
+          usuario: perfilData ? `${perfilData.nombre} ${perfilData.apellido}`.trim() : 'Desconocido',
+          fecha: historialData.created_at,
+        });
+      } else {
+        setUltimaEdicion(null);
+      }
+    } catch { /* historial no crítico */ }
+
+    setModoEdicion(true);
+  };
+
+  const cancelarEdicion = () => {
+    setModoEdicion(false);
+    setErrorEdicion(null);
+    setExitoEdicion(false);
+  };
+
+  const handleGuardarEdicion = async () => {
+    if (!user || !editFormOriginal || !nino) return;
+    if (!editForm.alias.trim()) {
+      setErrorEdicion('El alias es obligatorio.');
+      return;
+    }
+    try {
+      setGuardandoEdicion(true);
+      setErrorEdicion(null);
+
+      // Detectar cambios
+      const camposModificados: string[] = [];
+      const datosAnteriores: Record<string, unknown> = {};
+      const datosNuevos: Record<string, unknown> = {};
+
+      (Object.keys(editForm) as (keyof typeof editForm)[]).forEach((key) => {
+        const orig = editFormOriginal[key] === '' ? null : editFormOriginal[key];
+        const nuevo = editForm[key] === '' ? null : editForm[key];
+        if (orig !== nuevo) {
+          camposModificados.push(key);
+          datosAnteriores[key] = editFormOriginal[key];
+          datosNuevos[key] = editForm[key];
+        }
+      });
+
+      if (camposModificados.length === 0) {
+        setErrorEdicion('No hay cambios para guardar.');
+        return;
+      }
+
+      const updatePayload: Record<string, unknown> = {};
+      camposModificados.forEach((key) => {
+        const val = editForm[key as keyof typeof editForm];
+        updatePayload[key] = val === '' ? null : val;
+      });
+
+      const { error: updateError } = await supabase
+        .from('ninos')
+        .update(updatePayload)
+        .eq('id', ninoId);
+      if (updateError) throw updateError;
+
+      // Registrar en historial_cambios
+      await supabase.from('historial_cambios').insert({
+        tabla: 'ninos',
+        registro_id: ninoId,
+        operacion: 'UPDATE',
+        usuario_id: user.id,
+        datos_anteriores: datosAnteriores,
+        datos_nuevos: datosNuevos,
+        columnas_modificadas: camposModificados,
+      });
+
+      // Actualizar nino en estado local
+      const zonaActualizada = zonas.find((z) => z.id === editForm.zona_id) || nino.zonas;
+      const escuelaActualizada = escuelas.find((e) => e.id === editForm.escuela_id) || nino.escuelas;
+      setNino({
+        ...nino,
+        ...updatePayload,
+        zonas: zonaActualizada as any,
+        escuelas: escuelaActualizada as any,
+      } as NinoCompleto);
+
+      // Actualizar badge de última edición
+      setUltimaEdicion({
+        usuario: `${(perfil as any)?.nombre || ''} ${(perfil as any)?.apellido || ''}`.trim(),
+        fecha: new Date().toISOString(),
+      });
+
+      setEditFormOriginal({ ...editForm });
+      setExitoEdicion(true);
+      setTimeout(() => {
+        setModoEdicion(false);
+        setExitoEdicion(false);
+      }, 1500);
+    } catch (err: any) {
+      console.error('Error guardando edición:', err);
+      setErrorEdicion(err.message || 'Error al guardar. Intentá de nuevo.');
+    } finally {
+      setGuardandoEdicion(false);
+    }
+  };
+
   // ─── Helpers ───────────────────────────────────────────────
 
   const formatearFecha = (fecha: string) =>
@@ -518,7 +1014,7 @@ export default function NinoPerfilPage() {
                   </span>
                 )}
               </div>
-              {tieneAccesoCompleto && (
+              {puedeEditar && (
                 <>
                   <button
                     onClick={() => fotoInputRef.current?.click()}
@@ -609,7 +1105,34 @@ export default function NinoPerfilPage() {
                     Asistencia: {asistenciaPorcentaje}%
                   </span>
                 )}
+                {/* Evaluación inicial badge */}
+                {tieneEvaluacionInicial !== null && (
+                  <span
+                    className={`inline-flex items-center gap-1 px-3 py-1 rounded-full font-medium text-xs ${
+                      tieneEvaluacionInicial
+                        ? 'bg-crecimiento-100 text-crecimiento-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                    title={tieneEvaluacionInicial ? 'Tiene evaluación psicopedagógica inicial' : 'Sin evaluación psicopedagógica inicial'}
+                  >
+                    {tieneEvaluacionInicial ? (
+                      <><CheckCircle className="w-3.5 h-3.5" /> Evaluación inicial</>
+                    ) : (
+                      <><AlertTriangle className="w-3.5 h-3.5" /> Sin eval. inicial</>
+                    )}
+                  </span>
+                )}
               </div>
+              {/* Badge última modificación */}
+              {ultimaEdicion && (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-400">
+                  <History className="w-3.5 h-3.5" />
+                  <span>
+                    Modificado por <span className="font-medium text-gray-500">{ultimaEdicion.usuario}</span>{' '}
+                    el {new Date(ultimaEdicion.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -634,6 +1157,298 @@ export default function NinoPerfilPage() {
           </div>
         </div>
       </div>
+
+      {/* ═══ Panel de edición inline ═══ */}
+      {modoEdicion && (
+        <div className="bg-[#F9F7F3] border-b border-sol-200/60">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+            <div className="bg-white/60 backdrop-blur-md border border-white/60 rounded-3xl shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8">
+
+              {/* Título del panel */}
+              <div className="flex items-center gap-2 mb-6">
+                <Pencil className="w-5 h-5 text-sol-500" />
+                <h2 className="text-lg font-semibold text-neutro-carbon font-quicksand">
+                  Editar datos de {nino.alias}
+                </h2>
+              </div>
+
+              {/* Aviso auditoría */}
+              <div className="flex items-start gap-2 bg-sol-50 border border-sol-200 rounded-2xl px-4 py-3 mb-6 text-sm text-sol-800">
+                <History className="w-4 h-4 mt-0.5 flex-shrink-0 text-sol-600" />
+                <span>Todos los cambios quedan registrados en el historial de auditoría con tu usuario y la fecha.</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+                {/* Alias */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
+                    Alias <span className="text-impulso-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.alias}
+                    onChange={(e) => setEditForm({ ...editForm, alias: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] placeholder:text-neutro-piedra/60 transition-all"
+                    placeholder="Alias del niño"
+                  />
+                </div>
+
+                {/* Legajo */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Legajo</label>
+                  <input
+                    type="text"
+                    value={editForm.legajo}
+                    onChange={(e) => setEditForm({ ...editForm, legajo: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] placeholder:text-neutro-piedra/60 transition-all"
+                    placeholder="Número de legajo"
+                  />
+                </div>
+
+                {/* Fecha de nacimiento */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Fecha de nacimiento</label>
+                  <input
+                    type="date"
+                    value={editForm.fecha_nacimiento}
+                    onChange={(e) => setEditForm({ ...editForm, fecha_nacimiento: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                  />
+                </div>
+
+                {/* Rango etario */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Rango etario</label>
+                  <select
+                    value={editForm.rango_etario}
+                    onChange={(e) => setEditForm({ ...editForm, rango_etario: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                  >
+                    <option value="">Sin especificar</option>
+                    {['5-7', '8-10', '11-13', '14-16', '17+'].map((r) => (
+                      <option key={r} value={r}>{r} años</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Género */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Género</label>
+                  <select
+                    value={editForm.genero}
+                    onChange={(e) => setEditForm({ ...editForm, genero: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                  >
+                    <option value="">Sin especificar</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="femenino">Femenino</option>
+                    <option value="no_binario">No binario</option>
+                    <option value="prefiere_no_decir">Prefiere no decir</option>
+                  </select>
+                </div>
+
+                {/* Nivel de alfabetización */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Nivel de alfabetización</label>
+                  <select
+                    value={editForm.nivel_alfabetizacion}
+                    onChange={(e) => setEditForm({ ...editForm, nivel_alfabetizacion: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                  >
+                    <option value="">Sin especificar</option>
+                    <option value="no_alfabetizado">No alfabetizado</option>
+                    <option value="pre_silabico">Pre-silábico</option>
+                    <option value="silabico">Silábico</option>
+                    <option value="silabico_alfabetico">Silábico-alfabético</option>
+                    <option value="alfabetizado">Alfabetizado</option>
+                  </select>
+                </div>
+
+                {/* Escolarizado — radio */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-3">¿Está escolarizado?</label>
+                  <div className="flex gap-4">
+                    {[{ value: true, label: 'Sí' }, { value: false, label: 'No' }].map(({ value, label }) => (
+                      <label key={String(value)} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="edit_escolarizado"
+                          checked={editForm.escolarizado === value}
+                          onChange={() => setEditForm({ ...editForm, escolarizado: value })}
+                          className="w-4 h-4 text-sol-500 border-gray-300 focus:ring-sol-400"
+                        />
+                        <span className="text-sm text-neutro-carbon font-outfit">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Activo — radio */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-3">¿Está activo en el programa?</label>
+                  <div className="flex gap-4">
+                    {[{ value: true, label: 'Sí — Activo' }, { value: false, label: 'No — Inactivo' }].map(({ value, label }) => (
+                      <label key={String(value)} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="edit_activo"
+                          checked={editForm.activo === value}
+                          onChange={() => setEditForm({ ...editForm, activo: value })}
+                          className="w-4 h-4 text-sol-500 border-gray-300 focus:ring-sol-400"
+                        />
+                        <span className="text-sm text-neutro-carbon font-outfit">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Grado escolar (solo si escolarizado) */}
+                {editForm.escolarizado && (
+                  <div>
+                    <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Grado escolar</label>
+                    <select
+                      value={editForm.grado_escolar}
+                      onChange={(e) => setEditForm({ ...editForm, grado_escolar: e.target.value })}
+                      className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                    >
+                      <option value="">Sin especificar</option>
+                      {['1°', '2°', '3°', '4°', '5°', '6°', '7°'].map((g) => (
+                        <option key={g} value={g}>{g} grado</option>
+                      ))}
+                      {['1° sec', '2° sec', '3° sec', '4° sec', '5° sec'].map((g) => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Turno escolar (solo si escolarizado) */}
+                {editForm.escolarizado && (
+                  <div>
+                    <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Turno escolar</label>
+                    <select
+                      value={editForm.turno_escolar}
+                      onChange={(e) => setEditForm({ ...editForm, turno_escolar: e.target.value })}
+                      className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                    >
+                      <option value="">Sin especificar</option>
+                      <option value="mañana">Mañana</option>
+                      <option value="tarde">Tarde</option>
+                      <option value="noche">Noche</option>
+                      <option value="jornada_completa">Jornada completa</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Escuela (solo si escolarizado) */}
+                {editForm.escolarizado && (
+                  <div>
+                    <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
+                      <GraduationCap className="inline w-4 h-4 mr-1" />
+                      Escuela
+                    </label>
+                    <select
+                      value={editForm.escuela_id}
+                      onChange={(e) => {
+                        if (e.target.value === '__nueva__') {
+                          setShowEscuelaModal(true);
+                        } else {
+                          setEditForm({ ...editForm, escuela_id: e.target.value });
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                    >
+                      <option value="">Sin escuela asignada</option>
+                      {escuelas.map((e) => (
+                        <option key={e.id} value={e.id}>{e.nombre}</option>
+                      ))}
+                      <option value="__nueva__">＋ Agregar escuela...</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Zona */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">
+                    <MapPin className="inline w-4 h-4 mr-1" />
+                    Zona
+                  </label>
+                  <select
+                    value={editForm.zona_id}
+                    onChange={(e) => {
+                      if (e.target.value === '__nueva__') {
+                        setShowZonaModal(true);
+                      } else {
+                        setEditForm({ ...editForm, zona_id: e.target.value });
+                      }
+                    }}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                  >
+                    <option value="">Sin zona asignada</option>
+                    {zonas.map((z) => (
+                      <option key={z.id} value={z.id}>{z.nombre}</option>
+                    ))}
+                    <option value="__nueva__">＋ Agregar zona...</option>
+                  </select>
+                </div>
+
+                {/* Fecha de ingreso */}
+                <div>
+                  <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Fecha de ingreso al programa</label>
+                  <input
+                    type="date"
+                    value={editForm.fecha_ingreso}
+                    onChange={(e) => setEditForm({ ...editForm, fecha_ingreso: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[56px] transition-all"
+                  />
+                </div>
+
+              </div>
+
+              {/* Feedback error / éxito */}
+              {errorEdicion && (
+                <div className="mt-5 flex items-center gap-2 bg-impulso-50 border border-impulso-200 rounded-2xl px-4 py-3 text-sm text-impulso-700">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  {errorEdicion}
+                </div>
+              )}
+              {exitoEdicion && (
+                <div className="mt-5 flex items-center gap-2 bg-crecimiento-50 border border-crecimiento-200 rounded-2xl px-4 py-3 text-sm text-crecimiento-700">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  ¡Cambios guardados correctamente!
+                </div>
+              )}
+
+              {/* Botones de acción */}
+              <div className="flex items-center gap-3 mt-6 pt-5 border-t border-white/60">
+                <button
+                  onClick={handleGuardarEdicion}
+                  disabled={guardandoEdicion || exitoEdicion}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sol-400 to-crecimiento-500 hover:from-sol-500 hover:to-crecimiento-600 disabled:opacity-60 text-white rounded-2xl font-semibold font-outfit shadow-md hover:shadow-lg transition-all touch-manipulation min-h-[48px]"
+                >
+                  {guardandoEdicion ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  ) : exitoEdicion ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {guardandoEdicion ? 'Guardando...' : exitoEdicion ? '¡Guardado!' : 'Guardar cambios'}
+                </button>
+                <button
+                  onClick={cancelarEdicion}
+                  disabled={guardandoEdicion}
+                  className="px-5 py-3 bg-white/80 border border-white/60 text-neutro-carbon rounded-2xl font-semibold font-outfit hover:bg-white transition-all touch-manipulation min-h-[48px]"
+                >
+                  Cancelar
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
@@ -753,10 +1568,25 @@ export default function NinoPerfilPage() {
         {/* ═══ Información del niño ═══ */}
         {!isVoluntario && (
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <ClipboardList className="w-6 h-6" />
-              Información del Niño
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <ClipboardList className="w-6 h-6" />
+                Información del Niño
+              </h2>
+              {puedeEditar && (
+                <button
+                  onClick={modoEdicion ? cancelarEdicion : abrirEdicion}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all touch-manipulation ${
+                    modoEdicion
+                      ? 'bg-impulso-50 border-impulso-200 text-impulso-700 hover:bg-impulso-100'
+                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {modoEdicion ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                  {modoEdicion ? 'Cancelar' : 'Editar'}
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               {nino.fecha_nacimiento && (
                 <div>
@@ -802,7 +1632,7 @@ export default function NinoPerfilPage() {
               {/* Permanencia */}
               <div>
                 <p className="text-gray-500 mb-0.5">Permanencia en el programa</p>
-                {tieneAccesoCompleto ? (
+                {puedeEditar ? (
                   <div className="flex items-center gap-2 mt-1">
                     <button
                       onClick={() => handleTogglePermanencia(true)}
@@ -835,38 +1665,120 @@ export default function NinoPerfilPage() {
           </div>
         )}
 
-        {/* ═══ Salud — Profesionales (solo full access) ═══ */}
-        {tieneAccesoCompleto && (
+        {/* ═══ Salud — Profesionales (solo full access + equipo_profesional) ═══ */}
+        {puedeEditar && (
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <Stethoscope className="w-5 h-5 text-impulso-500" />
-              Salud — Profesionales
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {TIPOS_PROFESIONAL_SALUD.map((t) => {
-                const isSelected = editTerapia.includes(t.value);
-                return (
-                  <button
-                    key={t.value}
-                    onClick={() => {
-                      setEditTerapia((prev) =>
-                        isSelected ? prev.filter((v) => v !== t.value) : [...prev, t.value]
-                      );
-                    }}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors touch-manipulation ${
-                      isSelected
-                        ? 'bg-impulso-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-              {editTerapia.length === 0 && (
-                <p className="text-sm text-gray-400 italic py-2">No asiste a profesionales de salud (o no especificado)</p>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Stethoscope className="w-5 h-5 text-impulso-500" />
+                Salud — Profesionales
+              </h2>
+              {!editandoSalud && (
+                <button
+                  onClick={() => setEditandoSalud(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-impulso-600 hover:bg-impulso-50 border border-gray-200 hover:border-impulso-200 rounded-lg transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Editar
+                </button>
               )}
             </div>
+
+            {editandoSalud ? (
+              /* ── Modo edición ── */
+              <>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {TIPOS_PROFESIONAL_SALUD.map((t) => {
+                    const isSelected = editTerapia.includes(t.value);
+                    return (
+                      <button
+                        key={t.value}
+                        onClick={() => {
+                          setEditTerapia((prev) =>
+                            isSelected ? prev.filter((v) => v !== t.value) : [...prev, t.value]
+                          );
+                        }}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors touch-manipulation ${
+                          isSelected
+                            ? 'bg-impulso-500 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">
+                    Comentarios y datos relevantes de salud
+                  </label>
+                  <textarea
+                    value={editComentariosSalud}
+                    onChange={(e) => setEditComentariosSalud(e.target.value)}
+                    placeholder="Diagnósticos, medicación, alergias, indicaciones especiales..."
+                    rows={3}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-impulso-300 focus:border-transparent resize-none text-sm"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleGuardarSalud}
+                    disabled={guardandoSalud}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-impulso-500 hover:bg-impulso-600 disabled:bg-gray-300 text-white rounded-lg font-medium transition-colors touch-manipulation min-h-[44px]"
+                  >
+                    {guardandoSalud ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    {guardandoSalud ? 'Guardando...' : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={() => setEditandoSalud(false)}
+                    disabled={guardandoSalud}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg font-medium transition-colors touch-manipulation min-h-[44px]"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              /* ── Modo vista (estilo bitácora) ── */
+              <div className="p-3 bg-impulso-50 rounded-lg border border-impulso-100">
+                {editTerapia.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {editTerapia.map((v) => {
+                      const label = TIPOS_PROFESIONAL_SALUD.find((t) => t.value === v)?.label || v;
+                      return (
+                        <span key={v} className="px-2.5 py-1 bg-impulso-500 text-white rounded-full text-xs font-medium">
+                          {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic mb-2">No asiste a profesionales de salud</p>
+                )}
+                {editComentariosSalud.trim() ? (
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{editComentariosSalud.trim()}</p>
+                ) : (
+                  !editTerapia.length && null
+                )}
+                {exitoSalud && (
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-green-600 font-medium">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Guardado correctamente
+                  </div>
+                )}
+                {!editTerapia.length && !editComentariosSalud.trim() && !exitoSalud && (
+                  <p className="text-sm text-gray-400 italic">Sin datos de salud registrados</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -880,19 +1792,75 @@ export default function NinoPerfilPage() {
 
             <div className="space-y-4">
               {/* Madre */}
-              <FamiliarCard label="Madre" familiar={madre} icon="👩" />
+              <FamiliarCard
+                label="Madre" tipo="madre" familiar={madre} icon="👩"
+                editandoId={familiarEditandoId} editForm={familiarEditForm}
+                onEditar={handleAbrirEditarFamiliar} onAgregar={handleAbrirCrearFamiliar}
+                onCancelar={() => setFamiliarEditandoId(null)}
+                onGuardar={handleGuardarFamiliar} guardando={guardandoFamiliar}
+                onChangeForm={setFamiliarEditForm}
+              />
               {/* Padre */}
-              <FamiliarCard label="Padre" familiar={padre} icon="👨" />
+              <FamiliarCard
+                label="Padre" tipo="padre" familiar={padre} icon="👨"
+                editandoId={familiarEditandoId} editForm={familiarEditForm}
+                onEditar={handleAbrirEditarFamiliar} onAgregar={handleAbrirCrearFamiliar}
+                onCancelar={() => setFamiliarEditandoId(null)}
+                onGuardar={handleGuardarFamiliar} guardando={guardandoFamiliar}
+                onChangeForm={setFamiliarEditForm}
+              />
               {/* Referente escolar */}
-              <FamiliarCard label="Referente escolar" familiar={referenteEscolar} icon="🏫" />
-              {/* Otros */}
+              <FamiliarCard
+                label="Referente escolar" tipo="referente_escolar" familiar={referenteEscolar} icon="🏫"
+                editandoId={familiarEditandoId} editForm={familiarEditForm}
+                onEditar={handleAbrirEditarFamiliar} onAgregar={handleAbrirCrearFamiliar}
+                onCancelar={() => setFamiliarEditandoId(null)}
+                onGuardar={handleGuardarFamiliar} guardando={guardandoFamiliar}
+                onChangeForm={setFamiliarEditForm}
+              />
+              {/* Otros referentes (tutor, otro, etc.) */}
               {familiares
                 .filter((f) => !['madre', 'padre', 'referente_escolar'].includes(f.tipo))
                 .map((f) => (
-                  <FamiliarCard key={f.id} label={f.tipo === 'tutor' ? 'Tutor' : 'Otro'} familiar={f} icon="👤" />
+                  <FamiliarCard
+                    key={f.id}
+                    label={f.tipo === 'tutor' ? 'Tutor/a' : (f.relacion || 'Otro referente')}
+                    tipo={f.tipo}
+                    familiar={f}
+                    icon="👤"
+                    editandoId={familiarEditandoId} editForm={familiarEditForm}
+                    onEditar={handleAbrirEditarFamiliar} onAgregar={handleAbrirCrearFamiliar}
+                    onCancelar={() => setFamiliarEditandoId(null)}
+                    onGuardar={handleGuardarFamiliar} guardando={guardandoFamiliar}
+                    onChangeForm={setFamiliarEditForm}
+                  />
                 ))}
-              {familiares.length === 0 && (
-                <p className="text-sm text-gray-400 italic">No hay familiares registrados</p>
+
+              {/* Formulario inline para nuevo "otro" (cuando se abre desde el botón) */}
+              {familiarEditandoId === '__nuevo__otro' && (
+                <FamiliarCard
+                  label="Otro referente" tipo="otro" familiar={undefined} icon="👤"
+                  editandoId={familiarEditandoId} editForm={familiarEditForm}
+                  onEditar={handleAbrirEditarFamiliar} onAgregar={handleAbrirCrearFamiliar}
+                  onCancelar={() => setFamiliarEditandoId(null)}
+                  onGuardar={handleGuardarFamiliar} guardando={guardandoFamiliar}
+                  onChangeForm={setFamiliarEditForm}
+                />
+              )}
+
+              {/* Botón agregar otro referente */}
+              {familiarEditandoId !== '__nuevo__otro' && (
+                <button
+                  onClick={() => handleAbrirCrearFamiliar('otro')}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl border border-dashed border-sol-300 text-sol-700 bg-sol-50/40 hover:bg-sol-50 hover:border-sol-400 transition-all text-sm font-outfit font-medium min-h-[44px]"
+                >
+                  <Plus className="w-4 h-4" />
+                  Agregar otro referente
+                </button>
+              )}
+
+              {familiares.length === 0 && !familiarEditandoId && (
+                <p className="text-sm text-neutro-piedra italic font-outfit">No hay familiares registrados</p>
               )}
             </div>
           </div>
@@ -954,8 +1922,8 @@ export default function NinoPerfilPage() {
           </div>
         )}
 
-        {/* ═══ Notas / Bitácora (solo full access) ═══ */}
-        {tieneAccesoCompleto && (
+        {/* ═══ Notas / Bitácora (full access + equipo_profesional) ═══ */}
+        {puedeEditar && (
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
               <StickyNote className="w-5 h-5 text-sol-500" />
@@ -991,14 +1959,164 @@ export default function NinoPerfilPage() {
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {notas.map((nota) => (
                   <div key={nota.id} className="p-3 bg-sol-50 rounded-lg border border-sol-100">
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{nota.texto}</p>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                      <span>{formatearFecha(nota.fecha)}</span>
-                      <span>·</span>
-                      <span>{nota.autor_nombre}</span>
-                    </div>
+                    {notaEditandoId === nota.id ? (
+                      /* ── Modo edición ── */
+                      <div>
+                        <textarea
+                          value={notaEditandoTexto}
+                          onChange={(e) => setNotaEditandoTexto(e.target.value)}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-sol-200 rounded-lg focus:ring-2 focus:ring-sol-400 focus:border-transparent resize-none text-sm bg-white mb-2"
+                          autoFocus
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleGuardarNotaEditada}
+                            disabled={guardandoNota || !notaEditandoTexto.trim()}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-sol-500 hover:bg-sol-600 disabled:bg-gray-300 text-white rounded-lg text-xs font-medium transition-colors"
+                          >
+                            {guardandoNota ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                            ) : (
+                              <Save className="w-3 h-3" />
+                            )}
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => { setNotaEditandoId(null); setNotaEditandoTexto(''); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Modo vista ── */
+                      <>
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{nota.texto}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>{formatearFecha(nota.fecha)}</span>
+                            <span>·</span>
+                            <span>{nota.autor_nombre}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleEditarNota(nota)}
+                              className="p-1.5 text-gray-400 hover:text-sol-600 hover:bg-sol-100 rounded-lg transition-colors"
+                              title="Editar nota"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleEliminarNota(nota.id)}
+                              disabled={eliminandoNotaId === nota.id}
+                              className="p-1.5 text-gray-400 hover:text-impulso-600 hover:bg-impulso-50 rounded-lg transition-colors disabled:opacity-50"
+                              title="Eliminar nota"
+                            >
+                              {eliminandoNotaId === nota.id ? (
+                                <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-impulso-400 border-t-transparent" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ Evaluaciones Psicopedagógicas (full access + equipo_profesional) ═══ */}
+        {(tieneAccesoCompleto || esEquipoProfesional) && (
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-crecimiento-500" />
+                Evaluaciones Psicopedagógicas
+              </h2>
+              <Link
+                href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${ninoId}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-crecimiento-500 hover:bg-crecimiento-600 text-white rounded-lg font-medium transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Nueva evaluación
+              </Link>
+            </div>
+
+            {evaluacionesPsico.length === 0 ? (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-red-700">Sin evaluación psicopedagógica inicial</p>
+                  <p className="text-xs text-red-600 mt-0.5">
+                    Se recomienda completarla antes de asignar un voluntario.
+                  </p>
+                  <Link
+                    href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${ninoId}`}
+                    className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-red-700 underline hover:text-red-900"
+                  >
+                    <Plus className="w-3 h-3" /> Realizar evaluación ahora
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {evaluacionesPsico.map((ev) => {
+                  // Extract nivel from conclusiones
+                  const nivelMatch = ev.conclusiones?.match(/Nivel de alfabetización:\s*(.+)/);
+                  const nivel = nivelMatch?.[1]?.trim();
+                  // Extract short summary from conclusiones (skip header lines)
+                  const lines = (ev.conclusiones || '').split('\n').filter(Boolean);
+                  const diffIdx = lines.findIndex((l) => l === 'Dificultades identificadas:');
+                  const diffs = diffIdx >= 0
+                    ? lines.slice(diffIdx + 1).filter((l) => l.startsWith('- ')).slice(0, 3).map((l) => l.slice(2))
+                    : [];
+
+                  return (
+                    <Link
+                      key={ev.id}
+                      href={`/dashboard/psicopedagogia/evaluaciones/${ev.id}`}
+                      className="block p-4 bg-crecimiento-50 border border-crecimiento-200 rounded-xl hover:shadow-md transition-shadow group"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className="text-sm font-semibold text-gray-900">
+                              Evaluación Inicial
+                            </span>
+                            {nivel && (
+                              <span className="px-2 py-0.5 bg-crecimiento-200 text-crecimiento-800 rounded-full text-xs font-medium">
+                                📚 {nivel}
+                              </span>
+                            )}
+                          </div>
+                          {diffs.length > 0 && (
+                            <p className="text-xs text-gray-600 line-clamp-2">
+                              <span className="font-medium text-gray-700">Dificultades: </span>
+                              {diffs.join(' · ')}
+                            </p>
+                          )}
+                          {ev.acciones_sugeridas && (
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-1">
+                              💡 {ev.acciones_sugeridas}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs text-gray-500">{formatearFecha(ev.fecha)}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{ev.autor_nombre}</p>
+                          <ChevronRight className="w-4 h-4 text-crecimiento-400 mt-1 ml-auto group-hover:translate-x-0.5 transition-transform" />
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1093,60 +2211,359 @@ export default function NinoPerfilPage() {
           </div>
         )}
       </div>
+
+      {/* ── Modal: Agregar Zona ─────────────────────────────── */}
+      {showZonaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutro-carbon font-quicksand">
+                Agregar nueva zona
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setShowZonaModal(false); setNuevaZonaNombre(''); }}
+                className="p-2 text-gray-400 hover:text-gray-700 transition-colors rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Nombre de la zona *</label>
+              <input
+                type="text"
+                value={nuevaZonaNombre}
+                onChange={(e) => setNuevaZonaNombre(e.target.value)}
+                className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent font-outfit min-h-[56px] transition-all"
+                placeholder="Ej: Zona Norte, Barrio Centro..."
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCrearZona(); } }}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowZonaModal(false); setNuevaZonaNombre(''); }}
+                className="px-4 py-2.5 rounded-2xl bg-white border border-gray-200 text-gray-700 font-outfit text-sm hover:shadow-md transition-all min-h-[44px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCrearZona}
+                disabled={!nuevaZonaNombre.trim() || creandoZona}
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white font-outfit text-sm font-semibold hover:shadow-lg disabled:opacity-50 transition-all min-h-[44px]"
+              >
+                {creandoZona ? 'Creando...' : 'Crear zona'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Agregar Escuela ──────────────────────────── */}
+      {showEscuelaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutro-carbon font-quicksand">
+                Agregar nueva escuela
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setShowEscuelaModal(false); setNuevaEscuelaNombre(''); }}
+                className="p-2 text-gray-400 hover:text-gray-700 transition-colors rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Nombre de la escuela *</label>
+              <input
+                type="text"
+                value={nuevaEscuelaNombre}
+                onChange={(e) => setNuevaEscuelaNombre(e.target.value)}
+                className="w-full px-4 py-3 bg-white/80 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent font-outfit min-h-[56px] transition-all"
+                placeholder="Ej: Escuela N° 12, Instituto San Martín..."
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCrearEscuela(); } }}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => { setShowEscuelaModal(false); setNuevaEscuelaNombre(''); }}
+                className="px-4 py-2.5 rounded-2xl bg-white border border-gray-200 text-gray-700 font-outfit text-sm hover:shadow-md transition-all min-h-[44px]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCrearEscuela}
+                disabled={!nuevaEscuelaNombre.trim() || creandoEscuela}
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white font-outfit text-sm font-semibold hover:shadow-lg disabled:opacity-50 transition-all min-h-[44px]"
+              >
+                {creandoEscuela ? 'Creando...' : 'Crear escuela'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Sub-components ──────────────────────────────────────────
 
+const familiarInputClass =
+  'w-full px-4 py-2.5 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[44px] placeholder:text-neutro-piedra/60 transition-all text-sm';
+const familiarLabelClass = 'block text-xs font-medium text-neutro-piedra font-outfit mb-1';
+
+const tipoFamiliarColors: Record<string, string> = {
+  madre: 'bg-sol-50 border-sol-200/60',
+  padre: 'bg-crecimiento-50 border-crecimiento-200/60',
+  tutor: 'bg-sol-50 border-sol-300/60',
+  referente_escolar: 'bg-crecimiento-50 border-crecimiento-300/60',
+  otro: 'bg-sol-50/60 border-sol-200/40',
+};
+
 function FamiliarCard({
   label,
+  tipo,
   familiar,
   icon,
+  editandoId,
+  editForm,
+  onEditar,
+  onAgregar,
+  onCancelar,
+  onGuardar,
+  guardando,
+  onChangeForm,
 }: {
   label: string;
+  tipo: string;
   familiar: FamiliarApoyo | undefined;
   icon: string;
+  editandoId: string | null;
+  editForm: Partial<FamiliarApoyo>;
+  onEditar: (f: FamiliarApoyo) => void;
+  onAgregar: (tipo: string) => void;
+  onCancelar: () => void;
+  onGuardar: () => void;
+  guardando: boolean;
+  onChangeForm: (form: Partial<FamiliarApoyo>) => void;
 }) {
-  if (!familiar) {
+  const esteEditando = familiar ? editandoId === familiar.id : false;
+  const esteCreando = !familiar && editandoId === `__nuevo__${tipo}`;
+  const colorClass = tipoFamiliarColors[tipo] || tipoFamiliarColors.otro;
+
+  // ── Formulario compartido (crear o editar) ──────────────
+  if (esteCreando || esteEditando) {
     return (
-      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-        <span className="text-xl">{icon}</span>
+      <div className={`rounded-2xl border p-4 sm:p-5 space-y-3 transition-all ${colorClass}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">{icon}</span>
+            <div>
+              <p className="text-sm font-semibold text-neutro-carbon font-outfit">{label}</p>
+              {esteCreando && (
+                <p className="text-xs text-neutro-piedra font-outfit">Nuevo registro</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onCancelar}
+            className="p-2 text-neutro-piedra hover:text-impulso-500 transition-colors rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center"
+            title="Cancelar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Nombre + Teléfono */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={familiarLabelClass}>Nombre</label>
+            <input
+              type="text"
+              value={editForm.nombre || ''}
+              onChange={(e) => onChangeForm({ ...editForm, nombre: e.target.value })}
+              placeholder={`Nombre del/la ${label.toLowerCase()}`}
+              autoFocus={esteCreando}
+              className={familiarInputClass}
+            />
+          </div>
+          <div>
+            <label className={familiarLabelClass}>
+              <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> Teléfono</span>
+            </label>
+            <input
+              type="tel"
+              value={editForm.telefono || ''}
+              onChange={(e) => onChangeForm({ ...editForm, telefono: e.target.value })}
+              placeholder="Ej: 11-2345-6789"
+              className={familiarInputClass}
+            />
+          </div>
+        </div>
+
+        {/* Email + Relación (solo para "otro") */}
+        <div className={`grid grid-cols-1 gap-3 ${tipo === 'otro' ? 'sm:grid-cols-2' : ''}`}>
+          <div>
+            <label className={familiarLabelClass}>Email (opcional)</label>
+            <input
+              type="email"
+              value={editForm.email || ''}
+              onChange={(e) => onChangeForm({ ...editForm, email: e.target.value })}
+              placeholder="email@ejemplo.com"
+              className={familiarInputClass}
+            />
+          </div>
+          {tipo === 'otro' && (
+            <div>
+              <label className={familiarLabelClass}>¿Qué es para el niño?</label>
+              <input
+                type="text"
+                value={editForm.relacion || ''}
+                onChange={(e) => onChangeForm({ ...editForm, relacion: e.target.value })}
+                placeholder="Ej: Tío, vecino, padrino..."
+                className={familiarInputClass}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Notas */}
         <div>
-          <p className="text-sm font-medium text-gray-400">{label}</p>
-          <p className="text-xs text-gray-400 italic">Sin datos registrados</p>
+          <label className={familiarLabelClass}>Notas (opcional)</label>
+          <input
+            type="text"
+            value={editForm.notas || ''}
+            onChange={(e) => onChangeForm({ ...editForm, notas: e.target.value })}
+            placeholder="Observaciones adicionales"
+            className={familiarInputClass}
+          />
+        </div>
+
+        {/* Checkboxes */}
+        <div className="flex items-center gap-4 pb-1">
+          <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
+            <input
+              type="checkbox"
+              checked={editForm.vive_con_nino ?? false}
+              onChange={(e) => onChangeForm({ ...editForm, vive_con_nino: e.target.checked })}
+              className="w-4 h-4 rounded text-crecimiento-500 focus:ring-crecimiento-400"
+            />
+            Vive con el niño
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
+            <input
+              type="checkbox"
+              checked={editForm.es_contacto_principal ?? false}
+              onChange={(e) => onChangeForm({ ...editForm, es_contacto_principal: e.target.checked })}
+              className="w-4 h-4 rounded text-sol-500 focus:ring-sol-400"
+            />
+            Contacto principal
+          </label>
+        </div>
+
+        {/* Acciones */}
+        <div className="flex items-center gap-2 pt-1 border-t border-white/60">
+          <button
+            onClick={onGuardar}
+            disabled={guardando || (!editForm.nombre?.trim() && esteCreando)}
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 hover:shadow-lg disabled:opacity-50 text-white rounded-2xl text-sm font-semibold font-outfit transition-all min-h-[44px]"
+          >
+            {guardando ? (
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+            ) : (
+              <Save className="w-3.5 h-3.5" />
+            )}
+            {esteCreando ? 'Agregar' : 'Guardar cambios'}
+          </button>
+          <button
+            onClick={onCancelar}
+            className="px-4 py-2.5 rounded-2xl bg-white/80 border border-white/60 text-neutro-carbon font-outfit text-sm hover:shadow-md transition-all min-h-[44px]"
+          >
+            Cancelar
+          </button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-      <span className="text-xl mt-0.5">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900">{familiar.nombre}</p>
-        <p className="text-xs text-gray-500 mb-1">{label}{familiar.relacion ? ` — ${familiar.relacion}` : ''}</p>
-        <div className="flex flex-wrap gap-3 text-xs text-gray-600">
-          {familiar.telefono && (
-            <span className="inline-flex items-center gap-1">
-              <Phone className="w-3 h-3" /> {familiar.telefono}
-            </span>
-          )}
-          {familiar.email && (
-            <span className="inline-flex items-center gap-1">📧 {familiar.email}</span>
-          )}
-          {familiar.vive_con_nino && (
-            <span className="inline-flex items-center gap-1 text-crecimiento-600 font-medium">🏠 Vive con el niño</span>
-          )}
-          {familiar.es_contacto_principal && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sol-100 text-sol-700 rounded-full font-medium">
-              ⭐ Contacto principal
-            </span>
-          )}
+  // ── Sin datos registrados ───────────────────────────────
+  if (!familiar) {
+    return (
+      <div className={`rounded-2xl border border-dashed p-4 flex items-center justify-between gap-3 group ${colorClass}`}>
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{icon}</span>
+          <div>
+            <p className="text-sm font-semibold text-neutro-carbon/50 font-outfit">{label}</p>
+            <p className="text-xs text-neutro-piedra/60 italic font-outfit">Sin datos registrados</p>
+          </div>
         </div>
-        {familiar.notas && (
-          <p className="text-xs text-gray-500 mt-1 italic">{familiar.notas}</p>
-        )}
+        <button
+          onClick={() => onAgregar(tipo)}
+          className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-white/80 border border-white/60 text-sm font-outfit text-neutro-carbon hover:shadow-md transition-all min-h-[44px] opacity-0 group-hover:opacity-100 focus:opacity-100"
+          title={`Agregar ${label.toLowerCase()}`}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Agregar
+        </button>
+      </div>
+    );
+  }
+
+  // ── Vista: datos existentes ─────────────────────────────
+  return (
+    <div className={`rounded-2xl border p-4 sm:p-5 group transition-all ${colorClass}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span className="text-xl mt-0.5">{icon}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-neutro-carbon font-outfit">
+              {familiar.nombre}
+              {familiar.es_contacto_principal && (
+                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-sol-100 text-sol-700 rounded-full text-xs font-medium">
+                  ⭐ Principal
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-neutro-piedra font-outfit">
+              {label}{tipo === 'otro' && familiar.relacion ? ` — ${familiar.relacion}` : ''}
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-neutro-piedra font-outfit">
+              {familiar.telefono && (
+                <span className="inline-flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> {familiar.telefono}
+                </span>
+              )}
+              {familiar.email && (
+                <span className="inline-flex items-center gap-1">
+                  📧 {familiar.email}
+                </span>
+              )}
+              {familiar.vive_con_nino && (
+                <span className="inline-flex items-center gap-1 text-crecimiento-600 font-medium">
+                  🏠 Vive con el niño
+                </span>
+              )}
+            </div>
+            {familiar.notas && (
+              <p className="text-xs text-neutro-piedra/70 mt-1.5 italic font-outfit">{familiar.notas}</p>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={() => onEditar(familiar)}
+          className="flex-shrink-0 p-2 text-neutro-piedra hover:text-sol-600 hover:bg-white/80 rounded-xl transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
+          title={`Editar ${label.toLowerCase()}`}
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

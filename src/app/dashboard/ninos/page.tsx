@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { ArrowLeft, UserPlus, Plus, Eye, Brain } from 'lucide-react';
+import { ArrowLeft, UserPlus, Plus, Eye } from 'lucide-react';
 import type { NinoListado, RangoEtario } from '@/types/database';
 
 // Función helper para normalizar texto (quitar acentos)
@@ -35,11 +35,11 @@ function MisNinosPageContent() {
   const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
 
   // Determinar si el usuario tiene acceso completo (ve datos sensibles)
-  const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social'];
+  const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social', 'trabajadora_social', 'equipo_profesional'];
   const tieneAccesoCompleto = perfil?.rol && rolesConAccesoCompleto.includes(perfil.rol);
 
   // Roles con acceso a todos los niños
-  const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director', 'admin', 'trabajador_social'];
+  const rolesConAccesoTotal = ['psicopedagogia', 'coordinador', 'director', 'admin', 'trabajador_social', 'trabajadora_social', 'equipo_profesional'];
   const tieneAccesoTotal = perfil?.rol && rolesConAccesoTotal.includes(perfil.rol);
 
   // Detectar si es voluntario (solo lectura, sin poder registrar)
@@ -145,31 +145,31 @@ function MisNinosPageContent() {
         if (error) throw error;
         ninosData = data || [];
       } else {
-        // Voluntarios: solo ven sus niños asignados vía tabla asignaciones
-        const { data, error } = await supabase
-          .from('asignaciones')
-          .select(`
-            nino_id,
-            ninos (
-              id,
-              alias,
-              legajo,
-              rango_etario,
-              nivel_alfabetizacion,
-              escolarizado,
-              grado_escolar,
-              activo,
-              zonas (
-                id,
-                nombre
-              )
-            )
-          `)
-          .eq('voluntario_id', user?.id)
-          .eq('activa', true);
+        // Voluntarios: usar API route (service_role) para bypasear RLS en tabla ninos.
+        // El join directo asignaciones → ninos falla silenciosamente por RLS.
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Sin sesión');
 
-        if (error) throw error;
-        ninosData = (data || []).map((item: any) => item.ninos).filter(Boolean);
+        const res = await fetch(`/api/asignaciones?voluntario_id=${user?.id}&activo=true`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`Error API: ${res.status}`);
+        const { asignaciones } = await res.json();
+        ninosData = (asignaciones || [])
+          .map((a: any) => a.nino)
+          .filter(Boolean)
+          .map((n: any) => ({
+            ...n,
+            zonas: n.zona_id ? { id: n.zona_id, nombre: '' } : null,
+          }));
+        // Deduplicar por id (por si hay múltiples asignaciones al mismo niño)
+        const seen = new Set();
+        ninosData = ninosData.filter((n: any) => {
+          if (seen.has(n.id)) return false;
+          seen.add(n.id);
+          return true;
+        });
       }
 
       // Para cada niño, obtener conteo de sesiones — EN UNA SOLA QUERY
@@ -488,15 +488,6 @@ function MisNinosPageContent() {
                   >
                     <Eye className="w-5 h-5" /> Ver Perfil
                   </Link>
-                  
-                  {(nino.total_sesiones ?? 0) > 0 && (
-                    <Link
-                      href={`/dashboard/ninos/${nino.id}/analisis`}
-                      className="block w-full text-center bg-sol-50 border border-sol-200/40 text-sol-700 font-medium py-3.5 px-4 min-h-[56px] rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.2)] transition-all text-sm active:scale-95 flex items-center justify-center gap-2 touch-manipulation font-outfit"
-                    >
-                      <Brain className="w-5 h-5" /> Análisis con IA
-                    </Link>
-                  )}
                 </div>
               </div>
             ))}

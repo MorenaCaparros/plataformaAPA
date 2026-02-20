@@ -1,28 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// Cliente admin (service role) para leer perfiles sin RLS y verificar tokens
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+
 // GET - Listar evaluaciones (now from entrevistas table, tipo='inicial')
 export async function GET(request: Request) {
   try {
-    const cookieStore = cookies();
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            cookie: cookieStore.toString(),
-          },
-        },
-      }
-    );
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const ninoId = searchParams.get('nino_id');
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('entrevistas')
       .select(`
         *,
@@ -77,38 +81,28 @@ export async function GET(request: Request) {
 // POST - Crear nueva evaluación (inserts into entrevistas with tipo='inicial')
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        global: {
-          headers: {
-            cookie: cookieStore.toString(),
-          },
-        },
-      }
-    );
-    
-    // Verificar autenticación y rol
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
+    // Verificar autenticación via Bearer token
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
+    }
 
-    // Verificar que el usuario tiene rol de psicopedagogía
-    const { data: perfil } = await supabase
+    // Verificar rol
+    const { data: perfil } = await supabaseAdmin
       .from('perfiles')
       .select('rol')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single();
 
-    if (!perfil || !['psicopedagogia', 'admin', 'director'].includes(perfil.rol)) {
+    const rolesPermitidos = ['psicopedagogia', 'admin', 'director', 'equipo_profesional'];
+    if (!perfil || !rolesPermitidos.includes(perfil.rol)) {
       return NextResponse.json(
-        { error: 'No autorizado. Solo psicopedagogía puede crear evaluaciones.' },
+        { error: 'No autorizado para crear evaluaciones.' },
         { status: 403 }
       );
     }
@@ -224,11 +218,11 @@ export async function POST(request: Request) {
     ].join('\n').trim();
 
     // Insert into entrevistas with tipo='inicial'
-    const { data: entrevista, error: insertError } = await supabase
+    const { data: entrevista, error: insertError } = await supabaseAdmin
       .from('entrevistas')
       .insert({
         nino_id,
-        entrevistador_id: session.user.id,
+        entrevistador_id: user.id,
         tipo: 'inicial',
         fecha: new Date().toISOString().split('T')[0],
         observaciones: observacionesText,
@@ -245,7 +239,7 @@ export async function POST(request: Request) {
 
     // Update nivel_alfabetizacion on ninos table if provided
     if (nivel_alfabetizacion) {
-      await supabase
+      await supabaseAdmin
         .from('ninos')
         .update({ nivel_alfabetizacion })
         .eq('id', nino_id);

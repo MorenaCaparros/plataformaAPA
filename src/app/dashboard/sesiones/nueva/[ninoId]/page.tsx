@@ -14,7 +14,7 @@ import {
   contarItemsCompletados,
   type Categoria
 } from '@/lib/constants/items-observacion';
-import { ArrowLeft, Save, FileText, Check, AlertTriangle, Timer, X, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Check, AlertTriangle, Timer, X, Calendar, Users } from 'lucide-react';
 
 interface Nino {
   id: string;
@@ -28,6 +28,7 @@ interface FormData {
   items: Record<string, number>;
   observaciones_libres: string;
   fecha: string; // YYYY-MM-DD, default today
+  tipo_sesion: 'individual' | 'con_padres' | 'grupal';
 }
 
 // ─── Session Chronometer Hook ──────────────────────────────────
@@ -45,6 +46,7 @@ function useChronometer(ninoId: string) {
   const keyStart = `sesion_timer_${ninoId}_start`;
   const keyPaused = `sesion_timer_${ninoId}_paused`;
   const keyPauseAt = `sesion_timer_${ninoId}_pauseAt`;
+  const keyAlias = `sesion_timer_${ninoId}_alias`;
   const keyActive = 'sesion_timer_active';
 
   const [seconds, setSeconds] = useState(0);
@@ -140,6 +142,7 @@ function useChronometer(ninoId: string) {
     localStorage.setItem(keyPaused, '0');
     localStorage.removeItem(keyPauseAt);
     localStorage.setItem(keyActive, ninoId);
+    // Keep alias key — it's still valid for the same niño
     setSeconds(0);
     setIsRunning(true);
   }, [keyStart, keyPaused, keyPauseAt, keyActive, ninoId]);
@@ -150,12 +153,13 @@ function useChronometer(ninoId: string) {
     localStorage.removeItem(keyStart);
     localStorage.removeItem(keyPaused);
     localStorage.removeItem(keyPauseAt);
+    localStorage.removeItem(keyAlias);
     // Clear active session marker
     const active = localStorage.getItem(keyActive);
     if (active === ninoId) {
       localStorage.removeItem(keyActive);
     }
-  }, [keyStart, keyPaused, keyPauseAt, keyActive, ninoId]);
+  }, [keyStart, keyPaused, keyPauseAt, keyAlias, keyActive, ninoId]);
 
   const formatTime = useCallback((totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);
@@ -188,12 +192,10 @@ function getActiveSessionInfo(): { ninoId: string; elapsedMinutes: number } | nu
   return { ninoId: activeNinoId, elapsedMinutes: Math.round(elapsed / 60000) };
 }
 
-export { getActiveSessionInfo };
-
 export default function NuevaSesionPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, perfil } = useAuth();
   
   const ninoId = params.ninoId as string;
   const chrono = useChronometer(ninoId);
@@ -203,12 +205,17 @@ export default function NuevaSesionPage() {
   const [submitting, setSubmitting] = useState(false);
   const [expandedCategoria, setExpandedCategoria] = useState<Categoria | null>('atencion_concentracion');
   const [hasDraft, setHasDraft] = useState(false);
+  const [tieneEvaluacionInicial, setTieneEvaluacionInicial] = useState<boolean | null>(null);
   
+  // Modal state
+  const [modal, setModal] = useState<{ tipo: 'exito' | 'error' | 'confirm' | 'faltantes'; titulo: string; mensaje: string; onConfirm?: () => void } | null>(null);
+
   const [formData, setFormData] = useState<FormData>({
     duracion_minutos: 45,
     items: {},
     observaciones_libres: '',
-    fecha: new Date().toISOString().slice(0, 10)
+    fecha: new Date().toISOString().slice(0, 10),
+    tipo_sesion: 'individual',
   });
 
   // Cargar borrador guardado al iniciar
@@ -222,7 +229,8 @@ export default function NuevaSesionPage() {
             duracion_minutos: draft.duracion_minutos,
             items: draft.items,
             observaciones_libres: draft.observaciones_libres,
-            fecha: draft.fecha || new Date().toISOString().slice(0, 10)
+            fecha: draft.fecha || new Date().toISOString().slice(0, 10),
+            tipo_sesion: draft.tipo_sesion || 'individual',
           });
           setHasDraft(true);
         } catch (e) {
@@ -255,9 +263,20 @@ export default function NuevaSesionPage() {
 
       if (error) throw error;
       setNino(data);
+
+      // Persist alias in localStorage so dashboard banner can show the name
+      // even before the niños query finishes loading
+      localStorage.setItem(`sesion_timer_${ninoId}_alias`, data.alias);
+      const { data: evalData } = await supabase
+        .from('evaluaciones_iniciales')
+        .select('id')
+        .eq('nino_id', ninoId)
+        .limit(1)
+        .maybeSingle();
+      setTieneEvaluacionInicial(!!evalData);
     } catch (error) {
       console.error('Error fetching niño:', error);
-      alert('No se pudo cargar la información del niño');
+      setModal({ tipo: 'error', titulo: 'Error', mensaje: 'No se pudo cargar la información del niño.' });
       router.push('/dashboard/ninos');
     } finally {
       setLoading(false);
@@ -335,10 +354,20 @@ export default function NuevaSesionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Block submission if no initial psicopedagogical evaluation exists
+    if (tieneEvaluacionInicial === false) {
+      setModal({
+        tipo: 'error',
+        titulo: 'Evaluación psicopedagógica requerida',
+        mensaje: `${nino?.alias} aún no tiene una evaluación psicopedagógica inicial. No se pueden registrar sesiones hasta que el equipo profesional complete dicha evaluación.`
+      });
+      return;
+    }
+
     // All items must be touched (either rated 1-5 or marked N/C)
     const itemsFaltantes = ITEMS_OBSERVACION.filter(item => formData.items[item.id] === undefined);
     if (itemsFaltantes.length > 0) {
-      alert('Faltan ' + itemsFaltantes.length + ' ítems por completar o marcar como N/C');
+      setModal({ tipo: 'faltantes', titulo: 'Ítems pendientes', mensaje: `Faltan ${itemsFaltantes.length} ítem${itemsFaltantes.length > 1 ? 's' : ''} por completar o marcar como N/C.` });
       return;
     }
 
@@ -367,6 +396,7 @@ export default function NuevaSesionPage() {
           duracion_minutos: duracionReal,
           items: itemsArray,
           observaciones_libres: formData.observaciones_libres,
+          tipo_sesion: formData.tipo_sesion,
           created_offline: false,
           sincronizado_at: new Date().toISOString()
         });
@@ -392,28 +422,47 @@ export default function NuevaSesionPage() {
       // Limpiar borrador después de guardar exitosamente (timer ya se limpió en chrono.stop())
       localStorage.removeItem(`draft_sesion_${ninoId}`);
       
-      alert('✅ Sesión registrada correctamente (' + duracionReal + ' min)');
-      router.push('/dashboard/ninos');
+      setModal({ tipo: 'exito', titulo: '¡Sesión guardada!', mensaje: `Sesión registrada correctamente (${duracionReal} min). Volviendo al listado...` });
+      setTimeout(() => router.push('/dashboard/ninos'), 1800);
     } catch (error) {
       console.error('Error:', error);
-      alert('❌ Error al guardar. El borrador se guardó localmente.');
+      setModal({ tipo: 'error', titulo: 'Error al guardar', mensaje: 'No se pudo guardar la sesión. El borrador se guardó localmente para intentarlo de nuevo.' });
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleCancelar = () => {
+    setModal({
+      tipo: 'confirm',
+      titulo: 'Cancelar sesión',
+      mensaje: 'Si cancelás, el cronómetro se detendrá y perderás el progreso no guardado. ¿Querés continuar?',
+      onConfirm: () => {
+        chrono.stop();
+        localStorage.removeItem(`draft_sesion_${ninoId}`);
+        router.push('/dashboard/ninos');
+      }
+    });
+  };
+
   const clearDraft = () => {
-    if (confirm('¿Eliminar el borrador guardado? Perderás todo el progreso.')) {
-      localStorage.removeItem(`draft_sesion_${ninoId}`);
-      setFormData({
-        duracion_minutos: 45,
-        items: {},
-        observaciones_libres: '',
-        fecha: new Date().toISOString().slice(0, 10)
-      });
-      setHasDraft(false);
-      chrono.reset();
-    }
+    setModal({
+      tipo: 'confirm',
+      titulo: 'Eliminar borrador',
+      mensaje: '¿Eliminar el borrador guardado? Perderás todo el progreso.',
+      onConfirm: () => {
+        localStorage.removeItem(`draft_sesion_${ninoId}`);
+        setFormData({
+          duracion_minutos: 45,
+          items: {},
+          observaciones_libres: '',
+          fecha: new Date().toISOString().slice(0, 10),
+          tipo_sesion: 'individual',
+        });
+        setHasDraft(false);
+        chrono.reset();
+      }
+    });
   };
 
   if (loading) {
@@ -505,6 +554,19 @@ export default function NuevaSesionPage() {
           </div>
         )}
 
+        {/* Block banner if no initial evaluation */}
+        {tieneEvaluacionInicial === false && (
+          <div className="bg-red-50 border border-red-300 rounded-2xl p-4 mb-4 flex items-start gap-3 font-outfit">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-red-800 text-sm">Evaluación psicopedagógica pendiente</p>
+              <p className="text-red-600 text-xs mt-1">
+                {nino?.alias} todavía no tiene una evaluación psicopedagógica inicial. No se podrá guardar la sesión hasta que el equipo profesional complete dicha evaluación.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Date picker — defaults to today */}
         <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mb-4">
           <label className="text-sm font-medium mb-2 flex items-center gap-2 text-neutro-carbon font-outfit">
@@ -525,6 +587,38 @@ export default function NuevaSesionPage() {
             </p>
           )}
         </div>
+
+        {/* Tipo de sesión — visible para equipo_profesional y roles con acceso completo */}
+        {(perfil?.rol === 'equipo_profesional' || perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director' || perfil?.rol === 'coordinador' || perfil?.rol === 'trabajador_social') && (
+          <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mb-4">
+            <label className="text-sm font-medium mb-3 flex items-center gap-2 text-neutro-carbon font-outfit">
+              <Users className="w-4 h-4" />
+              Tipo de sesión
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { value: 'individual', label: 'Individual', emoji: '🧒', desc: 'Con el niño/a' },
+                { value: 'con_padres', label: 'Con familia', emoji: '👨‍👩‍👧', desc: 'Con padres/tutores' },
+                { value: 'grupal', label: 'Grupal', emoji: '👥', desc: 'Varios niños' },
+              ] as const).map(tipo => (
+                <button
+                  key={tipo.value}
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, tipo_sesion: tipo.value }))}
+                  className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 transition-all active:scale-95 text-center ${
+                    formData.tipo_sesion === tipo.value
+                      ? 'border-crecimiento-500 bg-crecimiento-50 text-crecimiento-900'
+                      : 'border-gray-200 bg-white/60 text-neutro-piedra hover:border-crecimiento-300 hover:bg-crecimiento-50/40'
+                  }`}
+                >
+                  <span className="text-2xl">{tipo.emoji}</span>
+                  <span className="text-xs font-semibold font-outfit leading-tight">{tipo.label}</span>
+                  <span className="text-[10px] font-outfit opacity-70 leading-tight">{tipo.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Acordeón */}
         <div className="space-y-3">
@@ -691,7 +785,7 @@ export default function NuevaSesionPage() {
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={handleCancelar}
               className="w-full sm:flex-1 px-6 py-3 min-h-[48px] border-2 border-gray-300 rounded-xl font-semibold active:scale-95 flex items-center justify-center text-neutro-carbon font-outfit hover:bg-gray-50 transition-all"
               disabled={submitting}
             >
@@ -700,7 +794,7 @@ export default function NuevaSesionPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={submitting || progreso < 100}
+              disabled={submitting || progreso < 100 || tieneEvaluacionInicial === false}
               className="w-full sm:flex-1 px-6 py-3 min-h-[48px] bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-xl font-semibold active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-glow-crecimiento transition-all font-outfit"
             >
               {submitting ? 'Guardando...' : (
@@ -713,6 +807,48 @@ export default function NuevaSesionPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal universal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto ${
+              modal.tipo === 'exito' ? 'bg-crecimiento-100' :
+              modal.tipo === 'error' ? 'bg-impulso-100' :
+              modal.tipo === 'faltantes' ? 'bg-sol-100' :
+              'bg-gray-100'
+            }`}>
+              {modal.tipo === 'exito' && <Check className="w-6 h-6 text-crecimiento-600" />}
+              {modal.tipo === 'error' && <X className="w-6 h-6 text-impulso-600" />}
+              {modal.tipo === 'faltantes' && <AlertTriangle className="w-6 h-6 text-sol-600" />}
+              {modal.tipo === 'confirm' && <AlertTriangle className="w-6 h-6 text-gray-600" />}
+            </div>
+            <div className="text-center">
+              <h3 className="font-bold text-neutro-carbon font-quicksand text-lg">{modal.titulo}</h3>
+              <p className="text-neutro-piedra font-outfit text-sm mt-1">{modal.mensaje}</p>
+            </div>
+            <div className="flex gap-3">
+              {modal.tipo === 'confirm' ? (
+                <>
+                  <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl font-outfit font-medium text-neutro-carbon hover:bg-gray-50 transition-all">
+                    No, seguir
+                  </button>
+                  <button onClick={() => { setModal(null); modal.onConfirm?.(); }} className="flex-1 px-4 py-2.5 bg-impulso-500 text-white rounded-xl font-outfit font-semibold hover:bg-impulso-600 transition-all">
+                    Sí, cancelar
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setModal(null)}
+                  className="w-full px-4 py-2.5 bg-crecimiento-500 text-white rounded-xl font-outfit font-semibold hover:bg-crecimiento-600 transition-all"
+                >
+                  Entendido
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

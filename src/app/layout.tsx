@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Plataforma APA",
-  description: "Sistema de seguimiento educativo - GlobalIA & ONG Adelante",
+  description: "Sistema de seguimiento educativo - GlobalIA & Asociación Civil Adelante",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

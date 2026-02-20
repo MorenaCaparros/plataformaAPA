@@ -43,6 +43,12 @@ export default function MisRespuestasPage() {
       
       const data = await response.json();
       setRespuestas(data);
+
+      // Default: expand all groups
+      const expandedAll: Record<string, boolean> = {};
+      const titulos = new Set<string>(data.map((r: Respuesta) => r.plantilla.titulo));
+      titulos.forEach(titulo => { expandedAll[titulo] = true; });
+      setVistaExpandida(expandedAll);
     } catch (error) {
       console.error('Error:', error);
     } finally {

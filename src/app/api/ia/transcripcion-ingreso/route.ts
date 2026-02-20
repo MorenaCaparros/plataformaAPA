@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const rolesPermitidos = ['psicopedagogia', 'coordinador', 'trabajador_social', 'director', 'admin'];
+    const rolesPermitidos = ['psicopedagogia', 'coordinador', 'trabajador_social', 'director', 'admin', 'equipo_profesional'];
     if (!perfil || !rolesPermitidos.includes(perfil.rol)) {
       return NextResponse.json({ error: 'No tenés permisos para esta acción' }, { status: 403 });
     }

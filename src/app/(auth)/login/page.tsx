@@ -64,11 +64,14 @@ export default function LoginPage() {
           <h1 className="font-quicksand text-4xl md:text-5xl font-bold text-neutro-carbon">
             Plataforma APA
           </h1>
+          <p className="text-sm font-semibold text-crecimiento-600 tracking-wide">
+            Acompañar Para Aprender
+          </p>
           <p className="text-base text-neutro-piedra">
             Sistema de seguimiento educativo
           </p>
           <p className="text-sm text-neutro-piedra font-medium">
-            GlobalIA × ONG Adelante
+            GlobalIA × Asociación Civil Adelante
           </p>
         </div>
 

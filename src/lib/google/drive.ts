@@ -25,6 +25,13 @@ export interface DriveFile {
   thumbnailLink?: string;
   iconLink?: string;
   parents?: string[];
+  description?: string;
+  appProperties?: {
+    descripcion?: string;
+    tags?: string;
+    rango_etario?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 export interface DriveFolder {
@@ -92,7 +99,7 @@ export async function listDriveFiles(folderId?: string): Promise<DriveFile[]> {
     // Excluir carpetas del listado de archivos
     const response = await drive.files.list({
       q: `'${targetFolderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false`,
-      fields: 'files(id, name, mimeType, size, createdTime, modifiedTime, webViewLink, webContentLink, thumbnailLink, iconLink, parents)',
+      fields: 'files(id, name, mimeType, size, createdTime, modifiedTime, webViewLink, webContentLink, thumbnailLink, iconLink, parents, description, appProperties)',
       orderBy: 'modifiedTime desc',
       pageSize: 100,
     });
@@ -113,7 +120,7 @@ export async function getDriveFile(fileId: string): Promise<DriveFile> {
   try {
     const response = await drive.files.get({
       fileId,
-      fields: 'id, name, mimeType, size, createdTime, modifiedTime, webViewLink, webContentLink, thumbnailLink, iconLink',
+      fields: 'id, name, mimeType, size, createdTime, modifiedTime, webViewLink, webContentLink, thumbnailLink, iconLink, description, appProperties',
     });
 
     return response.data as DriveFile;

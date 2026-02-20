@@ -134,7 +134,7 @@ export async function PATCH(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia'];
+    const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia', 'equipo_profesional'];
     if (!perfil || !rolesPermitidos.includes(perfil.rol)) {
       return NextResponse.json(
         { error: 'No tienes permisos para actualizar habilidades manualmente' },

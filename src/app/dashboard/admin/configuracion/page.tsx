@@ -4,19 +4,70 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 
 export default function ConfiguracionPage() {
   const { perfil } = useAuth();
   const router = useRouter();
   
-  const [seccionActiva, setSeccionActiva] = useState<'general' | 'seguridad' | 'logs' | 'backups'>('general');
+  const [seccionActiva, setSeccionActiva] = useState<'general' | 'autoevaluaciones' | 'seguridad' | 'logs' | 'backups'>('general');
+  const [cooldownDias, setCooldownDias] = useState<number>(7);
+  const [puntajeMinAprobacion, setPuntajeMinAprobacion] = useState<number>(70);
+  const [preguntasPorArea, setPreguntasPorArea] = useState<number>(5);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  const [guardandoConfig, setGuardandoConfig] = useState(false);
+  const [msgConfig, setMsgConfig] = useState<string | null>(null);
 
   useEffect(() => {
     if (perfil && perfil.rol !== 'director') {
       router.push('/dashboard');
       return;
     }
+    fetchConfigAutoevaluaciones();
   }, [perfil, router]);
+
+  const fetchConfigAutoevaluaciones = async () => {
+    setLoadingConfig(true);
+    try {
+      const claves = ['autoevaluacion_cooldown_dias', 'autoevaluacion_puntaje_minimo', 'autoevaluacion_preguntas_por_area'];
+      const { data } = await supabase
+        .from('configuracion_sistema')
+        .select('clave, valor')
+        .in('clave', claves);
+
+      if (data) {
+        data.forEach((c: any) => {
+          if (c.clave === 'autoevaluacion_cooldown_dias') setCooldownDias(parseInt(c.valor) || 7);
+          if (c.clave === 'autoevaluacion_puntaje_minimo') setPuntajeMinAprobacion(parseInt(c.valor) || 70);
+          if (c.clave === 'autoevaluacion_preguntas_por_area') setPreguntasPorArea(parseInt(c.valor) || 5);
+        });
+      }
+    } catch (e) {
+      // tabla puede no existir aún
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
+  const guardarConfigAutoevaluaciones = async () => {
+    setGuardandoConfig(true);
+    setMsgConfig(null);
+    try {
+      const configs = [
+        { clave: 'autoevaluacion_cooldown_dias', valor: String(cooldownDias) },
+        { clave: 'autoevaluacion_puntaje_minimo', valor: String(puntajeMinAprobacion) },
+        { clave: 'autoevaluacion_preguntas_por_area', valor: String(preguntasPorArea) },
+      ];
+      for (const c of configs) {
+        await supabase.from('configuracion_sistema').upsert(c, { onConflict: 'clave' });
+      }
+      setMsgConfig('✅ Configuración guardada correctamente');
+    } catch (e) {
+      setMsgConfig('❌ Error al guardar. Verificá que la tabla configuracion_sistema exista.');
+    } finally {
+      setGuardandoConfig(false);
+    }
+  };
 
   if (!perfil || perfil.rol !== 'director') {
     return (
@@ -63,6 +114,16 @@ export default function ConfiguracionPage() {
                 }`}
               >
                 ⚙️ General
+              </button>
+              <button
+                onClick={() => setSeccionActiva('autoevaluaciones')}
+                className={`w-full text-left px-4 py-3 rounded-lg font-medium transition ${
+                  seccionActiva === 'autoevaluaciones'
+                    ? 'bg-crecimiento-50 text-crecimiento-700'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                📋 Autoevaluaciones
               </button>
               <button
                 onClick={() => setSeccionActiva('seguridad')}
@@ -112,7 +173,7 @@ export default function ConfiguracionPage() {
                     </label>
                     <input
                       type="text"
-                      defaultValue="Mentes Curiosas - ONG Adelante"
+                      defaultValue="Mentes Curiosas - Asociación Civil Adelante"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
                     />
                   </div>
@@ -160,6 +221,141 @@ export default function ConfiguracionPage() {
                     💾 Guardar Cambios
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Autoevaluaciones */}
+            {seccionActiva === 'autoevaluaciones' && (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Configuración de Autoevaluaciones</h2>
+                <p className="text-sm text-gray-500 mb-6">
+                  Estos parámetros controlan el comportamiento de las autoevaluaciones de voluntarios.
+                </p>
+
+                {loadingConfig ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-crecimiento-500"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Cooldown */}
+                    <div className="border border-gray-200 rounded-xl p-5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <span className="text-2xl">⏳</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Tiempo de espera entre intentos</h3>
+                          <p className="text-sm text-gray-500 mt-0.5">
+                            Si un voluntario desaprueba o completa la autoevaluación, deberá esperar esta cantidad de días antes de poder reintentar. Así se asegura que aprovechan el tiempo para capacitarse.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 mt-3">
+                        <input
+                          type="number"
+                          min={0}
+                          max={90}
+                          value={cooldownDias}
+                          onChange={(e) => setCooldownDias(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-24 px-4 py-2 border border-gray-300 rounded-lg text-center font-bold text-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
+                        />
+                        <span className="text-gray-700 font-medium">días</span>
+                        {cooldownDias === 0 && (
+                          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                            ⚠️ Sin espera — pueden reintentar inmediatamente
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Valor recomendado: 7 días. Máximo: 90 días. 0 = sin límite.
+                      </p>
+                    </div>
+
+                    {/* Puntaje mínimo */}
+                    <div className="border border-gray-200 rounded-xl p-5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <span className="text-2xl">🎯</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Puntaje mínimo de aprobación</h3>
+                          <p className="text-sm text-gray-500 mt-0.5">
+                            Porcentaje mínimo que debe obtener un voluntario para que su autoevaluación sea considerada "aprobada". Por debajo de este valor se marcará como "reprobada" y se le sugerirán capacitaciones.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 mt-3">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={puntajeMinAprobacion}
+                          onChange={(e) => setPuntajeMinAprobacion(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                          className="w-24 px-4 py-2 border border-gray-300 rounded-lg text-center font-bold text-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
+                        />
+                        <span className="text-gray-700 font-medium">%</span>
+                        <div className={`h-2 flex-1 rounded-full overflow-hidden bg-gray-100`}>
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-impulso-400 to-crecimiento-400 transition-all"
+                            style={{ width: `${puntajeMinAprobacion}%` }}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Valor recomendado: 70%. Por debajo → reprobada + sugerencia de capacitación.
+                      </p>
+                    </div>
+
+                    {/* Preguntas por área en banco */}
+                    <div className="border border-gray-200 rounded-xl p-5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <span className="text-2xl">🔀</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Preguntas por área (banco aleatorio)</h3>
+                          <p className="text-sm text-gray-500 mt-0.5">
+                            Cantidad predeterminada de preguntas por área temática al generar una plantilla desde el banco de preguntas.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 mt-3">
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={preguntasPorArea}
+                          onChange={(e) => setPreguntasPorArea(Math.min(20, Math.max(1, parseInt(e.target.value) || 5)))}
+                          className="w-24 px-4 py-2 border border-gray-300 rounded-lg text-center font-bold text-lg focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent"
+                        />
+                        <span className="text-gray-700 font-medium">preguntas por área</span>
+                      </div>
+                    </div>
+
+                    {/* Resumen */}
+                    <div className="bg-crecimiento-50 border border-crecimiento-200 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-crecimiento-800 mb-1">📋 Resumen de configuración actual</p>
+                      <ul className="text-sm text-crecimiento-700 space-y-1">
+                        <li>• Tiempo de espera: <strong>{cooldownDias === 0 ? 'Sin límite' : `${cooldownDias} días`}</strong></li>
+                        <li>• Puntaje mínimo para aprobar: <strong>{puntajeMinAprobacion}%</strong></li>
+                        <li>• Preguntas por área (banco): <strong>{preguntasPorArea}</strong></li>
+                      </ul>
+                    </div>
+
+                    {msgConfig && (
+                      <p className={`text-sm font-medium text-center py-2 rounded-lg ${msgConfig.startsWith('✅') ? 'text-crecimiento-700 bg-crecimiento-50' : 'text-impulso-700 bg-impulso-50'}`}>
+                        {msgConfig}
+                      </p>
+                    )}
+
+                    <button
+                      onClick={guardarConfigAutoevaluaciones}
+                      disabled={guardandoConfig}
+                      className="w-full bg-crecimiento-500 text-white py-3 px-4 rounded-lg hover:bg-crecimiento-600 font-semibold disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                    >
+                      {guardandoConfig ? (
+                        <><div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> Guardando...</>
+                      ) : (
+                        '💾 Guardar Configuración'
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

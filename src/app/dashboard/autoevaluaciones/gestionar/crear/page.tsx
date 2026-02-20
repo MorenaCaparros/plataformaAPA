@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { ArrowLeft, Plus, Trash2, CheckCircle2, X } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, CheckCircle2, X, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 type TipoPregunta = 'escala' | 'si_no' | 'texto_abierto' | 'multiple_choice' | 'ordenar_palabras' | 'respuesta_imagen';
@@ -22,8 +22,90 @@ interface Pregunta {
   opciones: OpcionPregunta[];
   puntaje: number;
   imagen_url: string;
+  area_especifica: string;
   min_caracteres?: number;
 }
+
+// Modal genérico de alerta/confirmación
+function Modal({
+  tipo,
+  titulo,
+  mensaje,
+  onConfirm,
+  onClose,
+  confirmLabel = 'Aceptar',
+  cancelLabel = 'Cancelar',
+}: {
+  tipo: 'error' | 'success' | 'confirm';
+  titulo: string;
+  mensaje: string;
+  onConfirm?: () => void;
+  onClose: () => void;
+  confirmLabel?: string;
+  cancelLabel?: string;
+}) {
+  const iconColor =
+    tipo === 'error' ? 'bg-impulso-100' :
+    tipo === 'success' ? 'bg-crecimiento-100' :
+    'bg-sol-100';
+  const iconEl =
+    tipo === 'error' ? <AlertCircle className="w-6 h-6 text-impulso-600" /> :
+    tipo === 'success' ? <CheckCircle2 className="w-6 h-6 text-crecimiento-600" /> :
+    <AlertCircle className="w-6 h-6 text-sol-600" />;
+  const btnColor =
+    tipo === 'error' ? 'bg-impulso-500 hover:shadow-[0_8px_24px_rgba(230,57,70,0.25)]' :
+    tipo === 'success' ? 'bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)]' :
+    'bg-gradient-to-r from-sol-400 to-sol-500 hover:shadow-[0_8px_24px_rgba(242,201,76,0.25)]';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-start gap-4 mb-6">
+          <div className={`w-12 h-12 rounded-2xl ${iconColor} flex items-center justify-center flex-shrink-0`}>
+            {iconEl}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-neutro-carbon font-quicksand mb-1">{titulo}</h3>
+            <p className="text-sm text-neutro-piedra font-outfit leading-relaxed">{mensaje}</p>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          {tipo === 'confirm' && (
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-neutro-lienzo border border-neutro-piedra/20 text-neutro-carbon rounded-2xl font-outfit font-medium text-sm hover:bg-neutro-piedra/10 transition-colors min-h-[48px]"
+            >
+              {cancelLabel}
+            </button>
+          )}
+          <button
+            onClick={() => { onConfirm?.(); onClose(); }}
+            className={`flex-1 px-4 py-3 text-white rounded-2xl font-outfit font-semibold text-sm transition-all min-h-[48px] ${btnColor}`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const AREAS_PLANTILLA = [
+  { value: 'lenguaje', label: 'Lenguaje y Vocabulario' },
+  { value: 'grafismo', label: 'Grafismo y Motricidad Fina' },
+  { value: 'lectura_escritura', label: 'Lectura y Escritura' },
+  { value: 'matematicas', label: 'Nociones Matemáticas' },
+  { value: 'mixta', label: 'Múltiples Áreas' },
+];
+
+// Áreas disponibles para preguntas individuales (incluye "igual que la plantilla")
+const AREAS_PREGUNTA = [
+  { value: '', label: 'Misma área que la plantilla' },
+  { value: 'lenguaje', label: 'Lenguaje y Vocabulario' },
+  { value: 'grafismo', label: 'Grafismo y Motricidad Fina' },
+  { value: 'lectura_escritura', label: 'Lectura y Escritura' },
+  { value: 'matematicas', label: 'Nociones Matemáticas' },
+];
 
 export default function CrearPlantillaPage() {
   const router = useRouter();
@@ -32,6 +114,18 @@ export default function CrearPlantillaPage() {
   const [descripcion, setDescripcion] = useState('');
   const [preguntas, setPreguntas] = useState<Pregunta[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Modal state
+  const [modal, setModal] = useState<{
+    tipo: 'error' | 'success' | 'confirm';
+    titulo: string;
+    mensaje: string;
+    onConfirm?: () => void;
+  } | null>(null);
+
+  const showAlert = (tipo: 'error' | 'success', titulo: string, mensaje: string) => {
+    setModal({ tipo, titulo, mensaje });
+  };
 
   const agregarPregunta = () => {
     const nuevaPregunta: Pregunta = {
@@ -42,6 +136,7 @@ export default function CrearPlantillaPage() {
       opciones: [],
       puntaje: 10,
       imagen_url: '',
+      area_especifica: '',
     };
     setPreguntas([...preguntas, nuevaPregunta]);
   };
@@ -102,28 +197,36 @@ export default function CrearPlantillaPage() {
     e.preventDefault();
 
     if (!titulo.trim() || !descripcion.trim() || preguntas.length === 0) {
-      alert('Completá todos los campos y agregá al menos una pregunta');
+      showAlert('error', 'Faltan datos', 'Completá todos los campos y agregá al menos una pregunta.');
       return;
     }
 
     if (preguntas.some(p => !p.texto.trim())) {
-      alert('Todas las preguntas deben tener texto');
+      showAlert('error', 'Pregunta incompleta', 'Todas las preguntas deben tener texto.');
       return;
     }
 
-    // Validate respuesta_correcta
     for (const p of preguntas) {
       if (p.tipo === 'multiple_choice' || p.tipo === 'respuesta_imagen') {
-        if (p.opciones.length < 2) { alert(`Pregunta "${p.texto.substring(0, 30)}..." necesita al menos 2 opciones`); return; }
-        if (!p.opciones.some(o => o.es_correcta)) { alert(`Pregunta "${p.texto.substring(0, 30)}..." necesita una opción correcta`); return; }
-        if (p.opciones.some(o => !o.texto_opcion.trim())) { alert(`Todas las opciones deben tener texto`); return; }
+        if (p.opciones.length < 2) {
+          showAlert('error', 'Opciones insuficientes', `La pregunta "${p.texto.substring(0, 40)}…" necesita al menos 2 opciones.`);
+          return;
+        }
+        if (!p.opciones.some(o => o.es_correcta)) {
+          showAlert('error', 'Sin respuesta correcta', `La pregunta "${p.texto.substring(0, 40)}…" necesita una opción marcada como correcta.`);
+          return;
+        }
+        if (p.opciones.some(o => !o.texto_opcion.trim())) {
+          showAlert('error', 'Opciones vacías', 'Todas las opciones deben tener texto.');
+          return;
+        }
       }
     }
 
     setSaving(true);
 
     try {
-      // 1. Create capacitacion
+      // 1. Crear capacitacion
       const { data: capacitacion, error: capError } = await supabase
         .from('capacitaciones')
         .insert({
@@ -133,18 +236,18 @@ export default function CrearPlantillaPage() {
           descripcion,
           es_obligatoria: true,
           puntaje_minimo_aprobacion: 70,
-          activa: true
+          activa: true,
         })
         .select()
         .single();
 
       if (capError) throw capError;
 
-      // 2. Create preguntas
+      // 2. Crear preguntas
       for (let i = 0; i < preguntas.length; i++) {
         const p = preguntas[i];
         const tipoDB = p.tipo === 'si_no' ? 'verdadero_falso' : p.tipo === 'texto_abierto' ? 'texto_libre' : p.tipo;
-        
+
         const { data: preguntaDB, error: pregError } = await supabase
           .from('preguntas_capacitacion')
           .insert({
@@ -155,6 +258,7 @@ export default function CrearPlantillaPage() {
             respuesta_correcta: p.respuesta_correcta || '',
             puntaje: p.puntaje || 10,
             imagen_url: p.imagen_url || null,
+            area_especifica: p.area_especifica || null,
           })
           .select()
           .single();
@@ -164,7 +268,6 @@ export default function CrearPlantillaPage() {
           continue;
         }
 
-        // Insert opciones for multiple_choice and respuesta_imagen
         if ((p.tipo === 'multiple_choice' || p.tipo === 'respuesta_imagen') && preguntaDB && p.opciones.length > 0) {
           const opInserts = p.opciones.map((op, idx) => ({
             pregunta_id: preguntaDB.id,
@@ -176,11 +279,15 @@ export default function CrearPlantillaPage() {
         }
       }
 
-      alert('Plantilla creada correctamente');
-      router.push('/dashboard/autoevaluaciones/gestionar');
+      setModal({
+        tipo: 'success',
+        titulo: '¡Plantilla creada!',
+        mensaje: `La plantilla "${titulo}" fue creada correctamente con ${preguntas.length} pregunta${preguntas.length !== 1 ? 's' : ''}.`,
+        onConfirm: () => router.push('/dashboard/autoevaluaciones/gestionar'),
+      });
     } catch (error) {
       console.error('Error al crear plantilla:', error);
-      alert('Error al crear la plantilla');
+      showAlert('error', 'Error al guardar', 'No se pudo crear la plantilla. Revisá la consola para más detalles.');
     } finally {
       setSaving(false);
     }
@@ -355,7 +462,6 @@ export default function CrearPlantillaPage() {
           {/* Info básica */}
           <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8">
             <h2 className="text-xl font-bold text-neutro-carbon font-quicksand mb-6">Información de la Plantilla</h2>
-            
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Título *</label>
@@ -365,15 +471,11 @@ export default function CrearPlantillaPage() {
                   required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Área *</label>
+                <label className="block text-sm font-medium text-neutro-carbon font-outfit mb-2">Área principal *</label>
                 <select value={area} onChange={(e) => setArea(e.target.value)}
                   className="w-full px-4 py-3 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit min-h-[56px]"
                   required>
-                  <option value="lenguaje">Lenguaje y Vocabulario</option>
-                  <option value="grafismo">Grafismo y Motricidad Fina</option>
-                  <option value="lectura_escritura">Lectura y Escritura</option>
-                  <option value="matematicas">Nociones Matemáticas</option>
-                  <option value="mixta">Múltiples Áreas</option>
+                  {AREAS_PLANTILLA.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
                 </select>
               </div>
               <div>
@@ -389,7 +491,7 @@ export default function CrearPlantillaPage() {
 
           {/* Preguntas */}
           <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-6 sm:p-8">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-2">
               <h2 className="text-xl font-bold text-neutro-carbon font-quicksand">
                 Preguntas ({preguntas.length})
               </h2>
@@ -399,6 +501,11 @@ export default function CrearPlantillaPage() {
                 Agregar Pregunta
               </button>
             </div>
+
+            {/* Hint sobre áreas */}
+            <p className="text-xs text-neutro-piedra font-outfit mb-6">
+              Podés asignarle a cada pregunta un área específica. Esto permite analizar el puntaje por área y enviar recordatorios de capacitación dirigidos.
+            </p>
 
             {preguntas.length === 0 ? (
               <p className="text-center text-neutro-piedra font-outfit py-8">
@@ -425,18 +532,42 @@ export default function CrearPlantillaPage() {
                         className="w-full px-4 py-3 bg-white border border-neutro-piedra/20 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit resize-none placeholder:text-neutro-piedra/60"
                         required />
 
-                      <select value={pregunta.tipo}
-                        onChange={(e) => actualizarPregunta(pregunta.id, 'tipo', e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm">
-                        <option value="escala">Escala 1-5 ⭐</option>
-                        <option value="si_no">Sí / No</option>
-                        <option value="multiple_choice">Selección múltiple</option>
-                        <option value="texto_abierto">Texto abierto</option>
-                        <option value="ordenar_palabras">Ordenar palabras</option>
-                        <option value="respuesta_imagen">Respuesta con imagen</option>
-                      </select>
+                      {/* Tipo + Área en la misma fila */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-neutro-piedra font-outfit mb-1">Tipo de pregunta</label>
+                          <select value={pregunta.tipo}
+                            onChange={(e) => actualizarPregunta(pregunta.id, 'tipo', e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm">
+                            <option value="escala">Escala 1-5 ⭐</option>
+                            <option value="si_no">Sí / No</option>
+                            <option value="multiple_choice">Selección múltiple</option>
+                            <option value="texto_abierto">Texto abierto</option>
+                            <option value="ordenar_palabras">Ordenar palabras</option>
+                            <option value="respuesta_imagen">Respuesta con imagen</option>
+                          </select>
+                        </div>
 
-                      {/* Puntaje de la pregunta */}
+                        <div>
+                          <label className="block text-xs text-neutro-piedra font-outfit mb-1">
+                            Área de esta pregunta
+                          </label>
+                          <select
+                            value={pregunta.area_especifica}
+                            onChange={(e) => actualizarPregunta(pregunta.id, 'area_especifica', e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutro-piedra/20 rounded-2xl focus:ring-2 focus:ring-sol-400 text-neutro-carbon font-outfit text-sm"
+                          >
+                            {AREAS_PREGUNTA.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                          </select>
+                          {pregunta.area_especifica && (
+                            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-sol-50 border border-sol-200/40 rounded-lg text-xs text-sol-700 font-outfit">
+                              {AREAS_PREGUNTA.find(a => a.value === pregunta.area_especifica)?.label}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Puntaje */}
                       <div className="flex items-center gap-2">
                         <label className="text-xs text-neutro-piedra font-outfit whitespace-nowrap">Puntaje:</label>
                         <input
@@ -474,6 +605,18 @@ export default function CrearPlantillaPage() {
           </div>
         </form>
       </main>
+
+      {/* Modal de alerta/confirmación */}
+      {modal && (
+        <Modal
+          tipo={modal.tipo}
+          titulo={modal.titulo}
+          mensaje={modal.mensaje}
+          onConfirm={modal.onConfirm}
+          onClose={() => setModal(null)}
+          confirmLabel={modal.tipo === 'success' ? 'Ir a plantillas' : 'Entendido'}
+        />
+      )}
     </div>
   );
 }

@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const rolesPermitidos = ['director', 'trabajador_social', 'coordinador', 'psicopedagogia'];
+    const rolesPermitidos = ['director', 'trabajador_social', 'coordinador', 'psicopedagogia', 'equipo_profesional'];
     if (!perfil || !rolesPermitidos.includes(perfil.rol)) {
       return NextResponse.json(
         { error: 'No tienes permisos para asignar capacitaciones' },

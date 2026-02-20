@@ -4,8 +4,72 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Loader2, BookOpen, Shuffle, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Loader2, BookOpen, Shuffle, ClipboardCheck, Lock, AlertTriangle, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+
+// Modal genérico reutilizable
+function Modal({
+  tipo,
+  titulo,
+  mensaje,
+  onConfirm,
+  onClose,
+  confirmLabel = 'Aceptar',
+  cancelLabel = 'Cancelar',
+}: {
+  tipo: 'error' | 'success' | 'confirm';
+  titulo: string;
+  mensaje: string | React.ReactNode;
+  onConfirm?: () => void;
+  onClose: () => void;
+  confirmLabel?: string;
+  cancelLabel?: string;
+}) {
+  const iconBg =
+    tipo === 'error' ? 'bg-impulso-100' :
+    tipo === 'success' ? 'bg-crecimiento-100' :
+    'bg-sol-100';
+  const iconEl =
+    tipo === 'error' ? <AlertCircle className="w-6 h-6 text-impulso-600" /> :
+    tipo === 'success' ? <CheckCircle2 className="w-6 h-6 text-crecimiento-600" /> :
+    <AlertCircle className="w-6 h-6 text-sol-600" />;
+  const btnPrimary =
+    tipo === 'error' ? 'bg-impulso-500 hover:shadow-[0_8px_24px_rgba(230,57,70,0.25)] text-white' :
+    tipo === 'success' ? 'bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] text-white' :
+    'bg-gradient-to-r from-impulso-500 to-impulso-600 hover:shadow-[0_8px_24px_rgba(230,57,70,0.25)] text-white';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-start gap-4 mb-6">
+          <div className={`w-12 h-12 rounded-2xl ${iconBg} flex items-center justify-center flex-shrink-0`}>
+            {iconEl}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-neutro-carbon font-quicksand mb-1">{titulo}</h3>
+            <div className="text-sm text-neutro-piedra font-outfit leading-relaxed">{mensaje}</div>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          {tipo === 'confirm' && (
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-neutro-lienzo border border-neutro-piedra/20 text-neutro-carbon rounded-2xl font-outfit font-medium text-sm hover:bg-neutro-piedra/10 transition-colors min-h-[48px]"
+            >
+              {cancelLabel}
+            </button>
+          )}
+          <button
+            onClick={() => { onConfirm?.(); onClose(); }}
+            className={`flex-1 px-4 py-3 rounded-2xl font-outfit font-semibold text-sm transition-all min-h-[48px] ${btnPrimary}`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface Plantilla {
   id: string;
@@ -15,11 +79,19 @@ interface Plantilla {
   preguntas: any[];
   activo: boolean;
   created_at: string;
+  respuestas_count?: number; // how many volunteers answered
 }
 
 function GestionarPlantillasContent() {
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalBloqueo, setModalBloqueo] = useState<{ titulo: string; respuestas: number } | null>(null);
+  const [modal, setModal] = useState<{
+    tipo: 'error' | 'success' | 'confirm';
+    titulo: string;
+    mensaje: string | React.ReactNode;
+    onConfirm?: () => void;
+  } | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { perfil } = useAuth();
@@ -45,7 +117,8 @@ function GestionarPlantillasContent() {
         .from('capacitaciones')
         .select(`
           *,
-          preguntas:preguntas_capacitacion(id, orden, pregunta, tipo_pregunta, puntaje)
+          preguntas:preguntas_capacitacion(id, orden, pregunta, tipo_pregunta, puntaje),
+          respuestas:voluntarios_capacitaciones(id)
         `)
         .eq('tipo', 'autoevaluacion')
         .order('area');
@@ -54,7 +127,7 @@ function GestionarPlantillasContent() {
       
       if (error) {
         console.error('❌ Error de Supabase:', error);
-        alert(`Error al cargar plantillas: ${error.message}`);
+        setModal({ tipo: 'error', titulo: 'Error al cargar', mensaje: `No se pudieron cargar las plantillas: ${error.message}` });
         throw error;
       }
       
@@ -67,13 +140,14 @@ function GestionarPlantillasContent() {
         activo: c.activa,
         preguntas: (c.preguntas || []).sort((a: any, b: any) => a.orden - b.orden),
         created_at: c.created_at,
+        respuestas_count: (c.respuestas || []).length,
       }));
       
       console.log('✅ Plantillas cargadas:', mapped.length);
       setPlantillas(mapped);
     } catch (error) {
       console.error('💥 Error al cargar plantillas:', error);
-      alert('Error al cargar las plantillas. Revisa la consola para más detalles.');
+      setModal({ tipo: 'error', titulo: 'Error', mensaje: 'Error al cargar las plantillas. Revisá la consola para más detalles.' });
     } finally {
       setLoading(false);
     }
@@ -90,28 +164,46 @@ function GestionarPlantillasContent() {
       fetchPlantillas();
     } catch (error) {
       console.error('Error al actualizar plantilla:', error);
-      alert('Error al actualizar la plantilla');
+      setModal({ tipo: 'error', titulo: 'Error', mensaje: 'No se pudo actualizar la plantilla.' });
     }
   }
 
-  async function eliminarPlantilla(plantillaId: string, titulo: string) {
-    if (!confirm(`¿Estás seguro de eliminar la plantilla "${titulo}"? Esta acción no se puede deshacer.`)) {
+  async function eliminarPlantilla(plantillaId: string, titulo: string, respuestasCount: number) {
+    if (respuestasCount > 0) {
+      setModalBloqueo({ titulo, respuestas: respuestasCount });
       return;
     }
+    // Pedir confirmación con modal propio
+    setModal({
+      tipo: 'confirm',
+      titulo: 'Eliminar plantilla',
+      mensaje: (
+        <>
+          ¿Estás seguro de eliminar la plantilla{' '}
+          <strong className="text-neutro-carbon">"{titulo}"</strong>?
+          Esta acción no se puede deshacer.
+        </>
+      ),
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('capacitaciones')
+            .delete()
+            .eq('id', plantillaId);
 
-    try {
-      const { error } = await supabase
-        .from('capacitaciones')
-        .delete()
-        .eq('id', plantillaId);
-
-      if (error) throw error;
-      fetchPlantillas();
-      alert('Plantilla eliminada correctamente');
-    } catch (error) {
-      console.error('Error al eliminar plantilla:', error);
-      alert('Error al eliminar la plantilla');
-    }
+          if (error) throw error;
+          fetchPlantillas();
+          setModal({
+            tipo: 'success',
+            titulo: 'Plantilla eliminada',
+            mensaje: `La plantilla "${titulo}" fue eliminada correctamente.`,
+          });
+        } catch (error) {
+          console.error('Error al eliminar plantilla:', error);
+          setModal({ tipo: 'error', titulo: 'Error', mensaje: 'No se pudo eliminar la plantilla.' });
+        }
+      },
+    });
   }
 
   const areaLabels: Record<string, string> = {
@@ -270,31 +362,106 @@ function GestionarPlantillasContent() {
                       }`}
                       title={plantilla.activo ? 'Desactivar plantilla' : 'Activar plantilla'}
                     >
-                      {plantilla.activo ? (
-                        <Eye className="w-4 h-4 mx-auto" />
-                      ) : (
-                        <EyeOff className="w-4 h-4 mx-auto" />
-                      )}
+                      {plantilla.activo ? <Eye className="w-4 h-4 mx-auto" /> : <EyeOff className="w-4 h-4 mx-auto" />}
                     </button>
-                    <Link
-                      href={`/dashboard/autoevaluaciones/gestionar/editar/${plantilla.id}`}
-                      className="flex-1 sm:flex-none px-4 py-2.5 bg-sol-50 border border-sol-200/40 text-sol-700 rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.2)] transition-all text-sm font-outfit font-medium active:scale-95 flex items-center justify-center"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Link>
+
+                    {/* Edit — blocked if answered */}
+                    {(plantilla.respuestas_count || 0) > 0 ? (
+                      <button
+                        onClick={() => setModalBloqueo({ titulo: plantilla.titulo, respuestas: plantilla.respuestas_count || 0 })}
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-neutro-lienzo border border-neutro-piedra/20 text-neutro-piedra rounded-2xl transition-all text-sm font-outfit font-medium active:scale-95 flex items-center justify-center gap-1.5"
+                        title="Plantilla bloqueada — ya fue respondida"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/dashboard/autoevaluaciones/gestionar/editar/${plantilla.id}`}
+                        className="flex-1 sm:flex-none px-4 py-2.5 bg-sol-50 border border-sol-200/40 text-sol-700 rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.2)] transition-all text-sm font-outfit font-medium active:scale-95 flex items-center justify-center"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Link>
+                    )}
+
+                    {/* Delete — blocked if answered */}
                     <button
-                      onClick={() => eliminarPlantilla(plantilla.id, plantilla.titulo)}
-                      className="flex-1 sm:flex-none px-4 py-2.5 bg-impulso-50 border border-impulso-200/40 text-impulso-700 rounded-2xl hover:shadow-[0_4px_16px_rgba(230,57,70,0.2)] transition-all text-sm font-outfit font-medium active:scale-95"
+                      onClick={() => eliminarPlantilla(plantilla.id, plantilla.titulo, plantilla.respuestas_count || 0)}
+                      className={`flex-1 sm:flex-none px-4 py-2.5 border rounded-2xl transition-all text-sm font-outfit font-medium active:scale-95 flex items-center justify-center ${
+                        (plantilla.respuestas_count || 0) > 0
+                          ? 'bg-neutro-lienzo border-neutro-piedra/20 text-neutro-piedra/50 cursor-not-allowed'
+                          : 'bg-impulso-50 border-impulso-200/40 text-impulso-700 hover:shadow-[0_4px_16px_rgba(230,57,70,0.2)]'
+                      }`}
                     >
-                      <Trash2 className="w-4 h-4 mx-auto" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* Badge: respuestas */}
+                  {(plantilla.respuestas_count || 0) > 0 && (
+                    <div className="flex items-center gap-1.5 mt-2 sm:mt-0">
+                      <Lock className="w-3.5 h-3.5 text-neutro-piedra" />
+                      <span className="text-xs text-neutro-piedra font-outfit">
+                        {plantilla.respuestas_count} respuesta{plantilla.respuestas_count !== 1 ? 's' : ''} — no editable
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </main>
+
+      {/* Modal: acción general (error / éxito / confirmación) */}
+      {modal && (
+        <Modal
+          tipo={modal.tipo}
+          titulo={modal.titulo}
+          mensaje={modal.mensaje}
+          onConfirm={modal.onConfirm}
+          onClose={() => setModal(null)}
+          confirmLabel={modal.tipo === 'confirm' ? 'Sí, eliminar' : 'Entendido'}
+          cancelLabel="Cancelar"
+        />
+      )}
+
+      {/* Modal: plantilla bloqueada */}
+      {modalBloqueo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-sol-100 flex items-center justify-center flex-shrink-0">
+                <Lock className="w-6 h-6 text-sol-700" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-neutro-carbon font-quicksand mb-1">Plantilla bloqueada</h3>
+                <p className="text-sm text-neutro-piedra font-outfit leading-relaxed">
+                  La plantilla <strong className="text-neutro-carbon">"{modalBloqueo.titulo}"</strong> ya fue respondida por{' '}
+                  <strong className="text-neutro-carbon">{modalBloqueo.respuestas} voluntario{modalBloqueo.respuestas !== 1 ? 's' : ''}</strong>.
+                  No se puede editar ni eliminar para preservar la integridad de las respuestas existentes.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setModalBloqueo(null)}
+                className="flex-1 px-4 py-3 bg-neutro-lienzo border border-neutro-piedra/20 text-neutro-carbon rounded-2xl font-outfit font-medium text-sm hover:bg-neutro-piedra/10 transition-colors min-h-[48px]"
+              >
+                Entendido
+              </button>
+              <Link
+                href="/dashboard/autoevaluaciones/gestionar/revisar"
+                onClick={() => setModalBloqueo(null)}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl font-outfit font-semibold text-sm hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all flex items-center justify-center gap-2 min-h-[48px]"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                Ver respuestas
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

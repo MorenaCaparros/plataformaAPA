@@ -1,13 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import SelectorNino from '@/components/forms/SelectorNino';
+import { supabase } from '@/lib/supabase/client';
 
-export default function NuevaEvaluacionPage() {
+function NuevaEvaluacionForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const ninoIdParam = searchParams.get('ninoId');
+
   const [loading, setLoading] = useState(false);
-  const [ninoId, setNinoId] = useState<string | null>(null);
+  const [ninoId, setNinoId] = useState<string | null>(ninoIdParam);
 
   const [formData, setFormData] = useState({
     // Lenguaje y Vocabulario
@@ -61,10 +65,12 @@ export default function NuevaEvaluacionPage() {
         return;
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch('/api/psicopedagogia/evaluaciones', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
           nino_id: ninoId,
@@ -105,7 +111,7 @@ export default function NuevaEvaluacionPage() {
           </p>
         </div>
 {/* Selector de Niño */}
-        <SelectorNino onSelect={setNinoId} />
+        <SelectorNino onSelect={setNinoId} initialNinoId={ninoIdParam} />
 
         
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -432,5 +438,17 @@ export default function NuevaEvaluacionPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function NuevaEvaluacionPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500" />
+      </div>
+    }>
+      <NuevaEvaluacionForm />
+    </Suspense>
   );
 }

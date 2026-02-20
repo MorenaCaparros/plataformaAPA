@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 
 /**
  * Crea un cliente de Supabase para APIs que acepta autenticación desde:
@@ -49,8 +48,7 @@ export async function createAuthenticatedClient(request: NextRequest) {
   }
   
   // Si no hay token en header, usar cookies (sesión del navegador)
-  const cookieStore = await cookies();
-  return createServerClient(cookieStore);
+  return createServerClient();
 }
 
 /**

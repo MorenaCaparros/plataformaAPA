@@ -20,6 +20,7 @@ interface RespuestaResumen {
   puntaje_total: number | null;
   puntaje_automatico: number | null;
   fecha_completada: string;
+  estado: string; // 'completada' | 'aprobada' | 'reprobada'
 }
 
 export default function AutoevaluacionesPage() {
@@ -79,9 +80,11 @@ export default function AutoevaluacionesPage() {
         const mappedRespuestas = (respuestasRes.data || []).map((r: any) => ({
           id: r.id,
           plantilla_id: r.capacitacion_id,
-          puntaje_total: r.porcentaje ? r.porcentaje / 10 : null,
-          puntaje_automatico: r.puntaje_final ? r.puntaje_final / 10 : null,
+          // porcentaje is 0-100 (e.g. 75), divide by 10 to get 0-10 scale
+          puntaje_total: r.porcentaje != null ? r.porcentaje / 10 : null,
+          puntaje_automatico: r.porcentaje != null ? r.porcentaje / 10 : null,
           fecha_completada: r.fecha_completado,
+          estado: r.estado,
         }));
         setRespuestas(mappedRespuestas);
       }
@@ -103,7 +106,9 @@ export default function AutoevaluacionesPage() {
     return {
       veces: respuestasPlantilla.length,
       ultimoPuntaje: puntaje,
-      ultimaFecha: new Date(ultimaRespuesta.fecha_completada)
+      ultimaFecha: new Date(ultimaRespuesta.fecha_completada),
+      estado: ultimaRespuesta.estado, // 'completada' (pendiente revisión), 'aprobada', 'reprobada'
+      pendienteRevision: ultimaRespuesta.estado === 'completada',
     };
   };
 
@@ -216,17 +221,38 @@ export default function AutoevaluacionesPage() {
 
                   {/* Estadísticas si ya la completó (solo voluntarios) */}
                   {stats && !puedeGestionarPlantillas && (
-                    <div className="bg-crecimiento-50/40 backdrop-blur-sm border border-crecimiento-200/30 rounded-2xl p-4 mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-crecimiento-700 font-medium font-outfit">
-                          Ya completaste {stats.veces} {stats.veces === 1 ? 'vez' : 'veces'}
+                    <div className={`backdrop-blur-sm border rounded-2xl p-4 mb-4 ${
+                      stats.pendienteRevision
+                        ? 'bg-sol-50/40 border-sol-200/30'
+                        : stats.estado === 'aprobada'
+                        ? 'bg-crecimiento-50/40 border-crecimiento-200/30'
+                        : 'bg-impulso-50/30 border-impulso-200/30'
+                    }`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-xs font-medium font-outfit ${
+                          stats.pendienteRevision ? 'text-sol-700' :
+                          stats.estado === 'aprobada' ? 'text-crecimiento-700' : 'text-impulso-700'
+                        }`}>
+                          {stats.pendienteRevision
+                            ? '⏳ Pendiente de revisión manual'
+                            : stats.estado === 'aprobada'
+                            ? `✅ Aprobada — completaste ${stats.veces} ${stats.veces === 1 ? 'vez' : 'veces'}`
+                            : `📝 Completaste ${stats.veces} ${stats.veces === 1 ? 'vez' : 'veces'}`}
                         </span>
-                        <span className="text-2xl font-bold text-crecimiento-800 font-quicksand">
+                        <span className={`text-2xl font-bold font-quicksand ${
+                          stats.pendienteRevision ? 'text-sol-800' :
+                          stats.estado === 'aprobada' ? 'text-crecimiento-800' : 'text-impulso-800'
+                        }`}>
                           {stats.ultimoPuntaje.toFixed(1)}/10
                         </span>
                       </div>
-                      <p className="text-xs text-crecimiento-600 font-outfit">
-                        Última vez: {stats.ultimaFecha.toLocaleDateString('es-AR')}
+                      <p className={`text-xs font-outfit ${
+                        stats.pendienteRevision ? 'text-sol-600' :
+                        stats.estado === 'aprobada' ? 'text-crecimiento-600' : 'text-impulso-600'
+                      }`}>
+                        {stats.pendienteRevision
+                          ? 'El equipo revisará tus respuestas abiertas. Tu puntaje puede aumentar.'
+                          : `Última vez: ${stats.ultimaFecha.toLocaleDateString('es-AR')}`}
                       </p>
                     </div>
                   )}
@@ -253,6 +279,12 @@ export default function AutoevaluacionesPage() {
                     >
                       Ver plantillas →
                     </Link>
+                  ) : stats?.pendienteRevision ? (
+                    // Pendiente revisión manual — no puede reiniciar
+                    <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-neutro-nube border border-neutro-piedra/20 text-neutro-piedra rounded-2xl text-sm font-outfit font-medium cursor-not-allowed">
+                      <span>⏳</span>
+                      <span>Esperando revisión del equipo</span>
+                    </div>
                   ) : (
                     <Link
                       href={`/dashboard/autoevaluaciones/mis-respuestas/completar/${plantilla.id}`}

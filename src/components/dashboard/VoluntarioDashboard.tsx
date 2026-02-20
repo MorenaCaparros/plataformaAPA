@@ -70,29 +70,38 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
+  const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number; isStale?: boolean } | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const notifPanelRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['voluntario-dashboard', userId],
     queryFn: async () => {
-      // 1. Traer niños asignados al voluntario desde la tabla asignaciones
-      //    (esto incluye niños SIN sesiones)
-      const { data: asignaciones, error: asignError } = await supabase
-        .from('asignaciones')
-        .select('nino_id, ninos (id, alias, rango_etario, fecha_nacimiento, nivel_alfabetizacion)')
-        .eq('voluntario_id', userId)
-        .eq('activa', true);
+      // 1. Traer asignaciones con datos del niño via API route (service_role bypasa RLS).
+      // No usamos supabase client directo porque RLS en 'ninos' bloquea .in('id',[...])
+      // y el join embebido también puede fallar si la FK no está configurada.
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('Sin sesión activa');
 
-      if (asignError) throw asignError;
+      const res = await fetch(`/api/asignaciones?voluntario_id=${userId}&activo=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Error API asignaciones: ${res.status}`);
+      const { asignaciones: asignData } = await res.json();
 
       // Mapa de niños asignados
       const ninosMap = new Map<string, any>();
-      (asignaciones || []).forEach((a: any) => {
-        if (a.ninos && !ninosMap.has(a.ninos.id)) {
-          ninosMap.set(a.ninos.id, {
-            ...a.ninos,
+
+      (asignData || []).forEach((asig: any) => {
+        const nino = asig.nino; // la API devuelve 'nino' (singular) no 'ninos'
+        if (nino && !ninosMap.has(nino.id)) {
+          ninosMap.set(nino.id, {
+            id: nino.id,
+            alias: nino.alias,
+            rango_etario: nino.rango_etario,
+            fecha_nacimiento: nino.fecha_nacimiento ?? null,
+            nivel_alfabetizacion: nino.nivel_alfabetizacion ?? '',
             mis_sesiones: 0,
             total_sesiones: 0,
             ultima_sesion: null,
@@ -101,42 +110,51 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
       });
 
       // 2. Traer TODAS las sesiones del voluntario
+      // Nota: NO usamos !inner ni join con ninos para evitar problemas de RLS en tabla ninos.
+      // Los niños ya están en ninosMap desde la API route.
       const { data: misSesiones, error: sesionesError } = await supabase
         .from('sesiones')
-        .select('id, nino_id, fecha, duracion_minutos, ninos!inner(id, alias, rango_etario, fecha_nacimiento, nivel_alfabetizacion)')
+        .select('id, nino_id, fecha, duracion_minutos')
         .eq('voluntario_id', userId)
         .order('fecha', { ascending: false });
 
-      if (sesionesError) throw sesionesError;
+      // Si falla sesiones (ej RLS), no interrumpimos — el niño ya está en el map
+      if (sesionesError) {
+        console.warn('[WARN] Error al traer sesiones, continuando sin ellas:', sesionesError.message);
+      }
 
       // 3. Merge session data into niños map
       (misSesiones || []).forEach((sesion: any) => {
-        const nino = sesion.ninos;
-        if (!ninosMap.has(nino.id)) {
-          // Niño with sessions but no active assignment (edge case) — still show
-          ninosMap.set(nino.id, {
-            ...nino,
+        const ninoId = sesion.nino_id;
+        if (!ninosMap.has(ninoId)) {
+          // Sesión de niño sin asignación activa (edge case) — igualmente contar
+          ninosMap.set(ninoId, {
+            id: ninoId,
+            alias: 'Desconocido',
+            rango_etario: '',
+            fecha_nacimiento: null,
+            nivel_alfabetizacion: '',
             mis_sesiones: 0,
             total_sesiones: 0,
             ultima_sesion: null,
           });
         }
-        const entry = ninosMap.get(nino.id);
+        const entry = ninosMap.get(ninoId);
         entry.mis_sesiones++;
         if (!entry.ultima_sesion) {
-          entry.ultima_sesion = sesion.fecha; // already DESC order
+          entry.ultima_sesion = sesion.fecha;
         }
       });
 
       // 4. Get total session counts (all volunteers) for relevant niños
-      const ninoIds = Array.from(ninosMap.keys());
+      const todosNinoIds = Array.from(ninosMap.keys());
       let totalSesionesPorNino: Record<string, number> = {};
       
-      if (ninoIds.length > 0) {
+      if (todosNinoIds.length > 0) {
         const { data: todasSesiones } = await supabase
           .from('sesiones')
           .select('nino_id')
-          .in('nino_id', ninoIds);
+          .in('nino_id', todosNinoIds);
 
         (todasSesiones || []).forEach((s: any) => {
           totalSesionesPorNino[s.nino_id] = (totalSesionesPorNino[s.nino_id] || 0) + 1;
@@ -169,9 +187,9 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
         ultima_sesion: misSesiones?.[0]
           ? {
               id: misSesiones[0].id,
-              nino_alias: (misSesiones[0] as any).ninos.alias,
+              nino_alias: ninosMap.get(misSesiones[0].nino_id)?.alias ?? 'Niño',
               fecha: misSesiones[0].fecha,
-              duracion_minutos: misSesiones[0].duracion_minutos || 0
+              duracion_minutos: (misSesiones[0] as any).duracion_minutos || 0
             }
           : null
       };
@@ -179,7 +197,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
       return { ninos: ninosArray, estadisticas };
     },
     enabled: !!userId,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 0, // Sin caché: siempre busca datos frescos
   });
 
   // Training status query
@@ -360,6 +378,8 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
       }
       const start = localStorage.getItem(`sesion_timer_${activeNinoId}_start`);
       if (!start) {
+        // Key missing — stale marker, clean up
+        localStorage.removeItem('sesion_timer_active');
         setActiveSession(null);
         return;
       }
@@ -370,12 +390,20 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
       const elapsed = Math.max(0, Date.now() - parseInt(start, 10) - totalPaused);
       const minutes = Math.round(elapsed / 60000);
 
+      // Sessions older than 12 hours are considered "ghost" — show a stale warning
+      const isStale = minutes > 720;
+
+      // Alias: use loaded ninos list; fall back to stored alias from localStorage
       const ninoData = ninos.find((n) => n.id === activeNinoId);
-      setActiveSession({
-        ninoId: activeNinoId,
-        alias: ninoData?.alias || 'Niño',
-        minutes,
-      });
+      const storedAlias = localStorage.getItem(`sesion_timer_${activeNinoId}_alias`) || 'Niño';
+      const alias = ninoData?.alias || storedAlias;
+
+      // Persist alias so it survives page reloads before ninos loads
+      if (ninoData?.alias) {
+        localStorage.setItem(`sesion_timer_${activeNinoId}_alias`, ninoData.alias);
+      }
+
+      setActiveSession({ ninoId: activeNinoId, alias, minutes, isStale });
     };
 
     checkActiveSession();
@@ -490,23 +518,70 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
       {/* 🔴 Active Session Banner */}
       {activeSession && (
-        <button
-          onClick={() => router.push(`/dashboard/sesiones/nueva/${activeSession.ninoId}`)}
-          className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl p-4 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] animate-pulse-slow"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">⏱️</span>
-              <div className="text-left">
-                <p className="font-bold text-sm sm:text-base">Sesión en curso con {activeSession.alias}</p>
-                <p className="text-xs sm:text-sm opacity-90">
-                  {activeSession.minutes} min transcurridos — Tocá para volver
-                </p>
+        activeSession.isStale ? (
+          /* Sesión "fantasma" — hace más de 12 horas */
+          <div className="w-full bg-gradient-to-r from-neutro-nube to-white border border-neutro-piedra/30 rounded-xl p-4 shadow-md">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0 mt-0.5">⚠️</span>
+                <div>
+                  <p className="font-bold text-neutro-carbon text-sm sm:text-base">
+                    Sesión sin cerrar con {activeSession.alias}
+                  </p>
+                  <p className="text-xs sm:text-sm text-neutro-piedra mt-0.5">
+                    Hay un cronómetro activo de hace{' '}
+                    {activeSession.minutes >= 1440
+                      ? `${Math.floor(activeSession.minutes / 1440)} día${Math.floor(activeSession.minutes / 1440) !== 1 ? 's' : ''}`
+                      : `${Math.floor(activeSession.minutes / 60)}h ${activeSession.minutes % 60}min`
+                    }. ¿Qué querés hacer?
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button
+                      onClick={() => router.push(`/dashboard/sesiones/nueva/${activeSession.ninoId}`)}
+                      className="px-4 py-2 bg-crecimiento-500 hover:bg-crecimiento-600 text-white rounded-xl text-xs font-semibold transition-all active:scale-95 shadow-sm"
+                    >
+                      📝 Retomar y guardar
+                    </button>
+                    <button
+                      onClick={() => {
+                        const id = activeSession.ninoId;
+                        localStorage.removeItem(`sesion_timer_${id}_start`);
+                        localStorage.removeItem(`sesion_timer_${id}_paused`);
+                        localStorage.removeItem(`sesion_timer_${id}_pauseAt`);
+                        localStorage.removeItem(`sesion_timer_${id}_alias`);
+                        localStorage.removeItem('sesion_timer_active');
+                        localStorage.removeItem(`draft_sesion_${id}`);
+                        setActiveSession(null);
+                      }}
+                      className="px-4 py-2 bg-white border border-neutro-piedra/30 text-neutro-piedra rounded-xl text-xs font-semibold transition-all active:scale-95"
+                    >
+                      🗑️ Descartar
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-            <span className="text-2xl">→</span>
           </div>
-        </button>
+        ) : (
+          /* Sesión activa normal */
+          <button
+            onClick={() => router.push(`/dashboard/sesiones/nueva/${activeSession.ninoId}`)}
+            className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl p-4 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] animate-pulse-slow"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏱️</span>
+                <div className="text-left">
+                  <p className="font-bold text-sm sm:text-base">Sesión en curso con {activeSession.alias}</p>
+                  <p className="text-xs sm:text-sm opacity-90">
+                    {activeSession.minutes} min transcurridos — Tocá para volver
+                  </p>
+                </div>
+              </div>
+              <span className="text-2xl">→</span>
+            </div>
+          </button>
+        )
       )}
 
       {/* 🟡 Training Gate — Autoevaluaciones pendientes */}
@@ -591,9 +666,9 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Autoevaluación</p>
                 <div className="flex items-center justify-center sm:justify-start gap-1">
                   {[1, 2, 3, 4, 5].map((star) => {
-                    const puntaje = trainingStatus.autoevalPuntaje ?? 0;
-                    // Map 0-10 score to 0-5 stars
-                    const starsEarned = puntaje / 2;
+                    const porcentaje = trainingStatus.autoevalPorcentaje ?? 0;
+                    // Map 0-100% to 0-5 stars
+                    const starsEarned = (porcentaje / 100) * 5;
                     const filled = star <= Math.round(starsEarned);
                     return (
                       <span
@@ -606,8 +681,8 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                   })}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {trainingStatus.autoevalPuntaje != null
-                    ? `${trainingStatus.autoevalPuntaje}/10 puntos (${trainingStatus.autoevalPorcentaje ?? 0}%)`
+                  {trainingStatus.autoevalPorcentaje != null
+                    ? `${trainingStatus.autoevalPorcentaje}% de puntaje`
                     : 'Sin puntaje aún'}
                 </p>
               </div>
@@ -623,8 +698,8 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                   );
                   const score = areaScore?.score_final ?? 0;
                   const necesita = areaScore?.necesita_capacitacion ?? (trainingStatus.autoevalPorcentaje != null && trainingStatus.autoevalPorcentaje < 100);
-                  // Map 0-10 score to 0-5 stars
-                  const starsEarned = score / 2;
+                  // score_final is 0-100, map to 0-5 stars
+                  const starsEarned = (score / 100) * 5;
 
                   const areaColorMap: Record<string, { bg: string; border: string; text: string }> = {
                     lenguaje: { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200/50', text: 'text-blue-700 dark:text-blue-300' },
@@ -656,7 +731,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                           );
                         })}
                         <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                          {score > 0 ? `${score}/10` : '—'}
+                          {score > 0 ? `${score}%` : '—'}
                         </span>
                       </div>
                       {necesita && (
@@ -802,7 +877,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
         <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3">
           Acciones Rápidas
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <button
             onClick={() => router.push('/dashboard/sesiones')}
             className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
@@ -823,6 +898,13 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
             style={{ minHeight: '44px' }}
           >
             📚 Biblioteca
+          </button>
+          <button
+            onClick={() => router.push('/dashboard/capacitaciones')}
+            className="px-4 py-3 bg-crecimiento-50 dark:bg-crecimiento-900/30 hover:bg-crecimiento-100 dark:hover:bg-crecimiento-900/50 text-crecimiento-700 dark:text-crecimiento-300 rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base border border-crecimiento-200 dark:border-crecimiento-700"
+            style={{ minHeight: '44px' }}
+          >
+            🎓 Capacitaciones
           </button>
           <button
             onClick={() => router.push('/dashboard/metricas')}

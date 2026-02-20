@@ -14,7 +14,6 @@ import {
   UserPlus,
   FileEdit,
   Upload,
-  BarChart3,
   UserCog,
   Baby
 } from 'lucide-react';
@@ -98,11 +97,11 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
           <p className="text-gray-600 mt-1">Acceso completo a evaluaciones, planes y biblioteca</p>
         </div>
         <Link
-          href="/dashboard/ninos/ingreso-completo"
+          href="/dashboard/ninos/nuevo"
           className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg hover:shadow-xl transition min-h-[48px]"
         >
           <Baby className="w-5 h-5" />
-          Ingreso Completo de Niño
+          Registrar Niño
         </Link>
       </div>
 
@@ -264,26 +263,6 @@ export default function EquipoProfesionalDashboard({ title }: { title: string })
           </p>
           <div className="mt-4 text-crecimiento-600 font-medium text-sm">
             Ver asignaciones →
-          </div>
-        </Link>
-
-        {/* Análisis con IA */}
-        <Link
-          href="/dashboard/psicopedagogia/analisis"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-pink-500 min-h-[200px] flex flex-col"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <BarChart3 className="w-8 h-8 text-pink-600" />
-            <span className="bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-              IA
-            </span>
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Análisis con IA</h3>
-          <p className="text-sm text-gray-600 flex-grow">
-            Patrones, tendencias y recomendaciones basadas en datos agregados.
-          </p>
-          <div className="mt-4 text-pink-600 font-medium text-sm">
-            Ver análisis →
           </div>
         </Link>
 

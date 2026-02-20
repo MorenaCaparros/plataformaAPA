@@ -195,7 +195,7 @@ export default function RestablecerContrasenaPage() {
         </div>
 
         <div className="text-center text-xs text-gray-500 dark:text-gray-500">
-          GlobalIA × ONG Adelante
+          GlobalIA × Asociación Civil Adelante
         </div>
       </div>
     </div>
