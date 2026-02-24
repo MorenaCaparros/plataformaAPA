@@ -3,7 +3,11 @@
 import { useAuth } from '@/lib/contexts/AuthContext';
 import VoluntarioDashboard from '@/components/dashboard/VoluntarioDashboard';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
+import PsicopedagogiaDashboard from '@/components/dashboard/PsicopedagogiaDashboard';
 import EquipoProfesionalDashboard from '@/components/dashboard/EquipoProfesionalDashboard';
+import DashboardNavCard from '@/components/dashboard/ui/DashboardNavCard';
+import DashboardHeader from '@/components/dashboard/ui/DashboardHeader';
+import { Baby, FileText, BookOpen } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user, perfil, loading } = useAuth();
@@ -19,11 +23,14 @@ export default function DashboardPage() {
     );
   }
 
+  const rol = perfil?.rol;
+
   return (
     <div className="min-h-screen">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Dashboard específico por rol */}
-        {perfil?.rol === 'voluntario' ? (
+
+        {/* Voluntario */}
+        {rol === 'voluntario' ? (
           <>
             <div className="mb-6">
               <h2 className="font-quicksand text-3xl font-bold text-neutro-carbon mb-2">
@@ -35,101 +42,60 @@ export default function DashboardPage() {
             </div>
             <VoluntarioDashboard userId={user?.id || ''} />
           </>
-        ) : perfil?.rol === 'director' || perfil?.rol === 'admin' ? (
+
+        /* Admin / Director */
+        ) : rol === 'director' || rol === 'admin' ? (
           <AdminDashboard />
-        ) : perfil?.rol === 'psicopedagogia' || perfil?.rol === 'coordinador' || perfil?.rol === 'trabajador_social' || perfil?.rol === 'trabajadora_social' || perfil?.rol === 'equipo_profesional' ? (
-          <EquipoProfesionalDashboard 
+
+        /* Psicopedagogía — dashboard especializado */
+        ) : rol === 'psicopedagogia' ? (
+          <PsicopedagogiaDashboard />
+
+        /* Coordinador, Equipo Profesional, Trabajador/a Social */
+        ) : rol === 'coordinador' || rol === 'trabajador_social' || rol === 'trabajadora_social' || rol === 'equipo_profesional' ? (
+          <EquipoProfesionalDashboard
             title={
-              perfil?.rol === 'equipo_profesional' ? 'Panel de Profesionales 🎯' :
-              perfil?.rol === 'psicopedagogia' ? 'Panel de Profesionales 🎯' :
-              perfil?.rol === 'coordinador' ? 'Panel de Coordinación 📊' :
-              'Panel de Trabajo Social 🤝'
+              rol === 'coordinador' ? 'Panel de Coordinación 📊' :
+              rol === 'trabajador_social' || rol === 'trabajadora_social' ? 'Panel de Trabajo Social 🤝' :
+              'Panel de Profesionales 🎯'
             }
           />
+
+        /* Fallback para cualquier rol no mapeado */
         ) : (
           <>
-            {/* Dashboard original para otros roles */}
-            <div className="bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-8 mb-8 shadow-xl">
-              <h2 className="font-quicksand text-3xl font-bold text-neutro-carbon mb-6">
-                Bienvenido/a al Dashboard
-              </h2>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <span className="font-outfit text-neutro-piedra font-medium">
-                    Email:
-                  </span>
-                  <span className="font-outfit text-neutro-carbon truncate">
-                    {user?.email}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="font-outfit text-neutro-piedra font-medium">
-                    Rol:
-                  </span>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-crecimiento-50 text-crecimiento-700 border border-crecimiento-400/30">
-                    {perfil?.rol}
-                  </span>
-                </div>
-
-                {perfil?.zona_id && (
-                  <div className="flex items-center gap-3">
-                    <span className="font-outfit text-neutro-piedra font-medium">
-                      Zona:
-                    </span>
-                    <span className="font-outfit text-neutro-carbon">
-                      {perfil.zona_id}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
+            <DashboardHeader
+              title="Bienvenido/a al Dashboard"
+              subtitle={`Sesión iniciada como: ${perfil?.rol ?? user?.email}`}
+            />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Niños - Para coordinadores y otros roles */}
-              <a
+              <DashboardNavCard
                 href="/dashboard/ninos"
-                className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-xl shadow-impulso-500/5 hover:shadow-impulso-500/10 hover:-translate-y-1 flex flex-col justify-center touch-manipulation"
-              >
-                <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2 group-hover:text-impulso-600 transition">
-                  👦 Niños
-                </h3>
-                <p className="font-outfit text-neutro-piedra text-sm">
-                  Gestionar perfiles y evaluaciones
-                </p>
-              </a>
-
-              {/* Historial */}
-              <a
+                icon={Baby}
+                title="Niños"
+                description="Gestionar perfiles y evaluaciones"
+                colorClass="impulso"
+              />
+              <DashboardNavCard
                 href="/dashboard/sesiones"
-                className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-xl shadow-sol-500/5 hover:shadow-sol-500/10 hover:-translate-y-1 flex flex-col justify-center touch-manipulation"
-              >
-                <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2 group-hover:text-sol-600 transition">
-                  📝 Sesiones
-                </h3>
-                <p className="font-outfit text-neutro-piedra text-sm">
-                  Historial y análisis de sesiones
-                </p>
-              </a>
-
-              {/* Biblioteca - Solo profesionales y director */}
-              {(perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director') && (
-                <a
+                icon={FileText}
+                title="Sesiones"
+                description="Historial y análisis de sesiones"
+                colorClass="sol"
+              />
+              {(rol === 'psicopedagogia' || rol === 'director') && (
+                <DashboardNavCard
                   href="/dashboard/biblioteca"
-                  className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-xl shadow-sol-500/5 hover:shadow-sol-500/10 hover:-translate-y-1 flex flex-col justify-center touch-manipulation"
-                >
-                  <h3 className="font-quicksand text-xl font-semibold text-neutro-carbon mb-2 group-hover:text-sol-600 transition">
-                    📚 Biblioteca con IA
-                  </h3>
-                  <p className="font-outfit text-neutro-piedra text-sm">
-                    Documentos y chat con IA
-                  </p>
-                </a>
+                  icon={BookOpen}
+                  title="Biblioteca con IA"
+                  description="Documentos y chat con IA"
+                  colorClass="sol"
+                />
               )}
             </div>
           </>
         )}
+
       </main>
     </div>
   );

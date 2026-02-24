@@ -4,19 +4,21 @@ import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { 
-  ClipboardList, 
-  Target, 
-  BookOpen, 
-  Users, 
-  TrendingUp, 
+import {
+  ClipboardList,
+  Target,
+  BookOpen,
+  Users,
+  TrendingUp,
   FileText,
-  UserPlus,
-  FileEdit,
-  Upload,
   UserCog,
-  Baby
+  Baby,
+  Sparkles,
+  BarChart3,
 } from 'lucide-react';
+import DashboardHeader from './ui/DashboardHeader';
+import DashboardMetricCard, { DashboardMetricCardSkeleton } from './ui/DashboardMetricCard';
+import DashboardNavCard from './ui/DashboardNavCard';
 
 interface Metrics {
   totalNinos: number;
@@ -28,299 +30,173 @@ interface Metrics {
 export default function EquipoProfesionalDashboard({ title }: { title: string }) {
   const { perfil } = useAuth();
 
-  const { data: metrics = {
-    totalNinos: 0,
-    evaluacionesPendientes: 0,
-    planesActivos: 0,
-    sesionesEsteMes: 0
-  }, isLoading: loading } = useQuery<Metrics>({
+  const { data: metrics, isLoading } = useQuery<Metrics>({
     queryKey: ['profesional-metricas'],
     queryFn: async () => {
-      // Total de niños
       const { count: ninosCount } = await supabase
         .from('ninos')
         .select('*', { count: 'exact', head: true });
 
-      // Evaluaciones pendientes (>180 días o sin entrevista inicial)
       const { data: ninos } = await supabase
         .from('ninos')
-        .select(`
-          id,
-          entrevistas (
-            fecha,
-            tipo
-          )
-        `);
+        .select('id, entrevistas(fecha, tipo)');
 
       let evaluacionesPendientes = 0;
       const hoy = new Date();
-      
       type NinoConEvaluaciones = { id: string; entrevistas?: { fecha: string; tipo: string }[] };
       (ninos as NinoConEvaluaciones[] | null)?.forEach((nino) => {
         const evaluaciones = nino.entrevistas || [];
         if (evaluaciones.length === 0) {
           evaluacionesPendientes++;
         } else {
-          // Ordenar por fecha desc en cliente
-          const sorted = [...evaluaciones].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-          const ultimaEvaluacion = new Date(sorted[0].fecha);
-          const diasDesdeUltima = Math.floor((hoy.getTime() - ultimaEvaluacion.getTime()) / (1000 * 60 * 60 * 24));
-          if (diasDesdeUltima > 180) {
-            evaluacionesPendientes++;
-          }
+          const sorted = [...evaluaciones].sort(
+            (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+          );
+          const diasDesdeUltima = Math.floor(
+            (hoy.getTime() - new Date(sorted[0].fecha).getTime()) / (1000 * 60 * 60 * 24)
+          );
+          if (diasDesdeUltima > 180) evaluacionesPendientes++;
         }
       });
 
-      // Sesiones este mes
       const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
       const { count: sesionesCount } = await supabase
         .from('sesiones')
         .select('*', { count: 'exact', head: true })
         .gte('fecha', inicioMes.toISOString());
 
+      const { count: planesCount } = await supabase
+        .from('planes_intervencion')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado', 'activo');
+
       return {
         totalNinos: ninosCount || 0,
         evaluacionesPendientes,
-        planesActivos: 0,
-        sesionesEsteMes: sesionesCount || 0
+        planesActivos: planesCount || 0,
+        sesionesEsteMes: sesionesCount || 0,
       };
     },
     staleTime: 1000 * 60 * 2,
   });
 
+  const m = metrics ?? { totalNinos: 0, evaluacionesPendientes: 0, planesActivos: 0, sesionesEsteMes: 0 };
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{title}</h1>
-          <p className="text-gray-600 mt-1">Acceso completo a evaluaciones, planes y biblioteca</p>
-        </div>
-        <Link
-          href="/dashboard/ninos/nuevo"
-          className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg hover:shadow-xl transition min-h-[48px]"
-        >
-          <Baby className="w-5 h-5" />
-          Registrar Niño
-        </Link>
+    <div>
+      <DashboardHeader
+        title={title}
+        subtitle="Acceso completo a evaluaciones, planes y biblioteca"
+        action={
+          <Link
+            href="/dashboard/ninos/nuevo"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-crecimiento-500 to-crecimiento-600 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
+          >
+            <Baby className="w-5 h-5" strokeWidth={2.5} />
+            Registrar Niño
+          </Link>
+        }
+      />
+
+      {/* Métricas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+        {isLoading ? (
+          [1, 2, 3, 4].map((i) => <DashboardMetricCardSkeleton key={i} />)
+        ) : (
+          <>
+            <DashboardMetricCard
+              icon={Users}
+              value={m.totalNinos}
+              label="Total de Niños"
+              colorClass="impulso"
+            />
+            <DashboardMetricCard
+              icon={ClipboardList}
+              value={m.evaluacionesPendientes}
+              label="Evaluaciones Pendientes"
+              sublabel=">180 días o sin entrevista"
+              colorClass="sol"
+            />
+            <DashboardMetricCard
+              icon={Target}
+              value={m.planesActivos}
+              label="Planes Activos"
+              colorClass="crecimiento"
+            />
+            <DashboardMetricCard
+              icon={TrendingUp}
+              value={m.sesionesEsteMes}
+              label="Sesiones este Mes"
+              colorClass="crecimiento"
+            />
+          </>
+        )}
       </div>
 
-      {/* Métricas Principales */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="bg-white rounded-xl shadow-sm p-6 animate-pulse">
-              <div className="h-8 w-8 bg-gray-200 rounded-lg mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded w-12"></div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-xl shadow-lg p-6 text-white">
-            <Users className="w-8 h-8 mb-3 opacity-80" />
-            <p className="text-sm font-medium opacity-90">Total de Niños</p>
-            <p className="text-3xl font-bold mt-1">{metrics.totalNinos}</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
-            <ClipboardList className="w-8 h-8 mb-3 opacity-80" />
-            <p className="text-sm font-medium opacity-90">Evaluaciones Pendientes</p>
-            <p className="text-3xl font-bold mt-1">{metrics.evaluacionesPendientes}</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-            <Target className="w-8 h-8 mb-3 opacity-80" />
-            <p className="text-sm font-medium opacity-90">Planes Activos</p>
-            <p className="text-3xl font-bold mt-1">{metrics.planesActivos}</p>
-          </div>
-
-          <div className="bg-gradient-to-br from-impulso-400 to-impulso-500 rounded-xl shadow-lg p-6 text-white">
-            <TrendingUp className="w-8 h-8 mb-3 opacity-80" />
-            <p className="text-sm font-medium opacity-90">Sesiones este Mes</p>
-            <p className="text-3xl font-bold mt-1">{metrics.sesionesEsteMes}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Acciones Rápidas */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">⚡ Acciones Rápidas</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <Link
-            href="/dashboard/psicopedagogia/evaluaciones/nueva"
-            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-crecimiento-400 hover:bg-crecimiento-50 transition min-h-[64px]"
-          >
-            <FileEdit className="w-5 h-5 text-crecimiento-600 flex-shrink-0" />
-            <span className="text-sm font-medium text-gray-700">Nueva Evaluación</span>
-          </Link>
-
-          <Link
-            href="/dashboard/psicopedagogia/planes/nuevo"
-            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition min-h-[64px]"
-          >
-            <Target className="w-5 h-5 text-green-600 flex-shrink-0" />
-            <span className="text-sm font-medium text-gray-700">Nuevo Plan con IA</span>
-          </Link>
-
-          <Link
-            href="/dashboard/biblioteca/subir"
-            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-impulso-400 hover:bg-impulso-50 transition min-h-[64px]"
-          >
-            <Upload className="w-5 h-5 text-purple-600 flex-shrink-0" />
-            <span className="text-sm font-medium text-gray-700">Subir Documento</span>
-          </Link>
-
-          <Link
-            href="/dashboard/ninos"
-            className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition min-h-[64px]"
-          >
-            <Users className="w-5 h-5 text-orange-600 flex-shrink-0" />
-            <span className="text-sm font-medium text-gray-700">Ver Niños</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Secciones Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Evaluaciones */}
-        <Link
+      {/* Grilla de navegación */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <DashboardNavCard
           href="/dashboard/psicopedagogia/evaluaciones"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-crecimiento-400 min-h-[200px] flex flex-col"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <ClipboardList className="w-8 h-8 text-crecimiento-600" />
-            {metrics.evaluacionesPendientes > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                {metrics.evaluacionesPendientes}
-              </span>
-            )}
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Evaluaciones</h3>
-          <p className="text-sm text-gray-600 flex-grow">
-            Evaluaciones diagnósticas, seguimiento y egresos. Historial completo por niño.
-          </p>
-          <div className="mt-4 text-crecimiento-600 font-medium text-sm">
-            Ver evaluaciones →
-          </div>
-        </Link>
+          icon={ClipboardList}
+          title="Evaluaciones"
+          description="Evaluaciones diagnósticas, seguimiento y egresos. Historial completo por niño."
+          colorClass="sol"
+          badge={m.evaluacionesPendientes > 0 ? String(m.evaluacionesPendientes) : undefined}
+        />
 
-        {/* Planes de Intervención */}
-        <Link
+        <DashboardNavCard
           href="/dashboard/psicopedagogia/planes"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-green-500 min-h-[200px] flex flex-col"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <Target className="w-8 h-8 text-green-600" />
-            <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-              IA
-            </span>
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Planes de Intervención</h3>
-          <p className="text-sm text-gray-600 flex-grow">
-            Crear y gestionar planes con asistencia de IA. Actividades semanales para voluntarios.
-          </p>
-          <div className="mt-4 text-green-600 font-medium text-sm">
-            Ver planes →
-          </div>
-        </Link>
+          icon={Target}
+          title="Planes de Intervención"
+          description="Crear y gestionar planes con asistencia de IA. Actividades semanales para voluntarios."
+          colorClass="crecimiento"
+          badge="IA"
+          badgeVariant="gradient"
+        />
 
-        {/* Biblioteca Psicopedagógica */}
-        <Link
+        <DashboardNavCard
           href="/dashboard/biblioteca"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-impulso-400 min-h-[200px] flex flex-col"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <BookOpen className="w-8 h-8 text-purple-600" />
-            <span className="bg-impulso-400 text-white text-xs font-bold px-2 py-1 rounded-full">
-              RAG
-            </span>
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Biblioteca</h3>
-          <p className="text-sm text-gray-600 flex-grow">
-            Documentos, guías y papers. Chat con IA para consultas especializadas.
-          </p>
-          <div className="mt-4 text-purple-600 font-medium text-sm">
-            Ir a biblioteca →
-          </div>
-        </Link>
+          icon={BookOpen}
+          title="Biblioteca"
+          description="Documentos, guías y papers. Chat con IA para consultas especializadas."
+          colorClass="purple"
+          badge="RAG"
+        />
 
-        {/* Asignaciones */}
-        <Link
+        <DashboardNavCard
           href="/dashboard/asignaciones"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-crecimiento-400 min-h-[200px] flex flex-col"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <UserCog className="w-8 h-8 text-crecimiento-600" />
-            <span className="bg-crecimiento-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-              Matching
-            </span>
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Asignaciones</h3>
-          <p className="text-sm text-gray-600 flex-grow">
-            Sistema de matching automático voluntario-niño. Ver disponibilidad y zonas.
-          </p>
-          <div className="mt-4 text-crecimiento-600 font-medium text-sm">
-            Ver asignaciones →
-          </div>
-        </Link>
+          icon={UserCog}
+          title="Asignaciones"
+          description="Sistema de matching automático voluntario-niño. Ver disponibilidad y zonas."
+          colorClass="crecimiento"
+          badge="Matching"
+        />
 
-        {/* Perfiles de Niños */}
-        <Link
+        <DashboardNavCard
           href="/dashboard/ninos"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-orange-500 min-h-[200px] flex flex-col"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <FileText className="w-8 h-8 text-orange-600" />
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Perfiles de Niños</h3>
-          <p className="text-sm text-gray-600 flex-grow">
-            Acceso completo a datos, historial, sesiones y progreso de cada niño.
-          </p>
-          <div className="mt-4 text-orange-600 font-medium text-sm">
-            Ver perfiles →
-          </div>
-        </Link>
+          icon={FileText}
+          title="Perfiles de Niños"
+          description="Acceso completo a datos, historial, sesiones y progreso de cada niño."
+          colorClass="impulso"
+        />
 
-        {/* Métricas */}
-        <Link
+        <DashboardNavCard
+          href="/dashboard/ia"
+          icon={Sparkles}
+          title="Módulo IA"
+          description="Análisis inteligente, consulta de biblioteca RAG y detección de patrones."
+          colorClass="purple"
+          badge="IA"
+          badgeVariant="gradient"
+        />
+
+        <DashboardNavCard
           href="/dashboard/metricas"
-          className="bg-white rounded-xl shadow-sm hover:shadow-lg transition p-6 border-2 border-transparent hover:border-teal-500 min-h-[200px] flex flex-col"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <TrendingUp className="w-8 h-8 text-teal-600" />
-            <span className="bg-teal-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-              Datos
-            </span>
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Métricas</h3>
-          <p className="text-sm text-gray-600 flex-grow">
-            Estadísticas de tu zona: niños atendidos, voluntarios activos, cobertura.
-          </p>
-          <div className="mt-4 text-teal-600 font-medium text-sm">
-            Ver métricas →
-          </div>
-        </Link>
-      </div>
-
-      {/* Info */}
-      <div className="bg-gradient-to-r from-sol-50 to-crecimiento-50 border border-sol-200 rounded-xl p-6">
-        <h3 className="font-bold text-sol-900 mb-3 flex items-center gap-2">
-          <span className="text-xl">👥</span>
-          Equipo Profesional
-        </h3>
-        <p className="text-sm text-sol-700 mb-3">
-          Como parte del equipo profesional (coordinación, trabajo social, psicopedagogía), 
-          tenés acceso completo a todas las funcionalidades de la plataforma.
-        </p>
-        <ul className="text-sm text-sol-700 space-y-1 list-disc list-inside">
-          <li>Acceso a datos completos de todos los niños (incluyendo datos sensibles)</li>
-          <li>Gestión de evaluaciones, planes de intervención y asignaciones</li>
-          <li>Herramientas de IA para análisis y generación de contenido</li>
-          <li>Biblioteca psicopedagógica con sistema RAG</li>
-          <li>Ingreso completo de niños con entrevista inicial (grabación + OCR)</li>
-        </ul>
+          icon={BarChart3}
+          title="Métricas"
+          description="Estadísticas de tu zona: niños atendidos, voluntarios activos, cobertura."
+          colorClass="teal"
+        />
       </div>
     </div>
   );

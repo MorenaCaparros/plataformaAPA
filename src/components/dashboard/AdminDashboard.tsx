@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
-import { Users, FileText, UserCheck, Building2, BookOpen, Settings, Baby, BarChart3, Timer, Activity } from 'lucide-react';
+import { FileText, UserCheck, Building2, BookOpen, Settings, Baby, BarChart3, Timer, Activity } from 'lucide-react';
+import DashboardNavCard from './ui/DashboardNavCard';
+import DashboardMetricCard, { DashboardMetricCardSkeleton } from './ui/DashboardMetricCard';
+import DashboardHeader from './ui/DashboardHeader';
 
 export default function AdminDashboard() {
   const { user, perfil } = useAuth();
@@ -109,71 +112,38 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      {/* Header con saludo */}
-      <div className="mb-8">
-        <h1 className="font-quicksand text-3xl font-bold text-neutro-carbon mb-2">
-          Panel de Administración
-        </h1>
-        <p className="font-outfit text-neutro-piedra">
-          Gestión integral del programa APA
-        </p>
-      </div>
+      <DashboardHeader
+        title="Panel de Administración"
+        subtitle="Gestión integral del programa APA"
+      />
 
-      {/* Métricas principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-        {/* Tarjeta Niños (Rojo/Impulso) */}
-        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(230,57,70,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(230,57,70,0.25)] hover:-translate-y-1">
-          <div className="h-14 w-14 rounded-2xl bg-impulso-50 flex items-center justify-center mb-4 text-impulso-500 group-hover:scale-110 transition-transform">
-            <Baby className="w-7 h-7" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
-            {metricas.totalNinos}
-          </h3>
-          <p className="font-outfit font-medium text-neutro-piedra text-sm mb-2">Niños Activos</p>
-          <p className="font-outfit text-xs text-impulso-600">
-            {metricas.ninosSinSesiones} sin sesiones
-          </p>
-          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-impulso-400 animate-pulse" />
-        </div>
-
-        {/* Tarjeta Sesiones (Amarillo/Sol) */}
-        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(242,201,76,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(242,201,76,0.25)] hover:-translate-y-1">
-          <div className="h-14 w-14 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
-            <FileText className="w-7 h-7" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
-            {metricas.totalSesiones}
-          </h3>
-          <p className="font-outfit font-medium text-neutro-piedra text-sm mb-2">Sesiones Totales</p>
-          <p className="font-outfit text-xs text-sol-600">
-            {metricas.sesionesEsteMes} este mes
-          </p>
-          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-sol-400 animate-pulse" />
-        </div>
-
-        {/* Tarjeta Usuarios (Verde/Crecimiento) */}
-        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(164,198,57,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(164,198,57,0.25)] hover:-translate-y-1">
-          <div className="h-14 w-14 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
-            <UserCheck className="w-7 h-7" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
-            {metricas.totalVoluntarios}
-          </h3>
-          <p className="font-outfit font-medium text-neutro-piedra text-sm">Usuarios Totales</p>
-          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-crecimiento-400 animate-pulse" />
-        </div>
-
-        {/* Tarjeta Equipos (Verde/Crecimiento) */}
-        <div className="relative group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(164,198,57,0.15)] hover:shadow-[0_20px_50px_-10px_rgba(164,198,57,0.25)] hover:-translate-y-1">
-          <div className="h-14 w-14 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
-            <Building2 className="w-7 h-7" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand font-bold text-3xl text-neutro-carbon mb-1">
-            {metricas.totalEquipos}
-          </h3>
-          <p className="font-outfit font-medium text-neutro-piedra text-sm">Equipos/Zonas</p>
-          <div className="absolute top-6 right-6 h-2 w-2 rounded-full bg-crecimiento-400 animate-pulse" />
-        </div>
+        <DashboardMetricCard
+          icon={Baby}
+          value={metricas.totalNinos}
+          label="Niños Activos"
+          sublabel={`${metricas.ninosSinSesiones} sin sesiones`}
+          colorClass="impulso"
+        />
+        <DashboardMetricCard
+          icon={FileText}
+          value={metricas.totalSesiones}
+          label="Sesiones Totales"
+          sublabel={`${metricas.sesionesEsteMes} este mes`}
+          colorClass="sol"
+        />
+        <DashboardMetricCard
+          icon={UserCheck}
+          value={metricas.totalVoluntarios}
+          label="Usuarios Totales"
+          colorClass="crecimiento"
+        />
+        <DashboardMetricCard
+          icon={Building2}
+          value={metricas.totalEquipos}
+          label="Equipos/Zonas"
+          colorClass="teal"
+        />
       </div>
 
       {/* ─── Sesiones activas hoy ─────────────────────────────────────────────── */}
@@ -276,110 +246,13 @@ export default function AdminDashboard() {
 
       {/* Menú de opciones */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        <Link
-          href="/dashboard/ninos"
-          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(230,57,70,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(230,57,70,0.2)] hover:-translate-y-1"
-        >
-          <div className="h-12 w-12 rounded-2xl bg-impulso-50 flex items-center justify-center mb-4 text-impulso-500 group-hover:scale-110 transition-transform">
-            <Baby className="w-6 h-6" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
-            Gestionar Niños
-          </h3>
-          <p className="font-outfit text-sm text-neutro-piedra">
-            Perfiles, evaluaciones y planes de intervención
-          </p>
-        </Link>
-
-        <Link
-          href="/dashboard/sesiones"
-          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(242,201,76,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(242,201,76,0.2)] hover:-translate-y-1"
-        >
-          <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
-            <FileText className="w-6 h-6" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
-            Historial de Sesiones
-          </h3>
-          <p className="font-outfit text-sm text-neutro-piedra">
-            Ver y analizar todas las sesiones registradas
-          </p>
-        </Link>
-
-        <Link
-          href="/dashboard/usuarios"
-          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(164,198,57,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(164,198,57,0.2)] hover:-translate-y-1"
-        >
-          <div className="h-12 w-12 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
-            <UserCheck className="w-6 h-6" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
-            Gestión de Usuarios
-          </h3>
-          <p className="font-outfit text-sm text-neutro-piedra">
-            Crear, editar y asignar roles a usuarios
-          </p>
-        </Link>
-
-        <Link
-          href="/dashboard/equipos"
-          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(164,198,57,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(164,198,57,0.2)] hover:-translate-y-1"
-        >
-          <div className="h-12 w-12 rounded-2xl bg-crecimiento-50 flex items-center justify-center mb-4 text-crecimiento-500 group-hover:scale-110 transition-transform">
-            <Building2 className="w-6 h-6" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
-            Equipos/Zonas
-          </h3>
-          <p className="font-outfit text-sm text-neutro-piedra">
-            Gestionar equipos y asignaciones
-          </p>
-        </Link>
-
-        <Link
-          href="/dashboard/biblioteca"
-          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(242,201,76,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(242,201,76,0.2)] hover:-translate-y-1"
-        >
-          <div className="h-12 w-12 rounded-2xl bg-sol-50 flex items-center justify-center mb-4 text-sol-500 group-hover:scale-110 transition-transform">
-            <BookOpen className="w-6 h-6" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
-            Biblioteca
-          </h3>
-          <p className="font-outfit text-sm text-neutro-piedra">
-            Documentos psicopedagógicos y sistema RAG
-          </p>
-        </Link>
-
-        <Link
-          href="/dashboard/configuracion"
-          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-lg shadow-neutro-piedra/5 hover:shadow-neutro-piedra/10 hover:-translate-y-1"
-        >
-          <div className="h-12 w-12 rounded-2xl bg-neutro-piedra/10 flex items-center justify-center mb-4 text-neutro-piedra group-hover:scale-110 transition-transform">
-            <Settings className="w-6 h-6" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
-            Configuración
-          </h3>
-          <p className="font-outfit text-sm text-neutro-piedra">
-            Ajustes del sistema y preferencias
-          </p>
-        </Link>
-
-        <Link
-          href="/dashboard/metricas"
-          className="group bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(20,184,166,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(20,184,166,0.2)] hover:-translate-y-1"
-        >
-          <div className="h-12 w-12 rounded-2xl bg-teal-50 flex items-center justify-center mb-4 text-teal-500 group-hover:scale-110 transition-transform">
-            <BarChart3 className="w-6 h-6" strokeWidth={2.5} />
-          </div>
-          <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-2">
-            Métricas Generales
-          </h3>
-          <p className="font-outfit text-sm text-neutro-piedra">
-            Estadísticas globales de toda la plataforma
-          </p>
-        </Link>
+        <DashboardNavCard href="/dashboard/ninos" icon={Baby} title="Gestionar Niños" description="Perfiles, evaluaciones y planes de intervención" colorClass="impulso" />
+        <DashboardNavCard href="/dashboard/sesiones" icon={FileText} title="Historial de Sesiones" description="Ver y analizar todas las sesiones registradas" colorClass="sol" />
+        <DashboardNavCard href="/dashboard/usuarios" icon={UserCheck} title="Gestión de Usuarios" description="Crear, editar y asignar roles a usuarios" colorClass="crecimiento" />
+        <DashboardNavCard href="/dashboard/equipos" icon={Building2} title="Equipos/Zonas" description="Gestionar equipos y asignaciones" colorClass="crecimiento" />
+        <DashboardNavCard href="/dashboard/biblioteca" icon={BookOpen} title="Biblioteca" description="Documentos psicopedagógicos y sistema RAG" colorClass="sol" />
+        <DashboardNavCard href="/dashboard/configuracion" icon={Settings} title="Configuración" description="Ajustes del sistema y preferencias" colorClass="neutral" />
+        <DashboardNavCard href="/dashboard/metricas" icon={BarChart3} title="Métricas Generales" description="Estadísticas globales de toda la plataforma" colorClass="teal" />
       </div>
     </div>
   );

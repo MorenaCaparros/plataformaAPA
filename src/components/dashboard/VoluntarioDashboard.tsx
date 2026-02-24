@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatearEdad } from '@/lib/utils/date-helpers';
 import Link from 'next/link';
+import { Users, CalendarDays, Clock, BookOpen, ClipboardList, CheckSquare, LibraryBig, GraduationCap, BarChart3 } from 'lucide-react';
+import { DashboardMetricCard, DashboardMetricCardSkeleton, DashboardHeader, DashboardNavCard } from './ui';
 
 interface NinoAsignado {
   id: string;
@@ -197,7 +199,7 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
       return { ninos: ninosArray, estadisticas };
     },
     enabled: !!userId,
-    staleTime: 0, // Sin caché: siempre busca datos frescos
+    staleTime: 1000 * 30, // 30 segundos de caché
   });
 
   // Training status query
@@ -426,10 +428,13 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Cargando tus datos...</p>
+      <div className="space-y-4 sm:space-y-6">
+        <DashboardHeader title="Mi Dashboard" subtitle="Cargando tu información..." />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {[...Array(4)].map((_, i) => <DashboardMetricCardSkeleton key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => <DashboardMetricCardSkeleton key={i} />)}
         </div>
       </div>
     );
@@ -437,17 +442,20 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* 🔔 Notification Bell — Fixed position on top right */}
-      <div className="flex justify-end" ref={notifPanelRef}>
-        <div className="relative">
+      {/* Header */}
+      <DashboardHeader
+        title="Mi Dashboard"
+        subtitle="Bienvenido/a a tu panel de voluntario APA"
+        action={
+          <div className="relative" ref={notifPanelRef}>
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md hover:shadow-lg transition-all active:scale-95"
+            className="relative p-2.5 rounded-xl bg-white/60 backdrop-blur-md border border-white/60 shadow-md hover:shadow-lg transition-all active:scale-95"
             aria-label="Notificaciones"
           >
             <span className="text-xl">🔔</span>
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[20px] h-5 px-1 bg-red-500 text-white text-[11px] font-bold rounded-full shadow-lg animate-pulse">
+              <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[20px] h-5 px-1 bg-impulso-500 text-white text-[11px] font-bold rounded-full shadow-lg animate-pulse">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
@@ -455,14 +463,14 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
           {/* Notification Dropdown Panel */}
           {showNotifications && (
-            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-white/60 z-50 overflow-hidden">
               {/* Header */}
-              <div className="px-4 py-3 bg-gradient-to-r from-sol-50 to-amber-50 dark:from-gray-750 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm">Notificaciones</h3>
+              <div className="px-4 py-3 bg-sol-50/60 border-b border-white/60 flex items-center justify-between">
+                <h3 className="font-quicksand font-bold text-neutro-carbon text-sm">Notificaciones</h3>
                 {unreadCount > 0 && (
                   <button
                     onClick={marcarTodasLeidas}
-                    className="text-xs text-crecimiento-600 hover:text-crecimiento-700 font-medium transition-colors"
+                    className="font-outfit text-xs text-crecimiento-600 hover:text-crecimiento-700 font-medium transition-colors"
                   >
                     Marcar todas como leídas
                   </button>
@@ -470,11 +478,11 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
               </div>
 
               {/* Notification List */}
-              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+              <div className="max-h-80 overflow-y-auto divide-y divide-white/60">
                 {notificaciones.length === 0 ? (
                   <div className="py-8 text-center">
                     <span className="text-3xl mb-2 block">🔕</span>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Sin notificaciones</p>
+                    <p className="font-outfit text-sm text-neutro-piedra">Sin notificaciones</p>
                   </div>
                 ) : (
                   notificaciones.map((notif) => (
@@ -487,22 +495,22 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                           router.push(notif.enlace);
                         }
                       }}
-                      className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                        !notif.leida ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                      className={`w-full text-left px-4 py-3 hover:bg-white/40 transition-colors ${
+                        !notif.leida ? 'bg-crecimiento-50/40' : ''
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         {!notif.leida && (
-                          <span className="w-2 h-2 mt-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>
+                          <span className="w-2 h-2 mt-1.5 rounded-full bg-crecimiento-500 flex-shrink-0"></span>
                         )}
                         <div className={`flex-1 min-w-0 ${notif.leida ? 'ml-5' : ''}`}>
-                          <p className={`text-sm ${!notif.leida ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+                          <p className={`font-outfit text-sm ${!notif.leida ? 'font-semibold text-neutro-carbon' : 'text-neutro-carbon/80'}`}>
                             {notif.titulo}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                          <p className="font-outfit text-xs text-neutro-piedra mt-0.5 line-clamp-2">
                             {notif.mensaje}
                           </p>
-                          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                          <p className="font-outfit text-[10px] text-neutro-piedra/60 mt-1">
                             {formatearFechaNotif(notif.created_at)}
                           </p>
                         </div>
@@ -514,7 +522,8 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
             </div>
           )}
         </div>
-      </div>
+        }
+      />
 
       {/* 🔴 Active Session Banner */}
       {activeSession && (
@@ -653,34 +662,30 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
 
       {/* ⭐ Puntaje Autoevaluación + Capacitaciones por Área */}
       {trainingStatus?.haCompletadoAlgunaAutoeval && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+        <div className="bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 overflow-hidden shadow-[0_8px_32px_-8px_rgba(242,201,76,0.12)]">
+          <div className="px-6 py-5 border-b border-white/60">
+            <h2 className="font-quicksand font-bold text-xl text-neutro-carbon">
               Mi Progreso
             </h2>
           </div>
-          <div className="p-4 sm:p-6 space-y-5">
+          <div className="p-6 space-y-5">
             {/* Autoevaluación score — 5 stars */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 bg-gradient-to-r from-sol-50 to-amber-50 dark:from-gray-700 dark:to-gray-700 rounded-xl p-4 border border-sol-200/40">
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-sol-50/60 rounded-2xl p-4 border border-sol-200/40">
               <div className="text-center sm:text-left flex-1">
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Autoevaluación</p>
+                <p className="font-outfit font-semibold text-neutro-carbon text-sm mb-1">Autoevaluación</p>
                 <div className="flex items-center justify-center sm:justify-start gap-1">
                   {[1, 2, 3, 4, 5].map((star) => {
                     const porcentaje = trainingStatus.autoevalPorcentaje ?? 0;
-                    // Map 0-100% to 0-5 stars
                     const starsEarned = (porcentaje / 100) * 5;
                     const filled = star <= Math.round(starsEarned);
                     return (
-                      <span
-                        key={star}
-                        className={`text-2xl sm:text-3xl ${filled ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600'}`}
-                      >
+                      <span key={star} className={`text-2xl sm:text-3xl ${filled ? 'text-sol-500' : 'text-neutro-piedra/30'}`}>
                         ★
                       </span>
                     );
                   })}
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="font-outfit text-xs text-neutro-piedra mt-1">
                   {trainingStatus.autoevalPorcentaje != null
                     ? `${trainingStatus.autoevalPorcentaje}% de puntaje`
                     : 'Sin puntaje aún'}
@@ -688,9 +693,9 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
               </div>
             </div>
 
-            {/* Capacitaciones por Área — 4 áreas con estrellas y colores */}
+            {/* Capacitaciones por Área */}
             <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Capacitaciones por Área</p>
+              <p className="font-outfit font-semibold text-neutro-carbon text-sm mb-3">Capacitaciones por Área</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(['lenguaje', 'grafismo', 'lectura_escritura', 'nociones_matematicas'] as const).map((areaKey) => {
                   const areaScore = trainingStatus.scoresPorArea.find(
@@ -698,44 +703,35 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
                   );
                   const score = areaScore?.score_final ?? 0;
                   const necesita = areaScore?.necesita_capacitacion ?? (trainingStatus.autoevalPorcentaje != null && trainingStatus.autoevalPorcentaje < 100);
-                  // score_final is 0-100, map to 0-5 stars
                   const starsEarned = (score / 100) * 5;
 
                   const areaColorMap: Record<string, { bg: string; border: string; text: string }> = {
-                    lenguaje: { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200/50', text: 'text-blue-700 dark:text-blue-300' },
-                    grafismo: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200/50', text: 'text-green-700 dark:text-green-300' },
-                    lectura_escritura: { bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-200/50', text: 'text-purple-700 dark:text-purple-300' },
-                    nociones_matematicas: { bg: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200/50', text: 'text-orange-700 dark:text-orange-300' },
+                    lenguaje:           { bg: 'bg-teal-50/80',    border: 'border-teal-200/50',    text: 'text-teal-700'    },
+                    grafismo:           { bg: 'bg-crecimiento-50/80', border: 'border-crecimiento-200/50', text: 'text-crecimiento-700' },
+                    lectura_escritura:  { bg: 'bg-purple-50/80',  border: 'border-purple-200/50',  text: 'text-purple-700'  },
+                    nociones_matematicas: { bg: 'bg-sol-50/80',   border: 'border-sol-200/50',     text: 'text-sol-700'     },
                   };
                   const colors = areaColorMap[areaKey] || areaColorMap.lenguaje;
-
-                  // Star color based on status
-                  const starColor = necesita ? 'text-gray-300 dark:text-gray-600' : 'text-amber-400';
-                  const starFilledColor = score > 0 ? (necesita ? 'text-red-400' : 'text-amber-400') : 'text-gray-300 dark:text-gray-600';
+                  const starFilledColor = score > 0 ? (necesita ? 'text-impulso-400' : 'text-sol-500') : 'text-neutro-piedra/30';
 
                   return (
-                    <div key={areaKey} className={`${colors.bg} ${colors.border} border rounded-lg p-3`}>
-                      <p className={`text-xs font-semibold ${colors.text} mb-1.5 truncate`}>
+                    <div key={areaKey} className={`${colors.bg} ${colors.border} border rounded-2xl p-3`}>
+                      <p className={`font-outfit text-xs font-semibold ${colors.text} mb-1.5 truncate`}>
                         {AREA_LABELS[areaKey] || areaKey}
                       </p>
                       <div className="flex items-center gap-0.5">
                         {[1, 2, 3, 4, 5].map((star) => {
                           const filled = star <= Math.round(starsEarned);
                           return (
-                            <span
-                              key={star}
-                              className={`text-lg ${filled ? starFilledColor : 'text-gray-300 dark:text-gray-600'}`}
-                            >
-                              ★
-                            </span>
+                            <span key={star} className={`text-lg ${filled ? starFilledColor : 'text-neutro-piedra/30'}`}>★</span>
                           );
                         })}
-                        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span className="ml-2 font-outfit text-xs text-neutro-piedra">
                           {score > 0 ? `${score}%` : '—'}
                         </span>
                       </div>
                       {necesita && (
-                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 font-medium">
+                        <p className="font-outfit text-[10px] text-impulso-600 mt-1 font-medium">
                           Capacitación sugerida
                         </p>
                       )}
@@ -748,119 +744,117 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
         </div>
       )}
 
-      {/* Estadísticas Rápidas - Mobile First */}
+      {/* Estadísticas Rápidas */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        <div className="bg-gradient-to-br from-crecimiento-500 to-crecimiento-600 rounded-xl p-4 text-white shadow-lg">
-          <p className="text-xs sm:text-sm font-medium opacity-90 mb-1">Niños Asignados</p>
-          <p className="text-3xl sm:text-4xl font-bold">{estadisticas.total_ninos}</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white shadow-lg">
-          <p className="text-xs sm:text-sm font-medium opacity-90 mb-1">Sesiones (Mes)</p>
-          <p className="text-3xl sm:text-4xl font-bold">{estadisticas.sesiones_este_mes}</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-impulso-400 to-impulso-500 rounded-xl p-4 text-white shadow-lg">
-          <p className="text-xs sm:text-sm font-medium opacity-90 mb-1">Horas (Mes)</p>
-          <p className="text-3xl sm:text-4xl font-bold">{estadisticas.horas_este_mes}</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 text-white shadow-lg">
-          <p className="text-xs sm:text-sm font-medium opacity-90 mb-1">Última Sesión</p>
-          <p className="text-sm sm:text-base font-semibold">
-            {estadisticas.ultima_sesion
-              ? formatearFecha(estadisticas.ultima_sesion.fecha)
-              : 'Ninguna'}
-          </p>
-        </div>
+        <DashboardMetricCard
+          icon={Users}
+          value={estadisticas.total_ninos}
+          label="Niños Asignados"
+          colorClass="crecimiento"
+        />
+        <DashboardMetricCard
+          icon={CalendarDays}
+          value={estadisticas.sesiones_este_mes}
+          label="Sesiones este mes"
+          colorClass="teal"
+        />
+        <DashboardMetricCard
+          icon={Clock}
+          value={estadisticas.horas_este_mes}
+          label="Horas este mes"
+          colorClass="impulso"
+        />
+        <DashboardMetricCard
+          icon={BookOpen}
+          value={estadisticas.ultima_sesion ? formatearFecha(estadisticas.ultima_sesion.fecha) : 'Ninguna'}
+          label="Última Sesión"
+          colorClass="sol"
+        />
       </div>
 
       {/* Lista de Niños Asignados */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-            Mis Niños Asignados
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Toca en un niño para ver su perfil o registrar una sesión
-          </p>
+      <div className="bg-white/60 backdrop-blur-md rounded-[2rem] border border-white/60 overflow-hidden shadow-[0_8px_32px_-8px_rgba(164,198,57,0.12)]">
+        <div className="px-6 py-5 border-b border-white/60 flex items-center justify-between">
+          <div>
+            <h2 className="font-quicksand font-bold text-xl text-neutro-carbon">
+              Mis Niños Asignados
+            </h2>
+            <p className="font-outfit text-sm text-neutro-piedra mt-0.5">
+              Tocá en un niño para ver su perfil o registrar una sesión
+            </p>
+          </div>
+          <div className="h-10 w-10 rounded-2xl bg-crecimiento-50 flex items-center justify-center text-crecimiento-500">
+            <Users className="w-5 h-5" strokeWidth={2.5} />
+          </div>
         </div>
 
         {ninos.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="text-6xl mb-4">📚</div>
-            <p className="text-gray-600 dark:text-gray-400 mb-2">
-              Aún no tenés niños asignados
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-500">
+          <div className="p-10 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-neutro-piedra/10 flex items-center justify-center mx-auto mb-4">
+              <BookOpen className="w-8 h-8 text-neutro-piedra" strokeWidth={1.5} />
+            </div>
+            <p className="font-outfit font-medium text-neutro-carbon mb-1">Aún no tenés niños asignados</p>
+            <p className="font-outfit text-sm text-neutro-piedra">
               Cuando empieces a registrar sesiones, aparecerán acá
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-white/60">
             {ninos.map((nino) => (
               <div
                 key={nino.id}
-                className="p-4 sm:p-5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="p-5 sm:p-6 hover:bg-white/40 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    {/* Nombre y edad */}
-                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-1 truncate">
+                    {/* Nombre */}
+                    <h3 className="font-quicksand font-bold text-lg text-neutro-carbon mb-1.5 truncate">
                       {nino.alias}
                     </h3>
-                    
+
                     {/* Info secundaria */}
-                    <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-sol-100 dark:bg-sol-900 text-sol-700 dark:text-sol-200 font-medium">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-sol-50 text-sol-700 text-xs font-medium border border-sol-200/50">
                         {formatearEdad(nino.fecha_nacimiento, nino.rango_etario)}
                       </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-neutro-piedra/10 text-neutro-carbon text-xs font-medium">
                         {nino.nivel_alfabetizacion || 'Sin nivel'}
                       </span>
                     </div>
 
                     {/* Estadísticas del niño */}
-                    <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          {nino.mis_sesiones}
-                        </span>
-                        sesiones tuyas
-                      </span>
-                      <span className="text-gray-400 dark:text-gray-600">•</span>
-                      <span className="flex items-center gap-1">
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          {nino.total_sesiones}
-                        </span>
-                        en total
-                      </span>
-                      <span className="text-gray-400 dark:text-gray-600">•</span>
+                    <div className="flex flex-wrap items-center gap-3 font-outfit text-xs text-neutro-piedra">
                       <span>
-                        Última: {formatearFecha(nino.ultima_sesion)}
+                        <span className="font-semibold text-neutro-carbon">{nino.mis_sesiones}</span> sesiones tuyas
                       </span>
+                      <span className="text-neutro-piedra/40">•</span>
+                      <span>
+                        <span className="font-semibold text-neutro-carbon">{nino.total_sesiones}</span> en total
+                      </span>
+                      <span className="text-neutro-piedra/40">•</span>
+                      <span>Última: {formatearFecha(nino.ultima_sesion)}</span>
                     </div>
                   </div>
 
-                  {/* Botones de acción - Mobile optimized */}
+                  {/* Botones de acción */}
                   <div className="flex flex-col gap-2 shrink-0">
                     <button
                       onClick={() => !operacionBloqueada && router.push(`/dashboard/sesiones/nueva/${nino.id}`)}
                       disabled={operacionBloqueada}
-                      className={`px-4 py-2.5 rounded-lg font-medium shadow-md transition-all touch-manipulation min-w-[120px] text-sm sm:text-base ${
+                      className={`px-4 py-2.5 rounded-xl font-outfit font-semibold text-sm transition-all touch-manipulation min-w-[120px] shadow-sm ${
                         operacionBloqueada
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
-                          : 'bg-crecimiento-500 hover:bg-crecimiento-600 active:bg-crecimiento-700 text-white hover:shadow-lg'
+                          ? 'bg-neutro-piedra/20 text-neutro-piedra cursor-not-allowed shadow-none'
+                          : 'bg-crecimiento-500 hover:bg-crecimiento-600 active:bg-crecimiento-700 text-white hover:shadow-md active:scale-95'
                       }`}
-                      style={{ minHeight: '44px' }} // iOS touch target
+                      style={{ minHeight: '44px' }}
                       title={operacionBloqueada ? 'Debés completar las capacitaciones pendientes antes de registrar sesiones' : ''}
                     >
                       {operacionBloqueada ? '🔒 Bloqueado' : '📝 Nueva Sesión'}
                     </button>
                     <button
                       onClick={() => router.push(`/dashboard/ninos/${nino.id}`)}
-                      className="px-4 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-all touch-manipulation min-w-[120px] text-sm sm:text-base"
-                      style={{ minHeight: '44px' }} // iOS touch target
+                      className="px-4 py-2.5 bg-white/70 hover:bg-white border border-white/60 text-neutro-carbon rounded-xl font-outfit font-medium text-sm transition-all touch-manipulation min-w-[120px] hover:shadow-sm active:scale-95"
+                      style={{ minHeight: '44px' }}
                     >
                       👁️ Ver Perfil
                     </button>
@@ -872,47 +866,45 @@ export default function VoluntarioDashboard({ userId }: VoluntarioDashboardProps
         )}
       </div>
 
-      {/* Acceso rápido a todas las sesiones */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6">
-        <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-3">
-          Acciones Rápidas
-        </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <button
-            onClick={() => router.push('/dashboard/sesiones')}
-            className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
-            style={{ minHeight: '44px' }}
-          >
-            📋 Mis Sesiones
-          </button>
-          <button
-            onClick={() => router.push('/dashboard/asistencia')}
-            className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
-            style={{ minHeight: '44px' }}
-          >
-            ✅ Asistencia
-          </button>
-          <button
-            onClick={() => router.push('/dashboard/biblioteca')}
-            className="px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base"
-            style={{ minHeight: '44px' }}
-          >
-            📚 Biblioteca
-          </button>
-          <button
-            onClick={() => router.push('/dashboard/capacitaciones')}
-            className="px-4 py-3 bg-crecimiento-50 dark:bg-crecimiento-900/30 hover:bg-crecimiento-100 dark:hover:bg-crecimiento-900/50 text-crecimiento-700 dark:text-crecimiento-300 rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base border border-crecimiento-200 dark:border-crecimiento-700"
-            style={{ minHeight: '44px' }}
-          >
-            🎓 Capacitaciones
-          </button>
-          <button
-            onClick={() => router.push('/dashboard/metricas')}
-            className="px-4 py-3 bg-gradient-to-r from-impulso-400 to-impulso-500 hover:from-impulso-500 hover:to-impulso-600 text-white rounded-lg font-medium transition-all touch-manipulation text-sm sm:text-base shadow-md"
-            style={{ minHeight: '44px' }}
-          >
-            📊 Mis Métricas
-          </button>
+      {/* Acciones Rápidas */}
+      <div>
+        <h2 className="font-quicksand font-bold text-xl text-neutro-carbon mb-4">Acciones Rápidas</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <DashboardNavCard
+            href="/dashboard/sesiones"
+            icon={ClipboardList}
+            title="Mis Sesiones"
+            description="Historial completo de todas tus sesiones registradas"
+            colorClass="crecimiento"
+          />
+          <DashboardNavCard
+            href="/dashboard/asistencia"
+            icon={CheckSquare}
+            title="Asistencia"
+            description="Registrar y consultar asistencia de los niños"
+            colorClass="teal"
+          />
+          <DashboardNavCard
+            href="/dashboard/biblioteca"
+            icon={LibraryBig}
+            title="Biblioteca"
+            description="Recursos y materiales psicopedagógicos de apoyo"
+            colorClass="sol"
+          />
+          <DashboardNavCard
+            href="/dashboard/capacitaciones"
+            icon={GraduationCap}
+            title="Capacitaciones"
+            description="Módulos de formación y autoevaluaciones disponibles"
+            colorClass="purple"
+          />
+          <DashboardNavCard
+            href="/dashboard/metricas"
+            icon={BarChart3}
+            title="Mis Métricas"
+            description="Estadísticas y evolución de tu trabajo con los niños"
+            colorClass="impulso"
+          />
         </div>
       </div>
     </div>
