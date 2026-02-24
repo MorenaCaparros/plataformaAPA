@@ -66,9 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Limpiar estado local primero
     setUser(null);
     setPerfil(null);
+    // Llamar a la API route del servidor para invalidar la sesión y limpiar cookies
+    // Usamos fetch + window.location para forzar navegación completa (no SPA)
+    await fetch('/api/auth/signout', { method: 'POST' });
+    window.location.href = '/login';
   };
 
   return (

@@ -11,6 +11,9 @@ interface SesionDetalle {
   fecha: string;
   duracion_minutos: number;
   observaciones_libres: string;
+  objetivo_sesion: string | null;
+  actividad_realizada: string | null;
+  tipo_sesion: string | null;
   items: Array<{
     id: string;
     categoria: Categoria;
@@ -45,6 +48,9 @@ export default function SesionDetallePage() {
           fecha,
           duracion_minutos,
           observaciones_libres,
+          objetivo_sesion,
+          actividad_realizada,
+          tipo_sesion,
           items,
           ninos (
             alias,
@@ -160,6 +166,29 @@ export default function SesionDetallePage() {
             </div>
           </div>
         </div>
+
+        {/* Actividad del día */}
+        {(sesion.objetivo_sesion || sesion.actividad_realizada) && (
+          <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_8px_32px_rgba(164,198,57,0.1)] p-6 sm:p-8 mb-6">
+            <h2 className="text-lg font-bold text-neutro-carbon font-quicksand mb-4 flex items-center gap-2">
+              <span>📋</span> Actividad del día
+            </h2>
+            <div className="space-y-4">
+              {sesion.objetivo_sesion && (
+                <div className="bg-crecimiento-50/60 rounded-2xl border border-crecimiento-200/30 p-4">
+                  <p className="text-xs font-bold text-crecimiento-700 font-outfit uppercase tracking-wide mb-1">🎯 Objetivo</p>
+                  <p className="text-neutro-carbon font-outfit text-sm leading-relaxed whitespace-pre-wrap">{sesion.objetivo_sesion}</p>
+                </div>
+              )}
+              {sesion.actividad_realizada && (
+                <div className="bg-sol-50/60 rounded-2xl border border-sol-200/30 p-4">
+                  <p className="text-xs font-bold text-sol-700 font-outfit uppercase tracking-wide mb-1">📝 Actividad realizada</p>
+                  <p className="text-neutro-carbon font-outfit text-sm leading-relaxed whitespace-pre-wrap">{sesion.actividad_realizada}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Resultados por categoría */}
         <div className="space-y-5">

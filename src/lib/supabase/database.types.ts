@@ -1767,6 +1767,7 @@ export type Database = {
       }
       sesiones: {
         Row: {
+          actividad_realizada: string | null
           created_at: string
           created_offline: boolean
           duracion_minutos: number | null
@@ -1775,12 +1776,15 @@ export type Database = {
           items: Json
           items_no_completados: string[] | null
           nino_id: string
+          objetivo_sesion: string | null
           observaciones_libres: string | null
           sincronizado_at: string | null
+          tipo_sesion: string | null
           updated_at: string
           voluntario_id: string
         }
         Insert: {
+          actividad_realizada?: string | null
           created_at?: string
           created_offline?: boolean
           duracion_minutos?: number | null
@@ -1789,12 +1793,15 @@ export type Database = {
           items?: Json
           items_no_completados?: string[] | null
           nino_id: string
+          objetivo_sesion?: string | null
           observaciones_libres?: string | null
           sincronizado_at?: string | null
+          tipo_sesion?: string | null
           updated_at?: string
           voluntario_id: string
         }
         Update: {
+          actividad_realizada?: string | null
           created_at?: string
           created_offline?: boolean
           duracion_minutos?: number | null
@@ -1803,8 +1810,10 @@ export type Database = {
           items?: Json
           items_no_completados?: string[] | null
           nino_id?: string
+          objetivo_sesion?: string | null
           observaciones_libres?: string | null
           sincronizado_at?: string | null
+          tipo_sesion?: string | null
           updated_at?: string
           voluntario_id?: string
         }

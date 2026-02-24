@@ -9,9 +9,6 @@ import {
   CATEGORIAS_LABELS,
   ESCALA_LIKERT,
   VALOR_NO_COMPLETADO,
-  LABEL_NO_COMPLETADO,
-  calcularPromedioItems,
-  contarItemsCompletados,
   type Categoria
 } from '@/lib/constants/items-observacion';
 import { ArrowLeft, Save, FileText, Check, AlertTriangle, Timer, X, Calendar, Users } from 'lucide-react';
@@ -29,6 +26,8 @@ interface FormData {
   observaciones_libres: string;
   fecha: string; // YYYY-MM-DD, default today
   tipo_sesion: 'individual' | 'con_padres' | 'grupal';
+  objetivo_sesion: string;       // nuevo: objetivo del día
+  actividad_realizada: string;   // nuevo: descripción de la actividad
 }
 
 // ─── Session Chronometer Hook ──────────────────────────────────
@@ -206,7 +205,10 @@ export default function NuevaSesionPage() {
   const [expandedCategoria, setExpandedCategoria] = useState<Categoria | null>('atencion_concentracion');
   const [hasDraft, setHasDraft] = useState(false);
   const [tieneEvaluacionInicial, setTieneEvaluacionInicial] = useState<boolean | null>(null);
-  
+
+  // Refs para auto-scroll al abrir siguiente sección
+  const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   // Modal state
   const [modal, setModal] = useState<{ tipo: 'exito' | 'error' | 'confirm' | 'faltantes'; titulo: string; mensaje: string; onConfirm?: () => void } | null>(null);
 
@@ -216,6 +218,8 @@ export default function NuevaSesionPage() {
     observaciones_libres: '',
     fecha: new Date().toISOString().slice(0, 10),
     tipo_sesion: 'individual',
+    objetivo_sesion: '',
+    actividad_realizada: '',
   });
 
   // Cargar borrador guardado al iniciar
@@ -231,6 +235,8 @@ export default function NuevaSesionPage() {
             observaciones_libres: draft.observaciones_libres,
             fecha: draft.fecha || new Date().toISOString().slice(0, 10),
             tipo_sesion: draft.tipo_sesion || 'individual',
+            objetivo_sesion: draft.objetivo_sesion || '',
+            actividad_realizada: draft.actividad_realizada || '',
           });
           setHasDraft(true);
         } catch (e) {
@@ -343,6 +349,12 @@ export default function NuevaSesionPage() {
       // Small delay so the user sees the "COMPLETO" badge before it collapses
       setTimeout(() => {
         setExpandedCategoria(nextIncomplete || null);
+        // Scroll al top de la siguiente sección para que el usuario sepa dónde está
+        if (nextIncomplete && categoriaRefs.current[nextIncomplete]) {
+          categoriaRefs.current[nextIncomplete]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Extra offset para el header sticky (~80px)
+          setTimeout(() => window.scrollBy({ top: -90, behavior: 'smooth' }), 150);
+        }
       }, 400);
     }
   };
@@ -397,6 +409,8 @@ export default function NuevaSesionPage() {
           items: itemsArray,
           observaciones_libres: formData.observaciones_libres,
           tipo_sesion: formData.tipo_sesion,
+          objetivo_sesion: formData.objetivo_sesion || null,
+          actividad_realizada: formData.actividad_realizada || null,
           created_offline: false,
           sincronizado_at: new Date().toISOString()
         });
@@ -620,6 +634,51 @@ export default function NuevaSesionPage() {
           </div>
         )}
 
+        {/* ── SECCIÓN 1: Actividad del día ── */}
+        <div className="mb-2">
+          <div className="flex items-center gap-2 mb-3 px-1">
+            <span className="w-6 h-6 rounded-full bg-crecimiento-500 text-white text-xs font-bold flex items-center justify-center font-quicksand">1</span>
+            <span className="font-quicksand font-bold text-sm text-neutro-carbon uppercase tracking-wide">Actividad del día</span>
+          </div>
+        </div>
+
+        {/* Objetivo de la sesión */}
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mb-3">
+          <label className="text-sm font-semibold mb-2 flex items-center gap-2 text-neutro-carbon font-outfit">
+            🎯 Objetivo de la sesión
+          </label>
+          <textarea
+            value={formData.objetivo_sesion}
+            onChange={(e) => setFormData(prev => ({ ...prev, objetivo_sesion: e.target.value }))}
+            rows={2}
+            className="w-full px-3 py-2.5 text-base border border-gray-200 rounded-xl font-outfit focus:ring-2 focus:ring-crecimiento-300 focus:border-crecimiento-400 transition-all resize-none"
+            placeholder="¿Qué querías lograr hoy? Ej: Practicar lectura de sílabas directas..."
+          />
+        </div>
+
+        {/* Actividad realizada */}
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mb-4">
+          <label className="text-sm font-semibold mb-2 flex items-center gap-2 text-neutro-carbon font-outfit">
+            📝 Actividad realizada
+          </label>
+          <textarea
+            value={formData.actividad_realizada}
+            onChange={(e) => setFormData(prev => ({ ...prev, actividad_realizada: e.target.value }))}
+            rows={3}
+            className="w-full px-3 py-2.5 text-base border border-gray-200 rounded-xl font-outfit focus:ring-2 focus:ring-crecimiento-300 focus:border-crecimiento-400 transition-all resize-none"
+            placeholder="Describí qué hicieron durante la sesión. Ej: Leímos juntos el cuento 'El globo rojo', trabajamos las sílabas MA, ME, MI..."
+          />
+        </div>
+
+        {/* ── SECCIÓN 2: Desempeño en la actividad ── */}
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-1 px-1">
+            <span className="w-6 h-6 rounded-full bg-sol-500 text-white text-xs font-bold flex items-center justify-center font-quicksand">2</span>
+            <span className="font-quicksand font-bold text-sm text-neutro-carbon uppercase tracking-wide">Desempeño en la actividad</span>
+          </div>
+          <p className="text-xs text-neutro-piedra font-outfit px-1 ml-8">Evaluá cada área usando la escala 1 (muy bajo) a 5 (muy alto)</p>
+        </div>
+
         {/* Acordeón */}
         <div className="space-y-3">
           {(Object.keys(itemsPorCategoria) as Categoria[]).map(categoria => {
@@ -630,7 +689,11 @@ export default function NuevaSesionPage() {
             const isComplete = tocados === total;
 
             return (
-              <div key={categoria} className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] overflow-hidden">
+              <div
+                key={categoria}
+                ref={el => { categoriaRefs.current[categoria] = el; }}
+                className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] overflow-hidden"
+              >
                 <button
                   type="button"
                   onClick={() => toggleCategoria(categoria)}
@@ -698,20 +761,20 @@ export default function NuevaSesionPage() {
                           </div>
                         
                           {/* Likert scale buttons + N/C button */}
-                          <div className="flex gap-2">
-                            <div className="grid grid-cols-5 gap-1.5 sm:gap-2 flex-1">
+                          <div className="flex gap-1.5">
+                            <div className="grid grid-cols-5 gap-1 flex-1">
                               {ESCALA_LIKERT.map(escala => (
                                 <button
                                   key={escala.valor}
                                   type="button"
                                   onClick={() => handleItemChange(item.id, escala.valor)}
                                   disabled={isNC}
-                                  className={`py-3 min-h-[48px] rounded-xl border-2 font-bold active:scale-95 text-sm sm:text-base transition-all font-quicksand ${
+                                  className={`py-2.5 min-h-[44px] rounded-xl border-2 font-bold active:scale-95 text-base transition-all font-quicksand ${
                                     isNC
                                       ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
                                       : itemValue === escala.valor
                                         ? 'border-crecimiento-500 bg-crecimiento-500 text-white shadow-glow-crecimiento'
-                                        : 'border-gray-300 hover:border-crecimiento-400 text-neutro-carbon'
+                                        : 'border-gray-300 hover:border-crecimiento-400 text-neutro-carbon bg-white/80'
                                   }`}
                                 >
                                   {escala.valor}
@@ -723,22 +786,22 @@ export default function NuevaSesionPage() {
                               type="button"
                               onClick={() => handleMarkNC(item.id)}
                               title={isNC ? 'Desmarcar N/C' : 'Marcar como No Completó'}
-                              className={`py-3 min-h-[48px] min-w-[48px] rounded-xl border-2 font-bold active:scale-95 text-xs transition-all font-outfit ${
+                              className={`py-2.5 min-h-[44px] w-11 rounded-xl border-2 font-bold active:scale-95 text-[11px] leading-tight transition-all font-outfit flex items-center justify-center ${
                                 isNC
                                   ? 'border-gray-400 bg-gray-400 text-white'
-                                  : 'border-gray-300 hover:border-gray-400 text-neutro-piedra hover:bg-gray-50'
+                                  : 'border-gray-300 hover:border-gray-400 text-neutro-piedra hover:bg-gray-50 bg-white/80'
                               }`}
                             >
-                              {LABEL_NO_COMPLETADO}
+                              N/C
                             </button>
                           </div>
-                          <div className="flex gap-2 mt-1">
-                            <div className="grid grid-cols-5 gap-1.5 sm:gap-2 flex-1 text-[10px] text-center text-neutro-piedra font-outfit">
-                              <div>Muy bajo</div>
+                          <div className="flex gap-1.5 mt-1">
+                            <div className="grid grid-cols-5 gap-1 flex-1 text-[9px] text-center text-neutro-piedra font-outfit">
+                              <div>Muy<br/>bajo</div>
                               <div>Bajo</div>
                               <div>Medio</div>
                               <div>Alto</div>
-                              <div>Muy alto</div>
+                              <div>Muy<br/>alto</div>
                             </div>
                             <div className="min-w-[48px]"></div>
                           </div>
@@ -752,18 +815,24 @@ export default function NuevaSesionPage() {
           })}
         </div>
 
-        {/* Observaciones */}
-        <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mt-4">
+        {/* ── SECCIÓN 3: Observaciones adicionales ── */}
+        <div className="mt-5 mb-3">
+          <div className="flex items-center gap-2 mb-1 px-1">
+            <span className="w-6 h-6 rounded-full bg-purple-500 text-white text-xs font-bold flex items-center justify-center font-quicksand">3</span>
+            <span className="font-quicksand font-bold text-sm text-neutro-carbon uppercase tracking-wide">Observaciones adicionales</span>
+          </div>
+        </div>
+        <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mt-0">
           <label className="text-sm font-medium mb-2 flex items-center gap-2 text-neutro-carbon font-outfit">
             <FileText className="w-4 h-4" />
-            Observaciones adicionales
+            Situaciones relevantes, contexto, notas libres
           </label>
           <textarea
             value={formData.observaciones_libres}
             onChange={(e) => setFormData(prev => ({ ...prev, observaciones_libres: e.target.value }))}
             rows={4}
             className="w-full px-3 py-3 text-base border border-gray-200 rounded-xl font-outfit focus:ring-2 focus:ring-crecimiento-300 focus:border-crecimiento-400 transition-all"
-            placeholder="Situaciones relevantes..."
+            placeholder="Situaciones relevantes, cómo llegó el niño, comentarios del contexto familiar..."
           />
         </div>
       </form>

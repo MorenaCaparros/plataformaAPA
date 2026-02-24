@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { 
   HomeIcon, 
@@ -46,12 +46,11 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
   const { user, perfil, signOut } = useAuth();
 
   const handleSignOut = async () => {
+    // signOut() ya maneja la redirección con window.location.href
     await signOut();
-    router.push('/login');
   };
 
   // Mapeo de roles para mostrar

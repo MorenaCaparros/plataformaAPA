@@ -65,7 +65,9 @@ export async function middleware(request: NextRequest) {
   );
 
   // 🔥 EXCLUIR RUTAS DE API - manejan su propia autenticación
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
+  // Excepción: /api/auth/signout necesita pasar por el middleware para limpiar cookies
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/') &&
+    !request.nextUrl.pathname.startsWith('/api/auth/signout');
   if (isApiRoute) {
     return response; // Dejar pasar sin verificar cookies
   }
