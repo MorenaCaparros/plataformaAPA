@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
@@ -15,6 +15,8 @@ interface Sesion {
   duracion_minutos: number;
   observaciones_libres: string;
   items: any[];
+  objetivo_sesion?: string | null;
+  actividad_realizada?: string | null;
   ninos: {
     id?: string;
     alias: string;
@@ -40,6 +42,12 @@ export default function HistorialPage() {
   const { user, perfil } = useAuth();
   const [filtroNino, setFiltroNino] = useState<string>('todos');
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
+  const [pagina, setPagina] = useState(1);
+
+  // Resetear página cuando cambian los filtros
+  useEffect(() => {
+    setPagina(1);
+  }, [filtroNino, filtroBusqueda]);
 
   const esVoluntario = perfil?.rol === 'voluntario';
 
@@ -82,6 +90,8 @@ export default function HistorialPage() {
           duracion_minutos,
           observaciones_libres,
           items,
+          objetivo_sesion,
+          actividad_realizada,
           voluntario_id,
           ninos (
             id,
@@ -141,6 +151,11 @@ export default function HistorialPage() {
     return true;
   });
 
+  // Paginación (datos ya vienen ordenados por fecha DESC)
+  const PAGE_SIZE = 20;
+  const totalPaginas = Math.ceil(sesionesFiltradas.length / PAGE_SIZE);
+  const sesionesPagina = sesionesFiltradas.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE);
+
   const formatFecha = (fecha: string) => {
     const date = new Date(fecha);
     return date.toLocaleDateString('es-AR', { 
@@ -160,7 +175,7 @@ export default function HistorialPage() {
   const descargarCSV = () => {
     if (sesionesFiltradas.length === 0) return;
 
-    const headers = ['Fecha', 'Niño', 'Duración (min)', 'Promedio', 'Observaciones', 'Ítems completados', 'Ítems N/C'];
+    const headers = ['Fecha', 'Niño', 'Duración (min)', 'Promedio', 'Objetivo', 'Actividad realizada', 'Observaciones', 'Ítems completados', 'Ítems N/C'];
     const rows = sesionesFiltradas.map(sesion => {
       const items = sesion.items || [];
       const completados = items.filter((i: any) => i.valor && i.valor !== VALOR_NO_COMPLETADO).length;
@@ -170,6 +185,8 @@ export default function HistorialPage() {
         sesion.ninos.alias,
         sesion.duracion_minutos,
         calcularPromedio(items),
+        `"${(sesion.objetivo_sesion || '').replace(/"/g, '""')}"`,
+        `"${(sesion.actividad_realizada || '').replace(/"/g, '""')}"`,
         `"${(sesion.observaciones_libres || '').replace(/"/g, '""')}"`,
         completados,
         noCompletados
@@ -264,10 +281,14 @@ export default function HistorialPage() {
           </div>
 
           {/* Contador de resultados */}
-          {(filtroNino !== 'todos' || filtroBusqueda) && (
-            <div className="px-4 py-2 bg-sol-50/50 backdrop-blur-sm border border-sol-200/30 rounded-2xl inline-block">
+          {sesiones.length > 0 && (
+            <div className="px-4 py-2 bg-sol-50/50 backdrop-blur-sm border border-sol-200/30 rounded-2xl inline-flex items-center">
               <span className="text-sm text-neutro-piedra font-outfit">
-                Mostrando <span className="font-semibold text-neutro-carbon">{sesionesFiltradas.length}</span> de <span className="font-semibold text-neutro-carbon">{sesiones.length}</span> sesiones
+                {sesionesFiltradas.length < sesiones.length
+                  ? <><span className="font-semibold text-neutro-carbon">{sesionesFiltradas.length}</span> de <span className="font-semibold text-neutro-carbon">{sesiones.length}</span> sesiones</>
+                  : <><span className="font-semibold text-neutro-carbon">{sesiones.length}</span> sesiones</>
+                }
+                {totalPaginas > 1 && <span className="ml-2 text-neutro-piedra/70">· pág. {pagina}/{totalPaginas}</span>}
               </span>
             </div>
           )}
@@ -305,8 +326,9 @@ export default function HistorialPage() {
             </div>
           </div>
         ) : (
+          <>
           <div className="space-y-5">
-            {sesionesFiltradas.map((sesion) => (
+            {sesionesPagina.map((sesion) => (
               <div key={sesion.id} className="group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 transition-all duration-300 shadow-[0_4px_16px_rgba(242,201,76,0.1)] hover:shadow-[0_8px_32px_rgba(242,201,76,0.15)] hover:-translate-y-0.5 active:scale-[0.99]">
                 <Link href={`/dashboard/sesiones/${sesion.id}`} className="block p-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -337,6 +359,24 @@ export default function HistorialPage() {
                     </div>
                   </div>
 
+                  {/* Objetivo y Actividad */}
+                  {(sesion.objetivo_sesion || sesion.actividad_realizada) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                      {sesion.objetivo_sesion && (
+                        <div className="px-3 py-2 bg-impulso-50/50 border border-impulso-200/40 rounded-2xl">
+                          <p className="text-xs text-impulso-600 font-outfit font-semibold mb-0.5">🎯 Objetivo</p>
+                          <p className="text-sm text-neutro-carbon font-outfit line-clamp-2">{sesion.objetivo_sesion}</p>
+                        </div>
+                      )}
+                      {sesion.actividad_realizada && (
+                        <div className="px-3 py-2 bg-crecimiento-50/50 border border-crecimiento-200/40 rounded-2xl">
+                          <p className="text-xs text-crecimiento-600 font-outfit font-semibold mb-0.5">✏️ Actividad</p>
+                          <p className="text-sm text-neutro-carbon font-outfit line-clamp-2">{sesion.actividad_realizada}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {sesion.observaciones_libres && (
                     <div className="mt-4 pt-4 border-t border-white/60">
                       <p className="text-xs text-neutro-piedra mb-2 font-outfit font-medium">Observaciones:</p>
@@ -355,6 +395,30 @@ export default function HistorialPage() {
               </div>
             ))}
           </div>
+
+          {/* Paginación */}
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-8">
+              <button
+                onClick={() => { setPagina(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={pagina === 1}
+                className="px-5 py-2.5 min-h-[44px] rounded-2xl bg-white/70 backdrop-blur-sm border border-white/60 text-neutro-carbon font-outfit font-medium text-sm hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              >
+                ← Anterior
+              </button>
+              <span className="text-sm text-neutro-carbon font-outfit">
+                <span className="font-bold">{pagina}</span> / <span className="font-bold">{totalPaginas}</span>
+              </span>
+              <button
+                onClick={() => { setPagina(p => Math.min(totalPaginas, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={pagina === totalPaginas}
+                className="px-5 py-2.5 min-h-[44px] rounded-2xl bg-white/70 backdrop-blur-sm border border-white/60 text-neutro-carbon font-outfit font-medium text-sm hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              >
+                Siguiente →
+              </button>
+            </div>
+          )}
+          </>
         )}
       </main>
     </div>

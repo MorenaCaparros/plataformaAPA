@@ -12,6 +12,7 @@ import {
   type Categoria
 } from '@/lib/constants/items-observacion';
 import { ArrowLeft, Save, FileText, Check, AlertTriangle, Timer, X, Calendar, Users } from 'lucide-react';
+import ConfirmModal, { type ModalConfig } from '@/components/ui/ConfirmModal';
 
 interface Nino {
   id: string;
@@ -210,7 +211,7 @@ export default function NuevaSesionPage() {
   const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Modal state
-  const [modal, setModal] = useState<{ tipo: 'exito' | 'error' | 'confirm' | 'faltantes'; titulo: string; mensaje: string; onConfirm?: () => void } | null>(null);
+  const [modal, setModal] = useState<ModalConfig | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     duracion_minutos: 45,
@@ -360,7 +361,20 @@ export default function NuevaSesionPage() {
   };
 
   const toggleCategoria = (categoria: Categoria) => {
-    setExpandedCategoria(expandedCategoria === categoria ? null : categoria);
+    const isClosing = expandedCategoria === categoria;
+    setExpandedCategoria(isClosing ? null : categoria);
+
+    if (isClosing) {
+      const allCategorias = Object.keys(itemsPorCategoria) as Categoria[];
+      const currentIdx = allCategorias.indexOf(categoria);
+      const nextCategoria = allCategorias[currentIdx + 1];
+      if (nextCategoria && categoriaRefs.current[nextCategoria]) {
+        setTimeout(() => {
+          categoriaRefs.current[nextCategoria]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => window.scrollBy({ top: -90, behavior: 'smooth' }), 150);
+        }, 150);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -451,6 +465,8 @@ export default function NuevaSesionPage() {
       tipo: 'confirm',
       titulo: 'Cancelar sesión',
       mensaje: 'Si cancelás, el cronómetro se detendrá y perderás el progreso no guardado. ¿Querés continuar?',
+      labelCancel: 'No, seguir',
+      labelConfirm: 'Sí, cancelar',
       onConfirm: () => {
         chrono.stop();
         localStorage.removeItem(`draft_sesion_${ninoId}`);
@@ -464,12 +480,16 @@ export default function NuevaSesionPage() {
       tipo: 'confirm',
       titulo: 'Eliminar borrador',
       mensaje: '¿Eliminar el borrador guardado? Perderás todo el progreso.',
+      labelCancel: 'No, volver',
+      labelConfirm: 'Sí, eliminar',
       onConfirm: () => {
         localStorage.removeItem(`draft_sesion_${ninoId}`);
         setFormData({
           duracion_minutos: 45,
           items: {},
           observaciones_libres: '',
+          objetivo_sesion: '',
+          actividad_realizada: '',
           fecha: new Date().toISOString().slice(0, 10),
           tipo_sesion: 'individual',
         });
@@ -747,7 +767,9 @@ export default function NuevaSesionPage() {
                                   <X className="w-3 h-3 text-white" />
                                 </div>
                               ) : isRated ? (
-                                <Check className="w-5 h-5 text-crecimiento-600 font-bold flex-shrink-0" />
+                                <div className="w-5 h-5 rounded-full bg-crecimiento-500 flex items-center justify-center flex-shrink-0">
+                                  <Check className="w-3 h-3 text-white" />
+                                </div>
                               ) : (
                                 <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
                               )}
@@ -769,7 +791,7 @@ export default function NuevaSesionPage() {
                                   type="button"
                                   onClick={() => handleItemChange(item.id, escala.valor)}
                                   disabled={isNC}
-                                  className={`py-2.5 min-h-[44px] rounded-xl border-2 font-bold active:scale-95 text-base transition-all font-quicksand ${
+                                  className={`py-1.5 min-h-[36px] rounded-xl border-2 font-bold active:scale-95 text-sm transition-all font-quicksand ${
                                     isNC
                                       ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
                                       : itemValue === escala.valor
@@ -786,7 +808,7 @@ export default function NuevaSesionPage() {
                               type="button"
                               onClick={() => handleMarkNC(item.id)}
                               title={isNC ? 'Desmarcar N/C' : 'Marcar como No Completó'}
-                              className={`py-2.5 min-h-[44px] w-11 rounded-xl border-2 font-bold active:scale-95 text-[11px] leading-tight transition-all font-outfit flex items-center justify-center ${
+                              className={`py-1.5 min-h-[36px] w-9 rounded-xl border-2 font-bold active:scale-95 text-[10px] leading-tight transition-all font-outfit flex items-center justify-center ${
                                 isNC
                                   ? 'border-gray-400 bg-gray-400 text-white'
                                   : 'border-gray-300 hover:border-gray-400 text-neutro-piedra hover:bg-gray-50 bg-white/80'
@@ -803,7 +825,7 @@ export default function NuevaSesionPage() {
                               <div>Alto</div>
                               <div>Muy<br/>alto</div>
                             </div>
-                            <div className="min-w-[48px]"></div>
+                            <div className="min-w-[40px]"></div>
                           </div>
                         </div>
                       );
@@ -878,46 +900,7 @@ export default function NuevaSesionPage() {
       </div>
 
       {/* Modal universal */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto ${
-              modal.tipo === 'exito' ? 'bg-crecimiento-100' :
-              modal.tipo === 'error' ? 'bg-impulso-100' :
-              modal.tipo === 'faltantes' ? 'bg-sol-100' :
-              'bg-gray-100'
-            }`}>
-              {modal.tipo === 'exito' && <Check className="w-6 h-6 text-crecimiento-600" />}
-              {modal.tipo === 'error' && <X className="w-6 h-6 text-impulso-600" />}
-              {modal.tipo === 'faltantes' && <AlertTriangle className="w-6 h-6 text-sol-600" />}
-              {modal.tipo === 'confirm' && <AlertTriangle className="w-6 h-6 text-gray-600" />}
-            </div>
-            <div className="text-center">
-              <h3 className="font-bold text-neutro-carbon font-quicksand text-lg">{modal.titulo}</h3>
-              <p className="text-neutro-piedra font-outfit text-sm mt-1">{modal.mensaje}</p>
-            </div>
-            <div className="flex gap-3">
-              {modal.tipo === 'confirm' ? (
-                <>
-                  <button onClick={() => setModal(null)} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl font-outfit font-medium text-neutro-carbon hover:bg-gray-50 transition-all">
-                    No, seguir
-                  </button>
-                  <button onClick={() => { setModal(null); modal.onConfirm?.(); }} className="flex-1 px-4 py-2.5 bg-impulso-500 text-white rounded-xl font-outfit font-semibold hover:bg-impulso-600 transition-all">
-                    Sí, cancelar
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => setModal(null)}
-                  className="w-full px-4 py-2.5 bg-crecimiento-500 text-white rounded-xl font-outfit font-semibold hover:bg-crecimiento-600 transition-all"
-                >
-                  Entendido
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal modal={modal} onClose={() => setModal(null)} />
     </div>
   );
 }

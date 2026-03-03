@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Check, CheckCircle, XCircle, Users, Calendar, Save, AlertTriangle, Filter } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle, XCircle, Users, Calendar, Save, AlertTriangle, Filter, BarChart2 } from 'lucide-react';
 
 interface NinoAsistencia {
   id: string;
@@ -242,7 +242,13 @@ export default function AsistenciaPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-neutro-carbon font-quicksand">
                 📋 Asistencia
               </h1>
-              <div className="w-16 sm:w-24"></div>
+              <Link
+                href="/dashboard/asistencia/planilla"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-outfit font-medium text-crecimiento-700 bg-crecimiento-50 border border-crecimiento-200/60 rounded-xl hover:bg-crecimiento-100 transition-all min-h-[44px]"
+              >
+                <BarChart2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Planilla</span>
+              </Link>
             </div>
           </div>
         </div>

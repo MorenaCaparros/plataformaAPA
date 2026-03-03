@@ -12,7 +12,16 @@ import {
   AlertCircle,
   CheckCircle2,
   User,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from 'lucide-react';
+import {
+  PLANTILLAS_PLANES,
+  type PlantillaPlan,
+  getPlantillasPorArea,
+} from '@/lib/constants/plantillas-planes';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
@@ -46,6 +55,9 @@ export default function NuevoPlanPage() {
   const [loadingNinos, setLoadingNinos] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [mostrarPlantillas, setMostrarPlantillas] = useState(false);
+  const [plantillaAplicada, setPlantillaAplicada] = useState<PlantillaPlan | null>(null);
+  const [areaFiltro, setAreaFiltro] = useState<string>('todos');
 
   const [form, setForm] = useState({
     nino_id: '',
@@ -61,6 +73,24 @@ export default function NuevoPlanPage() {
   useEffect(() => {
     fetchNinos();
   }, []);
+
+  function applyTemplate(plantilla: PlantillaPlan) {
+    setForm((f) => ({
+      ...f,
+      titulo: plantilla.titulo,
+      descripcion: plantilla.descripcion,
+      area: plantilla.area,
+      prioridad: plantilla.prioridad,
+      objetivos: [...plantilla.objetivos],
+      actividades_sugeridas: plantilla.actividades_sugeridas,
+    }));
+    setPlantillaAplicada(plantilla);
+    setMostrarPlantillas(false);
+  }
+
+  function clearTemplate() {
+    setPlantillaAplicada(null);
+  }
 
   async function fetchNinos() {
     try {
@@ -183,6 +213,119 @@ export default function NuevoPlanPage() {
           </div>
         </div>
 
+        {/* ── Selector de plantillas ── */}
+        <div className="bg-impulso-50 dark:bg-impulso-900/20 border border-impulso-200 dark:border-impulso-700 rounded-3xl shadow-lg overflow-hidden mb-6">
+          <button
+            type="button"
+            onClick={() => setMostrarPlantillas((v) => !v)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-impulso-100/60 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-5 h-5 text-impulso-500" />
+              <div className="text-left">
+                <div className="font-quicksand font-bold text-impulso-700 dark:text-impulso-300">
+                  Usar una plantilla pre-armada
+                </div>
+                <div className="font-outfit text-xs text-impulso-500 dark:text-impulso-400">
+                  {plantillaAplicada
+                    ? `✓ Plantilla aplicada: ${plantillaAplicada.titulo}`
+                    : '12 plantillas por área listas para usar'}
+                </div>
+              </div>
+            </div>
+            {mostrarPlantillas ? (
+              <ChevronUp className="w-5 h-5 text-impulso-500 flex-shrink-0" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-impulso-500 flex-shrink-0" />
+            )}
+          </button>
+
+          {mostrarPlantillas && (
+            <div className="border-t border-impulso-200 dark:border-impulso-700 p-4 sm:p-6 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm">
+              {/* Filtro por área */}
+              <div className="flex gap-2 flex-wrap mb-4">
+                <button
+                  type="button"
+                  onClick={() => setAreaFiltro('todos')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold font-outfit transition-colors min-h-[32px] ${
+                    areaFiltro === 'todos'
+                      ? 'bg-impulso-500 text-white'
+                      : 'bg-impulso-100 text-impulso-700 hover:bg-impulso-200'
+                  }`}
+                >
+                  Todas
+                </button>
+                {AREAS.map((a) => (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => setAreaFiltro(a.value)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold font-outfit transition-colors min-h-[32px] ${
+                      areaFiltro === a.value
+                        ? 'bg-impulso-500 text-white'
+                        : 'bg-impulso-100 text-impulso-700 hover:bg-impulso-200'
+                    }`}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Grilla de plantillas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {PLANTILLAS_PLANES.filter(
+                  (p) => areaFiltro === 'todos' || p.area === areaFiltro,
+                ).map((plantilla) => (
+                  <button
+                    key={plantilla.id}
+                    type="button"
+                    onClick={() => applyTemplate(plantilla)}
+                    className={`text-left p-4 rounded-2xl border-2 transition-all hover:shadow-md active:scale-[0.98] ${
+                      plantillaAplicada?.id === plantilla.id
+                        ? 'border-impulso-500 bg-impulso-50 dark:bg-impulso-900/30'
+                        : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-impulso-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0">{plantilla.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-quicksand font-bold text-sm text-neutro-carbon dark:text-white leading-tight mb-1">
+                          {plantilla.titulo}
+                        </div>
+                        <div className="font-outfit text-xs text-gray-500 dark:text-gray-400 mb-2 line-clamp-2">
+                          {plantilla.indicado_para}
+                        </div>
+                        <div className="space-y-0.5">
+                          {plantilla.objetivos.slice(0, 2).map((obj, i) => (
+                            <div key={i} className="flex items-start gap-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-impulso-400 mt-1.5 flex-shrink-0" />
+                              <span className="font-outfit text-[11px] text-gray-600 dark:text-gray-400 line-clamp-1">
+                                {obj}
+                              </span>
+                            </div>
+                          ))}
+                          {plantilla.objetivos.length > 2 && (
+                            <div className="font-outfit text-[10px] text-impulso-500 pl-3">
+                              + {plantilla.objetivos.length - 2} objetivos más
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {plantillaAplicada?.id === plantilla.id && (
+                        <CheckCircle2 className="w-5 h-5 text-impulso-500 flex-shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <p className="font-outfit text-xs text-gray-400 dark:text-gray-500 mt-3 text-center">
+                Podés editar todos los campos una vez aplicada la plantilla.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Niño selector */}
@@ -230,6 +373,22 @@ export default function NuevoPlanPage() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 font-outfit text-sm focus:ring-2 focus:ring-impulso-400 focus:border-transparent min-h-[44px]"
                   required
                 />
+                {plantillaAplicada && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-impulso-100 dark:bg-impulso-900/30 text-impulso-700 dark:text-impulso-300 text-xs font-semibold font-outfit border border-impulso-200">
+                      <Sparkles className="w-3 h-3" />
+                      Plantilla: {plantillaAplicada.titulo}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearTemplate}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Quitar indicador de plantilla"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

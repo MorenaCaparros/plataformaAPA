@@ -1054,7 +1054,7 @@ const subirADrive = async (archivo: File | Blob, nombre: string, carpetaId: stri
                     type="radio"
                     name="escolarizado"
                     checked={!escolarizado}
-                    onChange={() => setEscolarizado(false)}
+                    onChange={() => { setEscolarizado(false); setPermaneceCurso(null); setCualCurso(''); }}
                     className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
                   />
                   <span className="text-neutro-carbon font-outfit">No</span>
@@ -1131,44 +1131,48 @@ const subirADrive = async (archivo: File | Blob, nombre: string, carpetaId: stri
               </>
             )}
 
-            {/* ¿Permanece en algún curso? */}
-            <div>
-              <label className={labelClass}>¿Permaneció o permanece en algún curso?</label>
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
-                  <input
-                    type="radio"
-                    name="permaneceCurso"
-                    checked={permaneceCurso === true}
-                    onChange={() => setPermaneceCurso(true)}
-                    className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
-                  />
-                  <span className="text-neutro-carbon font-outfit">Sí</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
-                  <input
-                    type="radio"
-                    name="permaneceCurso"
-                    checked={permaneceCurso === false}
-                    onChange={() => { setPermaneceCurso(false); setCualCurso(''); }}
-                    className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
-                  />
-                  <span className="text-neutro-carbon font-outfit">No</span>
-                </label>
-              </div>
-            </div>
+            {/* ¿Permanece en algún curso? - solo aplica si asiste a la escuela */}
+            {escolarizado && (
+              <>
+                <div>
+                  <label className={labelClass}>¿Permaneció o permanece en algún curso?</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                      <input
+                        type="radio"
+                        name="permaneceCurso"
+                        checked={permaneceCurso === true}
+                        onChange={() => setPermaneceCurso(true)}
+                        className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
+                      />
+                      <span className="text-neutro-carbon font-outfit">Sí</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
+                      <input
+                        type="radio"
+                        name="permaneceCurso"
+                        checked={permaneceCurso === false}
+                        onChange={() => { setPermaneceCurso(false); setCualCurso(''); }}
+                        className="w-5 h-5 text-crecimiento-500 focus:ring-crecimiento-400"
+                      />
+                      <span className="text-neutro-carbon font-outfit">No</span>
+                    </label>
+                  </div>
+                </div>
 
-            {permaneceCurso && (
-              <div>
-                <label className={labelClass}>¿Cuál?</label>
-                <input
-                      type="text"
-                      value={cualCurso}
-                      onChange={(e) => setCualCurso(e.target.value)}
-                      className={inputClass}
-                      placeholder="Ej: Apoyo escolar, Fútbol, Catequesis..."
-                />
-              </div>
+                {permaneceCurso && (
+                  <div>
+                    <label className={labelClass}>¿Cuál?</label>
+                    <input
+                          type="text"
+                          value={cualCurso}
+                          onChange={(e) => setCualCurso(e.target.value)}
+                          className={inputClass}
+                          placeholder="Ej: Apoyo escolar, Fútbol, Catequesis..."
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -1798,7 +1802,12 @@ function FamiliarCard({
         <div className="flex items-center gap-2">
           <select
             value={familiar.tipo}
-            onChange={(e) => onChange('tipo', e.target.value)}
+            onChange={(e) => {
+              const nuevoTipo = e.target.value as TipoFamiliar;
+              onChange('tipo', nuevoTipo);
+              // Resetear relacion: vacío para 'otro', label automático para el resto
+              onChange('relacion', nuevoTipo === 'otro' ? '' : FAMILIAR_LABELS[nuevoTipo]);
+            }}
             className="text-sm font-semibold font-outfit bg-transparent border-none focus:ring-0 p-0 pr-6 text-neutro-carbon cursor-pointer"
           >
             <option value="madre">👩 Madre</option>
@@ -1819,6 +1828,23 @@ function FamiliarCard({
           </button>
         )}
       </div>
+
+      {/* Especificar vínculo — solo visible cuando tipo es 'otro' */}
+      {familiar.tipo === 'otro' && (
+        <div>
+          <label className="block text-xs font-medium text-neutro-piedra font-outfit mb-1">
+            Especificar vínculo <span className="text-impulso-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={familiar.relacion}
+            onChange={(e) => onChange('relacion', e.target.value)}
+            className={inputClass + ' !min-h-[44px] !py-2 text-sm'}
+            placeholder="Ej: Abuela, Tía, Vecino/a, Hermano/a mayor..."
+            required
+          />
+        </div>
+      )}
 
       {/* Fields */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -86,6 +86,7 @@ export default function CompletarAutoevaluacionPage() {
   const [enviando, setEnviando] = useState(false);
   const [intentoPrevio, setIntentoPrevio] = useState<IntentoPrevio | null>(null);
   const [cooldown, setCooldown] = useState<CooldownInfo | null>(null);
+  const [forzarNuevoIntento, setForzarNuevoIntento] = useState(false);
 
   // Special questions state
   const [maxNinos, setMaxNinos] = useState<number>(3);
@@ -168,6 +169,7 @@ export default function CompletarAutoevaluacionPage() {
         .from('voluntarios_capacitaciones')
         .select('id, estado, porcentaje, fecha_completado')
         .eq('capacitacion_id', plantillaId)
+        .eq('voluntario_id', perfil?.id)
         .in('estado', ['completada', 'aprobada', 'reprobada'])
         .order('fecha_completado', { ascending: false })
         .limit(1);
@@ -214,6 +216,7 @@ export default function CompletarAutoevaluacionPage() {
         .from('voluntarios_capacitaciones')
         .select('*')
         .eq('capacitacion_id', plantillaId)
+        .eq('voluntario_id', perfil?.id)
         .eq('estado', 'en_progreso')
         .order('created_at', { ascending: false })
         .limit(1);
@@ -659,7 +662,7 @@ export default function CompletarAutoevaluacionPage() {
   }
 
   // ── Bloqueo: ya completada y pendiente de revisión manual ──
-  if (intentoPrevio?.tiene_manuales && !respuestaExistente) {
+  if (intentoPrevio?.tiene_manuales && !respuestaExistente && !forzarNuevoIntento) {
     return (
       <div className="min-h-screen pb-12">
         <div className="container mx-auto px-4 py-6 max-w-2xl">
@@ -684,9 +687,17 @@ export default function CompletarAutoevaluacionPage() {
               <p className="text-2xl font-bold text-sol-800 font-quicksand">{intentoPrevio.porcentaje ?? 0}%</p>
               <p className="text-xs text-sol-600 font-outfit mt-1">Este puntaje puede subir cuando se corrijan las respuestas abiertas.</p>
             </div>
-            <Link href="/dashboard/autoevaluaciones" className="text-crecimiento-600 font-outfit font-medium hover:underline">
-              ← Volver a mis autoevaluaciones
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={() => setForzarNuevoIntento(true)}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 text-white rounded-2xl font-outfit font-semibold hover:shadow-[0_8px_24px_rgba(164,198,57,0.25)] transition-all active:scale-95"
+              >
+                🔄 Comenzar nuevo intento
+              </button>
+              <Link href="/dashboard/autoevaluaciones" className="inline-flex items-center justify-center px-6 py-3 min-h-[48px] text-crecimiento-600 font-outfit font-medium hover:underline">
+                ← Volver a mis autoevaluaciones
+              </Link>
+            </div>
           </div>
         </div>
       </div>
