@@ -34,6 +34,7 @@ function MisNinosPageContent() {
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
   const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
   const [pagina, setPagina] = useState(1);
+  const [guardandoZonaAsign, setGuardandoZonaAsign] = useState<string | null>(null);
 
   // Determinar si el usuario tiene acceso completo (ve datos sensibles)
   const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social', 'trabajadora_social', 'equipo_profesional'];
@@ -45,6 +46,9 @@ function MisNinosPageContent() {
 
   // Detectar si es voluntario (solo lectura, sin poder registrar)
   const esVoluntario = perfil?.rol === 'voluntario';
+
+  // Roles que pueden reasignar la zona de un niño
+  const puedeEditarZona = perfil?.rol && ['director', 'admin', 'coordinador', 'psicopedagogia'].includes(perfil.rol);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -267,6 +271,29 @@ function MisNinosPageContent() {
   const totalPaginas = Math.ceil(ninosFiltradosOrdenados.length / PAGE_SIZE);
   const ninosPagina = ninosFiltradosOrdenados.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE);
 
+  // Cambio rápido de zona desde la tarjeta del niño
+  const handleCambiarZona = async (ninoId: string, nuevaZonaId: string) => {
+    setGuardandoZonaAsign(ninoId);
+    try {
+      const { error } = await supabase
+        .from('ninos')
+        .update({ zona_id: nuevaZonaId || null })
+        .eq('id', ninoId);
+      if (!error) {
+        const zona = zonas.find(z => z.id === nuevaZonaId) ?? null;
+        setNinos(prev =>
+          prev.map(n =>
+            n.id === ninoId
+              ? { ...n, zonas: zona ? { id: zona.id, nombre: zona.nombre } : null }
+              : n
+          )
+        );
+      }
+    } finally {
+      setGuardandoZonaAsign(null);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -461,11 +488,31 @@ function MisNinosPageContent() {
                 </div>
 
                 <div className="space-y-2.5 mb-5">
-                  {/* Equipo/zona */}
-                  {nino.zonas && (
-                    <p className="text-sm text-neutro-piedra font-outfit">
-                      <span className="font-semibold text-neutro-carbon">Equipo:</span> {nino.zonas.nombre}
-                    </p>
+                  {/* Equipo/zona — select editable para roles con permisos */}
+                  {puedeEditarZona ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-neutro-carbon font-outfit shrink-0">📍 Equipo:</span>
+                      <select
+                        value={nino.zonas?.id || ''}
+                        onChange={(e) => handleCambiarZona(nino.id, e.target.value)}
+                        disabled={guardandoZonaAsign === nino.id}
+                        className="flex-1 text-sm px-2 py-1.5 bg-white/70 border border-neutro-piedra/20 rounded-xl font-outfit text-neutro-carbon focus:ring-2 focus:ring-crecimiento-300 outline-none disabled:opacity-50 min-h-[36px] cursor-pointer"
+                      >
+                        <option value="">Sin zona</option>
+                        {zonas.map(z => (
+                          <option key={z.id} value={z.id}>{z.nombre}</option>
+                        ))}
+                      </select>
+                      {guardandoZonaAsign === nino.id && (
+                        <span className="text-xs text-crecimiento-600 font-outfit shrink-0">✓</span>
+                      )}
+                    </div>
+                  ) : (
+                    nino.zonas && (
+                      <p className="text-sm text-neutro-piedra font-outfit">
+                        <span className="font-semibold text-neutro-carbon">Equipo:</span> {nino.zonas.nombre}
+                      </p>
+                    )
                   )}
                   <p className="text-sm text-neutro-piedra font-outfit">
                     <span className="font-semibold text-neutro-carbon">Nivel:</span> {nino.nivel_alfabetizacion || 'Sin evaluar'}

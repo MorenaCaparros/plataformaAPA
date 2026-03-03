@@ -56,7 +56,33 @@ export default function EquiposPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [guardandoDelete, setGuardandoDelete] = useState(false);
 
+  // ─── Inline niños por zona ────────────────────────────────────────────────
+  const [expandedNinos, setExpandedNinos] = useState<string | null>(null);
+  const [ninosPorZona, setNinosPorZona] = useState<Record<string, {id: string; alias: string; rango_etario: string}[]>>({});
+  const [cargandoNinosZona, setCargandoNinosZona] = useState<string | null>(null);
+
   const puedeGestionar = perfil && ROLES_PUEDEN_GESTIONAR.includes(perfil.rol);
+
+  const toggleNinosZona = async (zonaId: string) => {
+    if (expandedNinos === zonaId) {
+      setExpandedNinos(null);
+      return;
+    }
+    setExpandedNinos(zonaId);
+    if (ninosPorZona[zonaId] !== undefined) return; // ya en caché
+    setCargandoNinosZona(zonaId);
+    try {
+      const { data } = await supabase
+        .from('ninos')
+        .select('id, alias, rango_etario')
+        .eq('zona_id', zonaId)
+        .eq('activo', true)
+        .order('alias', { ascending: true });
+      setNinosPorZona(prev => ({ ...prev, [zonaId]: data || [] }));
+    } finally {
+      setCargandoNinosZona(null);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -612,10 +638,14 @@ export default function EquiposPage() {
 
                     {/* Acciones */}
                     <div className="flex gap-3">
-                      <Link href={`/dashboard/ninos?zona=${equipo.id}`}
-                        className="flex-1 text-center px-4 py-2.5 bg-gradient-to-r from-impulso-400 to-impulso-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(230,57,70,0.2)] transition-all font-outfit font-medium text-sm min-h-[44px] flex items-center justify-center gap-1.5">
-                        <Baby className="w-4 h-4" /> Ver Niños
-                      </Link>
+                      <button
+                        onClick={() => toggleNinosZona(equipo.id)}
+                        className="flex-1 text-center px-4 py-2.5 bg-gradient-to-r from-impulso-400 to-impulso-500 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(230,57,70,0.2)] transition-all font-outfit font-medium text-sm min-h-[44px] flex items-center justify-center gap-1.5 active:scale-95"
+                      >
+                        <Baby className="w-4 h-4" />
+                        {expandedNinos === equipo.id ? 'Ocultar' : 'Ver Niños'}
+                        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedNinos === equipo.id ? 'rotate-180' : ''}`} />
+                      </button>
                       {puedeGestionar ? (
                         <button onClick={() => openAsignacion(equipo)}
                           className="flex-1 text-center px-4 py-2.5 bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.3)] transition-all font-outfit font-medium text-sm min-h-[44px] flex items-center justify-center gap-1.5">
@@ -634,6 +664,41 @@ export default function EquiposPage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Inline niños de la zona */}
+                  {expandedNinos === equipo.id && (
+                    <div className="border-t border-white/60 px-6 py-4 bg-impulso-50/20">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-neutro-carbon font-quicksand">Niños en esta zona</p>
+                        <Link
+                          href={`/dashboard/ninos?zona=${equipo.id}`}
+                          className="text-xs text-impulso-600 font-outfit hover:underline"
+                        >
+                          Lista completa →
+                        </Link>
+                      </div>
+                      {cargandoNinosZona === equipo.id ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="animate-spin w-5 h-5 border-2 border-impulso-200 border-t-impulso-500 rounded-full" />
+                        </div>
+                      ) : (ninosPorZona[equipo.id] || []).length === 0 ? (
+                        <p className="text-sm text-neutro-piedra text-center font-outfit py-2">Sin niños en esta zona</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {(ninosPorZona[equipo.id] || []).map(nino => (
+                            <Link
+                              href={`/dashboard/ninos/${nino.id}`}
+                              key={nino.id}
+                              className="flex items-center justify-between px-3 py-2.5 bg-white/60 rounded-2xl text-sm hover:bg-white/90 transition-colors min-h-[44px] border border-white/60"
+                            >
+                              <span className="font-medium text-neutro-carbon font-outfit">{nino.alias}</span>
+                              <span className="text-xs text-neutro-piedra font-outfit">{nino.rango_etario} años</span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Expandable quick links */}
                   {isExpanded && (
