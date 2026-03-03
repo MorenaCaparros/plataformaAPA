@@ -37,7 +37,8 @@ export function createAuthRequest(
     init.body = JSON.stringify(body);
   }
 
-  return new NextRequest(urlObj, init);
+  // Cast necesario: Next.js RequestInit no acepta signal: null del tipo estándar
+  return new NextRequest(urlObj, init as never);
 }
 
 /**
