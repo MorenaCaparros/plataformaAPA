@@ -791,7 +791,7 @@ export default function NuevaSesionPage() {
                                   type="button"
                                   onClick={() => handleItemChange(item.id, escala.valor)}
                                   disabled={isNC}
-                                  className={`py-1.5 min-h-[36px] rounded-xl border-2 font-bold active:scale-95 text-sm transition-all font-quicksand ${
+                                  className={`py-1.5 min-h-[44px] rounded-xl border-2 font-bold active:scale-95 text-sm transition-all font-quicksand ${
                                     isNC
                                       ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-gray-50'
                                       : itemValue === escala.valor
@@ -808,7 +808,7 @@ export default function NuevaSesionPage() {
                               type="button"
                               onClick={() => handleMarkNC(item.id)}
                               title={isNC ? 'Desmarcar N/C' : 'Marcar como No Completó'}
-                              className={`py-1.5 min-h-[36px] w-9 rounded-xl border-2 font-bold active:scale-95 text-[10px] leading-tight transition-all font-outfit flex items-center justify-center ${
+                              className={`py-1.5 min-h-[44px] w-11 rounded-xl border-2 font-bold active:scale-95 text-[10px] leading-tight transition-all font-outfit flex items-center justify-center ${
                                 isNC
                                   ? 'border-gray-400 bg-gray-400 text-white'
                                   : 'border-gray-300 hover:border-gray-400 text-neutro-piedra hover:bg-gray-50 bg-white/80'

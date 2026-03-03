@@ -407,7 +407,7 @@ export default function AsistenciaPage() {
                       <button
                         type="button"
                         onClick={() => { setSeleccion(p => ({ ...p, [nino.id]: 'presente' })); setSaved(false); }}
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
                           estado === 'presente'
                             ? 'bg-crecimiento-500 text-white shadow-md'
                             : 'bg-gray-100 text-gray-400 hover:bg-crecimiento-100 hover:text-crecimiento-600'
@@ -419,7 +419,7 @@ export default function AsistenciaPage() {
                       <button
                         type="button"
                         onClick={() => { setSeleccion(p => ({ ...p, [nino.id]: 'ausente' })); setSaved(false); }}
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-90 ${
                           estado === 'ausente'
                             ? 'bg-impulso-500 text-white shadow-md'
                             : 'bg-gray-100 text-gray-400 hover:bg-impulso-100 hover:text-impulso-600'

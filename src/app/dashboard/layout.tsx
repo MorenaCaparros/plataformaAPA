@@ -16,7 +16,8 @@ export default function DashboardLayout({
         <Sidebar />
 
         {/* Main Content */}
-        <main className="flex-1 p-4 lg:p-6">
+        {/* pt-20 en mobile deja espacio para el botón hamburguesa (fixed top-4 left-4, ~56px de alto) */}
+        <main className="flex-1 px-4 pb-4 pt-20 lg:p-6">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>

@@ -21,12 +21,9 @@ export default defineConfig({
       exclude: [
         'src/lib/supabase/**',
         'src/lib/google/**',
-        'src/lib/contexts/**',
-        'src/lib/db/**',
         'src/lib/pwa/**',
         'src/app/api/drive/**',
         'src/app/api/chat/**',
-        'src/components/dashboard/**',
         'src/components/forms/VoiceRecorder.tsx',
         'src/components/forms/VoiceToText.tsx',
         'src/components/forms/DrawingRecorder.tsx',
@@ -35,10 +32,10 @@ export default defineConfig({
         'src/components/layouts/**',
       ],
       thresholds: {
-        // Umbrales bajos mientras se incrementa cobertura progresivamente
-        lines: 3,
-        functions: 3,
-        branches: 3,
+        // Umbrales incrementales — cubrir al menos lo que ya tenemos
+        lines: 15,
+        functions: 15,
+        branches: 15,
       },
     },
   },

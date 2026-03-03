@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -26,8 +24,10 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data.user) {
-        router.push('/dashboard');
-        router.refresh();
+        // Usamos location.href para forzar una navegación completa (no SPA)
+        // Esto garantiza que las cookies de sesión que setea Supabase estén
+        // disponibles en el primer request al servidor (middleware)
+        window.location.href = '/dashboard';
       }
     } catch (error: any) {
       console.error('Error login:', error);
