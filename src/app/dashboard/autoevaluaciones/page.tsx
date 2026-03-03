@@ -27,6 +27,7 @@ export default function AutoevaluacionesPage() {
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [respuestas, setRespuestas] = useState<RespuestaResumen[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filtroArea, setFiltroArea] = useState<string>('todas');
   const router = useRouter();
   const { perfil } = useAuth();
 
@@ -71,7 +72,8 @@ export default function AutoevaluacionesPage() {
       if (!puedeGestionarPlantillas) {
         const respuestasRes = await supabase
           .from('voluntarios_capacitaciones')
-          .select('id, capacitacion_id, puntaje_final, porcentaje, fecha_completado')
+          .select('id, capacitacion_id, puntaje_final, porcentaje, fecha_completado, estado')
+          .eq('voluntario_id', perfil?.id)
           .order('fecha_completado', { ascending: false });
 
         if (respuestasRes.error) throw respuestasRes.error;
@@ -128,6 +130,10 @@ export default function AutoevaluacionesPage() {
     mixta: 'bg-impulso-100 text-impulso-700',
   };
 
+  // Áreas presentes en las plantillas cargadas
+  const areasPresentes = [...new Set(plantillas.map(p => p.area))];
+  const plantillasFiltradas = filtroArea === 'todas' ? plantillas : plantillas.filter(p => p.area === filtroArea);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -179,16 +185,47 @@ export default function AutoevaluacionesPage() {
           </p>
         </div>
 
+        {/* Filtro por área — solo si hay más de un área distinta */}
+        {areasPresentes.length > 1 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button
+              onClick={() => setFiltroArea('todas')}
+              className={`px-4 py-2 min-h-[40px] rounded-2xl text-sm font-outfit font-medium transition-all touch-manipulation border ${
+                filtroArea === 'todas'
+                  ? 'bg-neutro-carbon text-white border-neutro-carbon shadow-md'
+                  : 'bg-white/70 text-neutro-carbon border-white/60 hover:border-neutro-piedra/40'
+              }`}
+            >
+              Todas ({plantillas.length})
+            </button>
+            {areasPresentes.map(area => (
+              <button
+                key={area}
+                onClick={() => setFiltroArea(area)}
+                className={`px-4 py-2 min-h-[40px] rounded-2xl text-sm font-outfit font-medium transition-all touch-manipulation border ${
+                  filtroArea === area
+                    ? 'bg-neutro-carbon text-white border-neutro-carbon shadow-md'
+                    : 'bg-white/70 text-neutro-carbon border-white/60 hover:border-neutro-piedra/40'
+                }`}
+              >
+                {areaLabels[area] || area} ({plantillas.filter(p => p.area === area).length})
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Grid de plantillas */}
-        {plantillas.length === 0 ? (
+        {plantillasFiltradas.length === 0 ? (
           <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_8px_32px_rgba(242,201,76,0.1)] p-8 text-center">
             <p className="text-sol-700 font-outfit">
-              No hay autoevaluaciones disponibles en este momento.
+              {plantillas.length === 0
+                ? 'No hay autoevaluaciones disponibles en este momento.'
+                : 'No hay autoevaluaciones en esta área.'}
             </p>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-            {plantillas.map((plantilla) => {
+            {plantillasFiltradas.map((plantilla) => {
               const stats = !puedeGestionarPlantillas ? getPlantillaStats(plantilla.id) : null;
               
               return (
@@ -280,11 +317,14 @@ export default function AutoevaluacionesPage() {
                       Ver plantillas →
                     </Link>
                   ) : stats?.pendienteRevision ? (
-                    // Pendiente revisión manual — no puede reiniciar
-                    <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-neutro-nube border border-neutro-piedra/20 text-neutro-piedra rounded-2xl text-sm font-outfit font-medium cursor-not-allowed">
-                      <span>⏳</span>
-                      <span>Esperando revisión del equipo</span>
-                    </div>
+                    // Pendiente revisión manual — puede reiniciar igual (será advertido en la siguiente pantalla)
+                    <Link
+                      href={`/dashboard/autoevaluaciones/mis-respuestas/completar/${plantilla.id}`}
+                      className="w-full flex items-center justify-between text-sm px-4 py-3 bg-sol-50 border border-sol-200/40 text-sol-700 rounded-2xl hover:bg-sol-100 transition-all font-outfit font-semibold active:scale-95"
+                    >
+                      <span>⏳ Pendiente de revisión</span>
+                      <span>Nuevo intento →</span>
+                    </Link>
                   ) : (
                     <Link
                       href={`/dashboard/autoevaluaciones/mis-respuestas/completar/${plantilla.id}`}

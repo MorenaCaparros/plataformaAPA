@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { ArrowLeft, Plus, Trash2, CheckCircle2, X, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -109,6 +110,7 @@ const AREAS_PREGUNTA = [
 
 export default function CrearPlantillaPage() {
   const router = useRouter();
+  const { perfil } = useAuth();
   const [titulo, setTitulo] = useState('');
   const [area, setArea] = useState('lenguaje');
   const [descripcion, setDescripcion] = useState('');
@@ -237,6 +239,7 @@ export default function CrearPlantillaPage() {
           es_obligatoria: true,
           puntaje_minimo_aprobacion: 70,
           activa: true,
+          creado_por: perfil?.id ?? null,
         })
         .select()
         .single();
@@ -264,8 +267,7 @@ export default function CrearPlantillaPage() {
           .single();
 
         if (pregError) {
-          console.error(`Error al crear pregunta ${i}:`, pregError);
-          continue;
+          throw new Error(`Error al crear pregunta ${i + 1}: ${pregError.message}`);
         }
 
         if ((p.tipo === 'multiple_choice' || p.tipo === 'respuesta_imagen') && preguntaDB && p.opciones.length > 0) {
@@ -275,7 +277,10 @@ export default function CrearPlantillaPage() {
             texto_opcion: op.texto_opcion.trim(),
             es_correcta: op.es_correcta,
           }));
-          await supabase.from('opciones_pregunta').insert(opInserts);
+          const { error: opError } = await supabase.from('opciones_pregunta').insert(opInserts);
+          if (opError) {
+            throw new Error(`Error al crear opciones de pregunta ${i + 1}: ${opError.message}`);
+          }
         }
       }
 

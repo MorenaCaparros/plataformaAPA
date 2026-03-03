@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -14,6 +14,8 @@ import {
   X, History, MapPin
 } from 'lucide-react';
 import type { Nino, NinoSensible, Zona, Escuela, Perfil, FamiliarApoyo } from '@/types/database';
+import FamiliarCard from '@/components/dashboard/FamiliarCard';
+import GrabacionCard, { type GrabacionReunion } from '@/components/dashboard/GrabacionCard';
 
 // ─── Helper: Drive URL → thumbnail URL for <img> tags ────────
 function getDriveImageUrl(url: string | null): string | null {
@@ -60,15 +62,7 @@ interface NotaBitacora {
   autor_nombre: string;
 }
 
-interface GrabacionReunion {
-  id: string;
-  storage_path: string;
-  transcripcion: string | null;
-  duracion_segundos: number | null;
-  fecha_grabacion: string;
-  entrevista_conclusiones: string | null;
-  autor_nombre: string;
-}
+// GrabacionReunion → re-exported desde @/components/dashboard/GrabacionCard
 
 const TIPOS_PROFESIONAL_SALUD = [
   { value: 'psicologo_psicopedagogo', label: 'Psicólogo / Psicopedagogo' },
@@ -140,6 +134,20 @@ export default function NinoPerfilPage() {
   const [exitoSalud, setExitoSalud] = useState(false);
   const [editandoSalud, setEditandoSalud] = useState(false); // false = vista, true = formulario
   const [tieneEvaluacionInicial, setTieneEvaluacionInicial] = useState<boolean | null>(null);
+  // Datos adicionales visibles para voluntarios (cargados desde API route)
+  const [saludBasica, setSaludBasica] = useState<{
+    alergias: string | null;
+    medicacion_habitual: string | null;
+    usa_lentes: boolean;
+    usa_audifono: boolean;
+    requiere_acompanamiento_especial: boolean;
+  } | null>(null);
+  const [contactoPrincipal, setContactoPrincipal] = useState<{
+    tipo: string;
+    nombre: string;
+    telefono: string | null;
+    relacion: string | null;
+  } | null>(null);
 
   // ─── Modo edición inline ───────────────────────────────────
   const [modoEdicion, setModoEdicion] = useState(false);
@@ -204,6 +212,8 @@ export default function NinoPerfilPage() {
         if (!res.ok) throw new Error(`No se pudo cargar el niño (${res.status})`);
         const json = await res.json();
         ninoCompleto = json.nino as NinoCompleto;
+        if (json.salud_basica) setSaludBasica(json.salud_basica);
+        if (json.contacto_principal) setContactoPrincipal(json.contacto_principal);
       } else {
         const selectFields = tieneAccesoCompleto
           ? `*, zonas(id, nombre), escuelas(id, nombre), ninos_sensibles(*)`
@@ -1528,6 +1538,128 @@ export default function NinoPerfilPage() {
           </div>
         )}
 
+        {/* ═══ Información útil para voluntarios ═══ */}
+        {isVoluntario && (nino.escuelas || nino.grado_escolar || saludBasica || contactoPrincipal || tieneEvaluacionInicial !== null) && (
+          <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 space-y-5">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Info className="w-5 h-5 text-crecimiento-500" />
+              Información del Niño
+            </h2>
+
+            {/* Escolarización */}
+            {(nino.escuelas || nino.grado_escolar || nino.escolarizado !== undefined) && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <GraduationCap className="w-4 h-4" />
+                  Escolarización
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">¿Va a la escuela?</p>
+                    <p className="font-medium text-gray-900">{nino.escolarizado ? 'Sí' : 'No'}</p>
+                  </div>
+                  {nino.escuelas && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-0.5">Escuela</p>
+                      <p className="font-medium text-gray-900">{nino.escuelas.nombre}</p>
+                    </div>
+                  )}
+                  {nino.grado_escolar && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-0.5">Grado</p>
+                      <p className="font-medium text-gray-900">{nino.grado_escolar}</p>
+                    </div>
+                  )}
+                  {nino.turno_escolar && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-0.5">Turno</p>
+                      <p className="font-medium text-gray-900 capitalize">{nino.turno_escolar}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Alergias y datos de salud básicos */}
+            {saludBasica && (saludBasica.alergias || saludBasica.medicacion_habitual || saludBasica.usa_lentes || saludBasica.usa_audifono || saludBasica.requiere_acompanamiento_especial) && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <Stethoscope className="w-4 h-4" />
+                  Salud — Información Básica
+                </p>
+                <div className="p-3 bg-red-50 border border-red-100 rounded-lg space-y-1.5 text-sm">
+                  {saludBasica.alergias && (
+                    <p>
+                      <span className="font-semibold text-red-700">⚠️ Alergias: </span>
+                      <span className="text-gray-800">{saludBasica.alergias}</span>
+                    </p>
+                  )}
+                  {saludBasica.medicacion_habitual && (
+                    <p>
+                      <span className="font-semibold text-gray-700">💊 Medicación: </span>
+                      <span className="text-gray-800">{saludBasica.medicacion_habitual}</span>
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-0.5">
+                    {saludBasica.usa_lentes && (
+                      <span className="px-2 py-0.5 bg-white border border-gray-200 rounded-full text-xs text-gray-700">👓 Usa lentes</span>
+                    )}
+                    {saludBasica.usa_audifono && (
+                      <span className="px-2 py-0.5 bg-white border border-gray-200 rounded-full text-xs text-gray-700">🔊 Usa audífono</span>
+                    )}
+                    {saludBasica.requiere_acompanamiento_especial && (
+                      <span className="px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-700 font-medium">⚡ Requiere acomp. especial</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Contacto de emergencia */}
+            {contactoPrincipal && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <Phone className="w-4 h-4" />
+                  Contacto de Emergencia
+                </p>
+                <div className="p-3 bg-crecimiento-50 border border-crecimiento-100 rounded-lg text-sm">
+                  <p className="font-medium text-gray-900">
+                    {contactoPrincipal.nombre}
+                    <span className="text-xs text-gray-500 font-normal ml-1.5">
+                      ({contactoPrincipal.relacion || contactoPrincipal.tipo})
+                    </span>
+                  </p>
+                  {contactoPrincipal.telefono && (
+                    <a
+                      href={`tel:${contactoPrincipal.telefono}`}
+                      className="flex items-center gap-1.5 text-crecimiento-700 font-medium mt-1.5 hover:underline touch-manipulation"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      {contactoPrincipal.telefono}
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Evaluación psicopedagógica */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <ClipboardList className="w-4 h-4" />
+                Evaluación Psicopedagógica
+              </p>
+              {tieneEvaluacionInicial ? (
+                <p className="text-sm text-crecimiento-700 flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4" />
+                  Evaluación inicial registrada
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400 italic">Sin evaluación inicial registrada</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ═══ Datos sensibles (solo psico/director/admin) ═══ */}
         {tieneAccesoCompleto && nino.ninos_sensibles && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-md p-4 sm:p-6">
@@ -2135,7 +2267,6 @@ export default function NinoPerfilPage() {
                 <GrabacionCard
                   key={grabacion.id}
                   grabacion={grabacion}
-                  ninoId={ninoId}
                   formatearFecha={formatearFecha}
                 />
               ))}
@@ -2313,383 +2444,4 @@ export default function NinoPerfilPage() {
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────
-
-const familiarInputClass =
-  'w-full px-4 py-2.5 bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl focus:ring-2 focus:ring-sol-400 focus:border-transparent text-neutro-carbon font-outfit shadow-[0_2px_8px_rgba(242,201,76,0.08)] min-h-[44px] placeholder:text-neutro-piedra/60 transition-all text-sm';
-const familiarLabelClass = 'block text-xs font-medium text-neutro-piedra font-outfit mb-1';
-
-const tipoFamiliarColors: Record<string, string> = {
-  madre: 'bg-sol-50 border-sol-200/60',
-  padre: 'bg-crecimiento-50 border-crecimiento-200/60',
-  tutor: 'bg-sol-50 border-sol-300/60',
-  referente_escolar: 'bg-crecimiento-50 border-crecimiento-300/60',
-  otro: 'bg-sol-50/60 border-sol-200/40',
-};
-
-function FamiliarCard({
-  label,
-  tipo,
-  familiar,
-  icon,
-  editandoId,
-  editForm,
-  onEditar,
-  onAgregar,
-  onCancelar,
-  onGuardar,
-  guardando,
-  onChangeForm,
-}: {
-  label: string;
-  tipo: string;
-  familiar: FamiliarApoyo | undefined;
-  icon: string;
-  editandoId: string | null;
-  editForm: Partial<FamiliarApoyo>;
-  onEditar: (f: FamiliarApoyo) => void;
-  onAgregar: (tipo: string) => void;
-  onCancelar: () => void;
-  onGuardar: () => void;
-  guardando: boolean;
-  onChangeForm: (form: Partial<FamiliarApoyo>) => void;
-}) {
-  const esteEditando = familiar ? editandoId === familiar.id : false;
-  const esteCreando = !familiar && editandoId === `__nuevo__${tipo}`;
-  const colorClass = tipoFamiliarColors[tipo] || tipoFamiliarColors.otro;
-
-  // ── Formulario compartido (crear o editar) ──────────────
-  if (esteCreando || esteEditando) {
-    return (
-      <div className={`rounded-2xl border p-4 sm:p-5 space-y-3 transition-all ${colorClass}`}>
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{icon}</span>
-            <div>
-              <p className="text-sm font-semibold text-neutro-carbon font-outfit">{label}</p>
-              {esteCreando && (
-                <p className="text-xs text-neutro-piedra font-outfit">Nuevo registro</p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={onCancelar}
-            className="p-2 text-neutro-piedra hover:text-impulso-500 transition-colors rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center"
-            title="Cancelar"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Nombre + Teléfono */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className={familiarLabelClass}>Nombre</label>
-            <input
-              type="text"
-              value={editForm.nombre || ''}
-              onChange={(e) => onChangeForm({ ...editForm, nombre: e.target.value })}
-              placeholder={`Nombre del/la ${label.toLowerCase()}`}
-              autoFocus={esteCreando}
-              className={familiarInputClass}
-            />
-          </div>
-          <div>
-            <label className={familiarLabelClass}>
-              <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> Teléfono</span>
-            </label>
-            <input
-              type="tel"
-              value={editForm.telefono || ''}
-              onChange={(e) => onChangeForm({ ...editForm, telefono: e.target.value })}
-              placeholder="Ej: 11-2345-6789"
-              className={familiarInputClass}
-            />
-          </div>
-        </div>
-
-        {/* Email + Relación (solo para "otro") */}
-        <div className={`grid grid-cols-1 gap-3 ${tipo === 'otro' ? 'sm:grid-cols-2' : ''}`}>
-          <div>
-            <label className={familiarLabelClass}>Email (opcional)</label>
-            <input
-              type="email"
-              value={editForm.email || ''}
-              onChange={(e) => onChangeForm({ ...editForm, email: e.target.value })}
-              placeholder="email@ejemplo.com"
-              className={familiarInputClass}
-            />
-          </div>
-          {tipo === 'otro' && (
-            <div>
-              <label className={familiarLabelClass}>¿Qué es para el niño?</label>
-              <input
-                type="text"
-                value={editForm.relacion || ''}
-                onChange={(e) => onChangeForm({ ...editForm, relacion: e.target.value })}
-                placeholder="Ej: Tío, vecino, padrino..."
-                className={familiarInputClass}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Notas */}
-        <div>
-          <label className={familiarLabelClass}>Notas (opcional)</label>
-          <input
-            type="text"
-            value={editForm.notas || ''}
-            onChange={(e) => onChangeForm({ ...editForm, notas: e.target.value })}
-            placeholder="Observaciones adicionales"
-            className={familiarInputClass}
-          />
-        </div>
-
-        {/* Checkboxes */}
-        <div className="flex items-center gap-4 pb-1">
-          <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
-            <input
-              type="checkbox"
-              checked={editForm.vive_con_nino ?? false}
-              onChange={(e) => onChangeForm({ ...editForm, vive_con_nino: e.target.checked })}
-              className="w-4 h-4 rounded text-crecimiento-500 focus:ring-crecimiento-400"
-            />
-            Vive con el niño
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer text-sm font-outfit text-neutro-carbon min-h-[44px]">
-            <input
-              type="checkbox"
-              checked={editForm.es_contacto_principal ?? false}
-              onChange={(e) => onChangeForm({ ...editForm, es_contacto_principal: e.target.checked })}
-              className="w-4 h-4 rounded text-sol-500 focus:ring-sol-400"
-            />
-            Contacto principal
-          </label>
-        </div>
-
-        {/* Acciones */}
-        <div className="flex items-center gap-2 pt-1 border-t border-white/60">
-          <button
-            onClick={onGuardar}
-            disabled={guardando || (!editForm.nombre?.trim() && esteCreando)}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-crecimiento-400 to-crecimiento-500 hover:shadow-lg disabled:opacity-50 text-white rounded-2xl text-sm font-semibold font-outfit transition-all min-h-[44px]"
-          >
-            {guardando ? (
-              <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-            ) : (
-              <Save className="w-3.5 h-3.5" />
-            )}
-            {esteCreando ? 'Agregar' : 'Guardar cambios'}
-          </button>
-          <button
-            onClick={onCancelar}
-            className="px-4 py-2.5 rounded-2xl bg-white/80 border border-white/60 text-neutro-carbon font-outfit text-sm hover:shadow-md transition-all min-h-[44px]"
-          >
-            Cancelar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Sin datos registrados ───────────────────────────────
-  if (!familiar) {
-    return (
-      <div className={`rounded-2xl border border-dashed p-4 flex items-center justify-between gap-3 group ${colorClass}`}>
-        <div className="flex items-center gap-3">
-          <span className="text-xl">{icon}</span>
-          <div>
-            <p className="text-sm font-semibold text-neutro-carbon/50 font-outfit">{label}</p>
-            <p className="text-xs text-neutro-piedra/60 italic font-outfit">Sin datos registrados</p>
-          </div>
-        </div>
-        <button
-          onClick={() => onAgregar(tipo)}
-          className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-white/80 border border-white/60 text-sm font-outfit text-neutro-carbon hover:shadow-md transition-all min-h-[44px] opacity-0 group-hover:opacity-100 focus:opacity-100"
-          title={`Agregar ${label.toLowerCase()}`}
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Agregar
-        </button>
-      </div>
-    );
-  }
-
-  // ── Vista: datos existentes ─────────────────────────────
-  return (
-    <div className={`rounded-2xl border p-4 sm:p-5 group transition-all ${colorClass}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="text-xl mt-0.5">{icon}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-neutro-carbon font-outfit">
-              {familiar.nombre}
-              {familiar.es_contacto_principal && (
-                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 bg-sol-100 text-sol-700 rounded-full text-xs font-medium">
-                  ⭐ Principal
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-neutro-piedra font-outfit">
-              {label}{tipo === 'otro' && familiar.relacion ? ` — ${familiar.relacion}` : ''}
-            </p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-neutro-piedra font-outfit">
-              {familiar.telefono && (
-                <span className="inline-flex items-center gap-1">
-                  <Phone className="w-3 h-3" /> {familiar.telefono}
-                </span>
-              )}
-              {familiar.email && (
-                <span className="inline-flex items-center gap-1">
-                  📧 {familiar.email}
-                </span>
-              )}
-              {familiar.vive_con_nino && (
-                <span className="inline-flex items-center gap-1 text-crecimiento-600 font-medium">
-                  🏠 Vive con el niño
-                </span>
-              )}
-            </div>
-            {familiar.notas && (
-              <p className="text-xs text-neutro-piedra/70 mt-1.5 italic font-outfit">{familiar.notas}</p>
-            )}
-          </div>
-        </div>
-        <button
-          onClick={() => onEditar(familiar)}
-          className="flex-shrink-0 p-2 text-neutro-piedra hover:text-sol-600 hover:bg-white/80 rounded-xl transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
-          title={`Editar ${label.toLowerCase()}`}
-        >
-          <Pencil className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Grabacion Card ──────────────────────────────────────────
-
-function GrabacionCard({
-  grabacion,
-  ninoId,
-  formatearFecha,
-}: {
-  grabacion: GrabacionReunion;
-  ninoId: string;
-  formatearFecha: (fecha: string) => string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
-
-  const formatDuracion = (seg: number | null) => {
-    if (!seg) return '';
-    const min = Math.floor(seg / 60);
-    const s = seg % 60;
-    return `${min}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const handlePlayAudio = async () => {
-    if (audioUrl) return;
-    setLoadingAudio(true);
-    try {
-      const path = grabacion.storage_path;
-      // If the stored path is already a full URL (Drive link), use it directly
-      if (path?.startsWith('http')) {
-        setAudioUrl(path);
-      }
-      // Otherwise it's a legacy Supabase storage path — no longer supported
-      // (old audios before Drive migration won't play)
-    } catch (err) {
-      console.error('Error getting audio URL:', err);
-    } finally {
-      setLoadingAudio(false);
-    }
-  };
-
-  const resumenIA = grabacion.entrevista_conclusiones?.includes('--- Resumen generado por IA ---')
-    ? grabacion.entrevista_conclusiones.split('--- Resumen generado por IA ---')[1]?.split('---')[0]?.trim()
-    : grabacion.entrevista_conclusiones;
-
-  return (
-    <div className="border border-impulso-100 rounded-xl overflow-hidden bg-impulso-50/30">
-      <button
-        type="button"
-        onClick={() => {
-          setExpanded(!expanded);
-          if (!expanded) handlePlayAudio();
-        }}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-impulso-50/60 transition-colors text-left"
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-impulso-100 rounded-lg">
-            <Mic className="w-4 h-4 text-impulso-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-900">
-              Reunión de ingreso
-              {grabacion.duracion_segundos && (
-                <span className="text-gray-500 font-normal ml-2">
-                  ({formatDuracion(grabacion.duracion_segundos)})
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-gray-500">
-              {formatearFecha(grabacion.fecha_grabacion.split('T')[0])} · {grabacion.autor_nombre}
-            </p>
-          </div>
-        </div>
-        {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-impulso-100">
-          <div className="pt-3">
-            {loadingAudio ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-impulso-400 border-t-transparent" />
-                Cargando audio...
-              </div>
-            ) : audioUrl ? (
-              <div className="flex items-center gap-2 bg-white rounded-lg p-2">
-                <Volume2 className="w-4 h-4 text-gray-400 shrink-0" />
-                <audio src={audioUrl} controls className="w-full" style={{ maxHeight: '40px' }} />
-              </div>
-            ) : (
-              <button
-                onClick={handlePlayAudio}
-                className="flex items-center gap-2 text-sm text-impulso-600 hover:text-impulso-700 font-medium"
-              >
-                <Volume2 className="w-4 h-4" /> Cargar audio
-              </button>
-            )}
-          </div>
-
-          {resumenIA && (
-            <div className="bg-sol-50 rounded-lg p-3 border border-sol-100">
-              <p className="text-xs font-semibold text-sol-700 mb-1 flex items-center gap-1">
-                ✨ Resumen de la reunión
-              </p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{resumenIA}</p>
-            </div>
-          )}
-
-          {grabacion.transcripcion && (
-            <div>
-              <p className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-1">
-                <FileText className="w-3 h-3" /> Transcripción
-              </p>
-              <div className="bg-white rounded-lg p-3 border border-gray-100 max-h-60 overflow-y-auto">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {grabacion.transcripcion}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+// ─── Sub-components: extraídos a src/components/dashboard/ ───

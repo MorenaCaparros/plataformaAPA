@@ -33,6 +33,7 @@ function MisNinosPageContent() {
   const [filtroZona, setFiltroZona] = useState<string>(zonaParam || 'todas');
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
   const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
+  const [pagina, setPagina] = useState(1);
 
   // Determinar si el usuario tiene acceso completo (ve datos sensibles)
   const rolesConAccesoCompleto = ['psicopedagogia', 'director', 'admin', 'coordinador', 'trabajador_social', 'trabajadora_social', 'equipo_profesional'];
@@ -58,6 +59,11 @@ function MisNinosPageContent() {
       setFiltroZona(zonaParam);
     }
   }, [zonaParam]);
+
+  // Resetear página cuando cambian los filtros
+  useEffect(() => {
+    setPagina(1);
+  }, [filtroZona, filtroBusqueda]);
 
   // Detect active session timer
   useEffect(() => {
@@ -253,6 +259,14 @@ function MisNinosPageContent() {
     return true;
   });
 
+  // Ordenar alfabéticamente por alias y paginar
+  const ninosFiltradosOrdenados = [...ninosFiltrados].sort((a, b) =>
+    a.alias.localeCompare(b.alias, 'es', { sensitivity: 'base' })
+  );
+  const PAGE_SIZE = 20;
+  const totalPaginas = Math.ceil(ninosFiltradosOrdenados.length / PAGE_SIZE);
+  const ninosPagina = ninosFiltradosOrdenados.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE);
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -360,10 +374,14 @@ function MisNinosPageContent() {
         </div>
 
         {/* Contador de resultados */}
-        {(filtroZona !== 'todas' || filtroBusqueda) && (
-          <div className="mb-4 px-4 py-2 bg-sol-50/50 backdrop-blur-sm border border-sol-200/30 rounded-2xl inline-block">
+        {ninos.length > 0 && (
+          <div className="mb-4 px-4 py-2 bg-sol-50/50 backdrop-blur-sm border border-sol-200/30 rounded-2xl inline-flex items-center">
             <span className="text-sm text-neutro-piedra font-outfit">
-              Mostrando <span className="font-semibold text-neutro-carbon">{ninosFiltrados.length}</span> de <span className="font-semibold text-neutro-carbon">{ninos.length}</span> niños
+              {ninosFiltradosOrdenados.length < ninos.length
+                ? <><span className="font-semibold text-neutro-carbon">{ninosFiltradosOrdenados.length}</span> de <span className="font-semibold text-neutro-carbon">{ninos.length}</span> niños</>
+                : <><span className="font-semibold text-neutro-carbon">{ninos.length}</span> niños</>
+              }
+              {totalPaginas > 1 && <span className="ml-2 text-neutro-piedra/70">· pág. {pagina}/{totalPaginas}</span>}
             </span>
           </div>
         )}
@@ -403,7 +421,7 @@ function MisNinosPageContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {ninosFiltrados.map((nino) => (
+            {ninosPagina.map((nino) => (
               <div
                 key={nino.id}
                 className="group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-6 transition-all duration-300 shadow-[0_8px_32px_-8px_rgba(230,57,70,0.12)] hover:shadow-[0_16px_48px_-8px_rgba(230,57,70,0.2)] hover:-translate-y-1"
@@ -492,6 +510,29 @@ function MisNinosPageContent() {
               </div>
             ))}
           </div>
+
+          {/* Paginación */}
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-8">
+              <button
+                onClick={() => { setPagina(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={pagina === 1}
+                className="px-5 py-2.5 min-h-[44px] rounded-2xl bg-white/70 backdrop-blur-sm border border-white/60 text-neutro-carbon font-outfit font-medium text-sm hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              >
+                ← Anterior
+              </button>
+              <span className="text-sm text-neutro-carbon font-outfit">
+                <span className="font-bold">{pagina}</span> / <span className="font-bold">{totalPaginas}</span>
+              </span>
+              <button
+                onClick={() => { setPagina(p => Math.min(totalPaginas, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={pagina === totalPaginas}
+                className="px-5 py-2.5 min-h-[44px] rounded-2xl bg-white/70 backdrop-blur-sm border border-white/60 text-neutro-carbon font-outfit font-medium text-sm hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all disabled:opacity-40 disabled:cursor-not-allowed touch-manipulation"
+              >
+                Siguiente →
+              </button>
+            </div>
+          )}
         )}
       </main>
     </div>
