@@ -78,9 +78,11 @@ jobs:
       - name: Upload coverage a Codecov (opcional)
         uses: codecov/codecov-action@v4
         if: always()
+        continue-on-error: true
         with:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   # ──────────────────────────────────────────────────────────
   # JOB 2: Build check (verifica que el proyecto compila)
