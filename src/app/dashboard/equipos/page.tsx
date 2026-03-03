@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import Link from 'next/link';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Plus, X, Users, Baby, ChevronDown, ChevronUp, Check, Search } from 'lucide-react';
+import { Plus, X, Users, Baby, ChevronDown, ChevronUp, Check, Search, Pencil, Trash2 } from 'lucide-react';
 
 interface Equipo {
   id: string;
@@ -44,6 +44,17 @@ export default function EquiposPage() {
   const [busquedaVol, setBusquedaVol] = useState('');
   const [guardandoAsignacion, setGuardandoAsignacion] = useState(false);
   const [expandedZona, setExpandedZona] = useState<string | null>(null);
+
+  // ─── Editar zona ─────────────────────────────────────────────────────────
+  const [zonaEditando, setZonaEditando] = useState<Equipo | null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [errorEdit, setErrorEdit] = useState('');
+
+  // ─── Eliminar zona ────────────────────────────────────────────────────────
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [guardandoDelete, setGuardandoDelete] = useState(false);
 
   const puedeGestionar = perfil && ROLES_PUEDEN_GESTIONAR.includes(perfil.rol);
 
@@ -124,6 +135,49 @@ export default function EquiposPage() {
       setErrorZona(err.message || 'Error al crear la zona');
     } finally {
       setGuardandoZona(false);
+    }
+  };
+
+  // ─── Editar zona ─────────────────────────────────────────────────────────
+  const handleEditarZona = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!zonaEditando || !editNombre.trim()) return;
+    setGuardandoEdit(true);
+    setErrorEdit('');
+    try {
+      const { error } = await supabase
+        .from('zonas')
+        .update({ nombre: editNombre.trim(), descripcion: editDesc.trim() || null })
+        .eq('id', zonaEditando.id);
+      if (error) throw error;
+      setZonaEditando(null);
+      await fetchEquipos();
+    } catch (err: any) {
+      setErrorEdit(err.message || 'Error al guardar los cambios');
+    } finally {
+      setGuardandoEdit(false);
+    }
+  };
+
+  // ─── Eliminar zona ────────────────────────────────────────────────────────
+  const handleEliminarZona = async () => {
+    if (!confirmDeleteId) return;
+    const zona = equipos.find(e => e.id === confirmDeleteId);
+    if (zona && (zona.total_ninos > 0 || zona.total_voluntarios > 0)) {
+      alert('No se puede eliminar una zona con niños o voluntarios asignados. Primero reasignálos.');
+      setConfirmDeleteId(null);
+      return;
+    }
+    setGuardandoDelete(true);
+    try {
+      const { error } = await supabase.from('zonas').delete().eq('id', confirmDeleteId);
+      if (error) throw error;
+      setConfirmDeleteId(null);
+      await fetchEquipos();
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar la zona');
+    } finally {
+      setGuardandoDelete(false);
     }
   };
 
@@ -361,6 +415,94 @@ export default function EquiposPage() {
         </div>
       )}
 
+      {/* Modal Editar Zona */}
+      {zonaEditando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h3 className="font-bold text-neutro-carbon font-quicksand text-lg">✏️ Editar Zona</h3>
+              <button onClick={() => setZonaEditando(null)} className="p-2 hover:bg-neutro-lienzo rounded-xl transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleEditarZona} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutro-carbon mb-1.5 font-outfit">Nombre *</label>
+                <input
+                  type="text"
+                  value={editNombre}
+                  onChange={e => setEditNombre(e.target.value)}
+                  className="w-full px-4 py-3 border border-neutro-piedra/20 rounded-2xl font-outfit text-sm focus:ring-2 focus:ring-crecimiento-300 focus:border-crecimiento-400 outline-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutro-carbon mb-1.5 font-outfit">
+                  Descripción <span className="text-neutro-piedra font-normal">(opcional)</span>
+                </label>
+                <textarea
+                  value={editDesc}
+                  onChange={e => setEditDesc(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-3 border border-neutro-piedra/20 rounded-2xl font-outfit text-sm focus:ring-2 focus:ring-crecimiento-300 focus:border-crecimiento-400 outline-none resize-none"
+                />
+              </div>
+              {errorEdit && (
+                <p className="text-sm text-impulso-700 bg-impulso-50 px-3 py-2 rounded-xl font-outfit">❌ {errorEdit}</p>
+              )}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setZonaEditando(null)} disabled={guardandoEdit}
+                  className="flex-1 px-4 py-3 border border-neutro-piedra/20 text-neutro-carbon rounded-2xl font-outfit font-medium text-sm hover:bg-neutro-lienzo transition-colors disabled:opacity-50 min-h-[48px]">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={guardandoEdit || !editNombre.trim()}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-2xl font-outfit font-semibold text-sm hover:shadow-[0_8px_24px_rgba(164,198,57,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px]">
+                  {guardandoEdit ? '⏳ Guardando...' : '✔ Guardar cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmar eliminar */}
+      {confirmDeleteId && (() => {
+        const zona = equipos.find(e => e.id === confirmDeleteId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center">
+              <div className="w-16 h-16 bg-impulso-50 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-7 h-7 text-impulso-500" />
+              </div>
+              <h3 className="font-bold text-neutro-carbon font-quicksand text-lg mb-2">¿Eliminar zona?</h3>
+              <p className="text-sm text-neutro-piedra font-outfit mb-1">
+                <span className="font-semibold text-neutro-carbon">{zona?.nombre}</span>
+              </p>
+              {(zona?.total_ninos ?? 0) > 0 || (zona?.total_voluntarios ?? 0) > 0 ? (
+                <p className="text-sm text-impulso-600 font-outfit bg-impulso-50 rounded-xl px-3 py-2 mt-2 mb-4">
+                  ⚠️ Esta zona tiene {zona?.total_ninos} niño(s) y {zona?.total_voluntarios} voluntario(s).
+                  Reasignálos antes de eliminarla.
+                </p>
+              ) : (
+                <p className="text-sm text-neutro-piedra font-outfit mt-1 mb-4">Esta acción no se puede deshacer.</p>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmDeleteId(null)} disabled={guardandoDelete}
+                  className="flex-1 px-4 py-3 border border-neutro-piedra/20 text-neutro-carbon rounded-2xl font-outfit font-medium text-sm hover:bg-neutro-lienzo transition-colors disabled:opacity-50 min-h-[48px]">
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleEliminarZona}
+                  disabled={guardandoDelete || (zona?.total_ninos ?? 0) > 0 || (zona?.total_voluntarios ?? 0) > 0}
+                  className="flex-1 px-4 py-3 bg-impulso-500 text-white rounded-2xl font-outfit font-semibold text-sm hover:bg-impulso-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-h-[48px]">
+                  {guardandoDelete ? '⏳ Eliminando...' : '🗑️ Eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Navbar flotante */}
       <nav className="sticky top-0 z-30 mb-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
@@ -424,7 +566,27 @@ export default function EquiposPage() {
                           <p className="text-sm text-neutro-piedra font-outfit line-clamp-2">{equipo.descripcion}</p>
                         )}
                       </div>
-                      <div className="text-3xl ml-3 flex-shrink-0">🏘️</div>
+                      <div className="flex items-center gap-1 ml-3 flex-shrink-0">
+                        {puedeGestionar && (
+                          <>
+                            <button
+                              onClick={() => { setZonaEditando(equipo); setEditNombre(equipo.nombre); setEditDesc(equipo.descripcion || ''); setErrorEdit(''); }}
+                              className="p-2 rounded-xl hover:bg-sol-50 text-neutro-piedra hover:text-sol-600 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                              title="Editar zona"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(equipo.id)}
+                              className="p-2 rounded-xl hover:bg-impulso-50 text-neutro-piedra hover:text-impulso-500 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                              title="Eliminar zona"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <span className="text-3xl ml-1">🏘️</span>
+                      </div>
                     </div>
 
                     {/* Stats */}
