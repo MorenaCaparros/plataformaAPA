@@ -1,8 +1,14 @@
 // Integración con Google Drive para la Biblioteca
 
-import { google } from 'googleapis';
+import { createDriveUploadClient } from './drive-auth';
 
-// Tipos de archivos soportados
+// Re-exportar como createDriveClient para compatibilidad con el resto del código.
+// Usa OAuth2 si está configurado, Service Account como fallback.
+// IMPORTANTE: debe ser el mismo cliente que el upload para que appProperties
+// (tags, descripción) escritos en la subida sean visibles al leer.
+export function createDriveClient() {
+  return createDriveUploadClient();
+}
 export const SUPPORTED_MIME_TYPES = {
   pdf: 'application/pdf',
   doc: 'application/msword',
@@ -39,52 +45,6 @@ export interface DriveFolder {
   name: string;
 }
 
-/**
- * Crea cliente de Google Drive con Service Account
- * Requiere que la carpeta de Drive esté compartida con el email del service account
- */
-export function createDriveClient() {
-  // Limpiar la private key de posibles caracteres extra (comillas, comas)
-  let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '';
-  
-  // Primero remover coma al final si existe (error común de copiar JSON)
-  privateKey = privateKey.trim();
-  if (privateKey.endsWith(',')) {
-    privateKey = privateKey.slice(0, -1);
-  }
-  
-  // Remover comillas al inicio y final si existen
-  if (privateKey.startsWith('"')) {
-    privateKey = privateKey.slice(1);
-  }
-  if (privateKey.endsWith('"')) {
-    privateKey = privateKey.slice(0, -1);
-  }
-  
-  // Reemplazar \n literal por saltos de línea reales
-  privateKey = privateKey.replace(/\\n/g, '\n');
-  
-  const credentials = {
-    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: privateKey,
-  };
-
-  if (!credentials.client_email || !credentials.private_key) {
-    throw new Error('Credenciales de Google Service Account no configuradas');
-  }
-
-  const auth = new google.auth.JWT({
-    email: credentials.client_email,
-    key: credentials.private_key,
-    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  });
-
-  return google.drive({ version: 'v3', auth });
-}
-
-/**
- * Lista archivos de una carpeta de Google Drive (excluye carpetas)
- */
 export async function listDriveFiles(folderId?: string): Promise<DriveFile[]> {
   const drive = createDriveClient();
   
