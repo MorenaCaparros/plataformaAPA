@@ -48,9 +48,12 @@ function UsuariosPageContent() {
   const [filtroRol, setFiltroRol] = useState<string>('todos');
   const [filtroZona, setFiltroZona] = useState<string>(zonaParam || 'todas');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
+  const [filtroCapacitacion, setFiltroCapacitacion] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
   const [vistaCards, setVistaCards] = useState(true);
   const [perfilExpandido, setPerfilExpandido] = useState<string | null>(null);
+  // Map de voluntario_id → true si necesita capacitación
+  const [capPendiente, setCapPendiente] = useState<Record<string, boolean>>({});
 
   const rolesPermitidos = ['director', 'admin', 'psicopedagogia', 'equipo_profesional'];
 
@@ -79,8 +82,27 @@ function UsuariosPageContent() {
       });
 
       if (!response.ok) throw new Error('Error al cargar usuarios');
-      const { usuarios } = await response.json();
-      setUsuarios(usuarios);
+      const { usuarios: usuariosData } = await response.json();
+      setUsuarios(usuariosData);
+
+      // Cargar estado de capacitaciones para voluntarios
+      const voluntariosIds = (usuariosData as Usuario[]).filter(u => u.rol === 'voluntario').map(u => u.id);
+      if (voluntariosIds.length > 0) {
+        const { data: scores } = await supabase
+          .from('scores_voluntarios_por_area')
+          .select('voluntario_id, necesita_capacitacion')
+          .in('voluntario_id', voluntariosIds);
+
+        if (scores) {
+          // Un voluntario necesita capacitación si AL MENOS UNA área la requiere
+          const map: Record<string, boolean> = {};
+          scores.forEach((s: any) => {
+            if (s.necesita_capacitacion) map[s.voluntario_id] = true;
+            else if (!(s.voluntario_id in map)) map[s.voluntario_id] = false;
+          });
+          setCapPendiente(map);
+        }
+      }
     } catch (error) {
       console.error('Error cargando usuarios:', error);
     } finally {
@@ -114,6 +136,8 @@ function UsuariosPageContent() {
     if (filtroZona !== 'todas' && u.zona_id !== filtroZona) return false;
     if (filtroEstado === 'activo' && !u.activo) return false;
     if (filtroEstado === 'inactivo' && u.activo) return false;
+    if (filtroCapacitacion === 'pendiente' && (u.rol !== 'voluntario' || !capPendiente[u.id])) return false;
+    if (filtroCapacitacion === 'al_dia' && (u.rol !== 'voluntario' || capPendiente[u.id] !== false)) return false;
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase();
       const fullName = `${u.nombre} ${u.apellido}`.toLowerCase();
@@ -274,6 +298,16 @@ function UsuariosPageContent() {
               <option value="activo">Activos</option>
               <option value="inactivo">Inactivos</option>
             </select>
+
+            <select
+              value={filtroCapacitacion}
+              onChange={(e) => setFiltroCapacitacion(e.target.value)}
+              className="px-3 py-2.5 bg-white/80 border border-white/60 rounded-2xl focus:ring-2 focus:ring-crecimiento-400 text-neutro-carbon font-outfit text-sm min-h-[44px]"
+            >
+              <option value="todos">Capacitaciones: Todos</option>
+              <option value="al_dia">✅ Al día</option>
+              <option value="pendiente">⚠️ Pendiente</option>
+            </select>
           </div>
         </div>
 
@@ -315,6 +349,16 @@ function UsuariosPageContent() {
                         {getRolNombre(u.rol)}
                       </span>
                       <span className={`w-2 h-2 rounded-full ${u.activo ? 'bg-crecimiento-400' : 'bg-red-400'}`} title={u.activo ? 'Activo' : 'Inactivo'} />
+                      {/* Badge de estado de capacitaciones para voluntarios */}
+                      {u.rol === 'voluntario' && u.id in capPendiente && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          capPendiente[u.id]
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-crecimiento-50 text-crecimiento-700'
+                        }`}>
+                          {capPendiente[u.id] ? '⚠️ Cap.' : '✅ Cap.'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

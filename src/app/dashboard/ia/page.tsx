@@ -788,8 +788,50 @@ export default function ModuloIAPage() {
                   {msg.rol === 'usuario' ? (
                     <p className="whitespace-pre-wrap text-sm">{msg.contenido}</p>
                   ) : (
-                    <div className="prose prose-sm max-w-none prose-headings:font-bold prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-strong:text-gray-900">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <div className="space-y-1 text-sm text-gray-800">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          h2: ({ children }) => (
+                            <div className="flex items-center gap-2 mt-4 mb-2 first:mt-0 pb-1.5 border-b border-gray-100">
+                              <div className="w-1 h-5 rounded-full bg-gradient-to-b from-crecimiento-400 to-crecimiento-600 flex-shrink-0" />
+                              <h2 className="font-quicksand font-bold text-base text-gray-900">{children}</h2>
+                            </div>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="font-quicksand font-semibold text-sm text-gray-800 mt-3 mb-1.5 first:mt-0">{children}</h3>
+                          ),
+                          p: ({ children }) => (
+                            <p className="text-sm text-gray-700 leading-relaxed my-1.5">{children}</p>
+                          ),
+                          ul: ({ children }) => (
+                            <ul className="space-y-1 my-2 ml-1">{children}</ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="space-y-1 my-2 ml-1 list-decimal list-inside">{children}</ol>
+                          ),
+                          li: ({ children }) => (
+                            <li className="flex items-start gap-2 text-sm text-gray-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-crecimiento-400 flex-shrink-0 mt-1.5" />
+                              <span className="flex-1">{children}</span>
+                            </li>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-semibold text-gray-900">{children}</strong>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-2 border-sol-400 pl-3 py-0.5 my-2 bg-sol-50/60 rounded-r-lg text-gray-700 italic text-sm">
+                              {children}
+                            </blockquote>
+                          ),
+                          code: ({ children }) => (
+                            <code className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs font-mono">{children}</code>
+                          ),
+                          hr: () => (
+                            <hr className="my-3 border-t border-gray-100" />
+                          ),
+                        }}
+                      >
                         {msg.contenido}
                       </ReactMarkdown>
                     </div>

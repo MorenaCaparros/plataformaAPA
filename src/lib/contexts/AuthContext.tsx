@@ -35,10 +35,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Escuchar cambios de autenticación
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchPerfil(session.user.id);
+        // Actualizar ultima_conexion al iniciar sesión
+        if (event === 'SIGNED_IN') {
+          supabase
+            .from('perfiles')
+            .update({ ultima_conexion: new Date().toISOString() })
+            .eq('id', session.user.id)
+            .then(() => {}); // fire-and-forget
+        }
       } else {
         setPerfil(null);
         setLoading(false);
