@@ -326,6 +326,7 @@ export default function HistorialPage() {
             </div>
           </div>
         ) : (
+          <>
           <div className="space-y-5">
             {sesionesPagina.map((sesion) => (
               <div key={sesion.id} className="group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 transition-all duration-300 shadow-[0_4px_16px_rgba(242,201,76,0.1)] hover:shadow-[0_8px_32px_rgba(242,201,76,0.15)] hover:-translate-y-0.5 active:scale-[0.99]">
@@ -417,6 +418,7 @@ export default function HistorialPage() {
               </button>
             </div>
           )}
+          </>
         )}
       </main>
     </div>

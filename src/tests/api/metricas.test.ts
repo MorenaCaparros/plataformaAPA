@@ -25,7 +25,7 @@ function createChain(result: { data?: unknown; count?: number; error?: null }) {
 
   // Por defecto, await del chain devuelve el resultado
   // (cuando se usa sin .single(), ej: const { data } = await supabase.from().select()...)
-  const thenable = {
+  const thenable: Record<string, unknown> = {
     ...chain,
     then: (resolve: (v: unknown) => void) =>
       resolve({ data: result.data ?? [], count: result.count ?? 0, error: null }),
