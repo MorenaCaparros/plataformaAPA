@@ -12,12 +12,6 @@ const { mockAdmin } = createMockSupabaseAdmin({
   defaultData: null,
 });
 
-// Agregar mock para listUsers (no viene por defecto en el helper)
-mockAdmin.auth.admin.listUsers = vi.fn().mockResolvedValue({
-  data: { users: [{ id: 'target-1', email: 'vol@apa.org' }] },
-  error: null,
-});
-
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockAdmin),
 }));

@@ -89,6 +89,10 @@ export function createMockSupabaseAdmin(overrides: {
         getUserById: vi.fn().mockResolvedValue({
           data: { user: user ? { ...user, email: user.email || 'test@test.com' } : null },
         }),
+        listUsers: vi.fn().mockResolvedValue({
+          data: { users: user ? [{ id: user.id, email: user.email || 'test@test.com' }] : [] },
+          error: null,
+        }),
         createUser: vi.fn().mockResolvedValue({
           data: { user: { id: 'new-user-id' } },
           error: null,
