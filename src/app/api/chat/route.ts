@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const rolesConAccesoCompleto = ['psicopedagogia', 'coordinador', 'trabajador_social', 'director'];
+    const rolesConAccesoCompleto = ['psicopedagogia', 'coordinador', 'trabajadora_social', 'director', 'equipo_profesional'];
 
     // ============================================
     // MODO 1: Chat con biblioteca (RAG)

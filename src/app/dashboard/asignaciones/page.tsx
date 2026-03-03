@@ -18,7 +18,10 @@ import {
   Calendar,
   Star,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Lightbulb,
+  X,
+  ChevronRight
 } from 'lucide-react';
 
 interface Zona {
@@ -66,6 +69,25 @@ interface EstadisticasGlobales {
   voluntarios_sobrecargados: number;
 }
 
+interface SugerenciaMatching {
+  voluntario_id: string;
+  voluntario_nombre: string;
+  score: number;
+  habilidades: {
+    lenguaje: number;
+    grafismo: number;
+    lectura_escritura: number;
+    matematicas: number;
+  };
+  asignaciones_actuales: number;
+  disponibilidad: 'alta' | 'media' | 'baja';
+  detalles_score: {
+    score_habilidades: number;
+    score_disponibilidad: number;
+    score_zona: number;
+  };
+}
+
 function AsignacionesPageContent() {
   const { user, perfil, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -86,6 +108,12 @@ function AsignacionesPageContent() {
   
   // Vista activa
   const [vistaActiva, setVistaActiva] = useState<'ninos' | 'voluntarios'>('ninos');
+
+  // Modal sugerencias de matching
+  const [modalSugerencias, setModalSugerencias] = useState<{ ninoId: string; ninoAlias: string } | null>(null);
+  const [sugerenciasModal, setSugerenciasModal] = useState<SugerenciaMatching[]>([]);
+  const [cargandoSugerencias, setCargandoSugerencias] = useState(false);
+  const [errorSugerencias, setErrorSugerencias] = useState<string | null>(null);
 
   // Verificar permisos
   const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia', 'equipo_profesional'];
@@ -357,6 +385,23 @@ function AsignacionesPageContent() {
     if (score >= 80) return 'text-green-600';
     if (score >= 60) return 'text-yellow-600';
     return 'text-red-600';
+  };
+
+  const obtenerSugerencias = async (ninoId: string, ninoAlias: string) => {
+    setModalSugerencias({ ninoId, ninoAlias });
+    setSugerenciasModal([]);
+    setErrorSugerencias(null);
+    setCargandoSugerencias(true);
+    try {
+      const res = await fetch(`/api/matching/sugerencias?ninoId=${ninoId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al obtener sugerencias');
+      setSugerenciasModal(data.sugerencias || []);
+    } catch (err: any) {
+      setErrorSugerencias(err.message);
+    } finally {
+      setCargandoSugerencias(false);
+    }
   };
 
   if (authLoading || loading) {
@@ -667,6 +712,14 @@ function AsignacionesPageContent() {
                           <span className="text-sm text-gray-400">Sin voluntario asignado</span>
                         )}
                         
+                        <button
+                          onClick={() => obtenerSugerencias(nino.id, nino.alias)}
+                          className="p-2 rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors"
+                          title="Sugerencias de matching con IA"
+                        >
+                          <Lightbulb className="w-4 h-4" />
+                        </button>
+
                         <Link
                           href={`/dashboard/ninos/${nino.id}/asignar-voluntario`}
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -786,6 +839,118 @@ function AsignacionesPageContent() {
             </div>
           </div>
         )}
+      {/* ── Modal Sugerencias de Matching ───────────────────────────────── */}
+      {modalSugerencias && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center">
+                  <Lightbulb className="w-4 h-4 text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 text-base">Sugerencias de voluntario</h2>
+                  <p className="text-xs text-gray-500">{modalSugerencias.ninoAlias}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalSugerencias(null)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {cargandoSugerencias && (
+                <div className="flex items-center justify-center py-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+                  <span className="ml-3 text-sm text-gray-500">Analizando compatibilidad...</span>
+                </div>
+              )}
+
+              {errorSugerencias && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl text-sm text-red-700">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>{errorSugerencias}</span>
+                </div>
+              )}
+
+              {!cargandoSugerencias && !errorSugerencias && sugerenciasModal.length === 0 && (
+                <div className="text-center py-10 text-gray-400">
+                  <Users className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No se encontraron sugerencias.</p>
+                  <p className="text-xs mt-1">Puede que no haya voluntarios con autoevaluaciones completadas.</p>
+                </div>
+              )}
+
+              {!cargandoSugerencias && sugerenciasModal.map((sug, idx) => (
+                <div key={sug.voluntario_id} className="border border-gray-100 rounded-xl p-4 hover:border-amber-200 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-gray-100 text-xs font-bold text-gray-500 flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                      <span className="font-medium text-gray-900 text-sm">{sug.voluntario_nombre}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-lg font-bold ${getScoreColor(sug.score)}`}>
+                        {Math.round(sug.score)}%
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${getDisponibilidadColor(sug.disponibilidad)}`}>
+                        {sug.disponibilidad === 'alta' ? 'Disponible' : sug.disponibilidad === 'media' ? 'Parcial' : 'Saturado'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Habilidades */}
+                  <div className="grid grid-cols-2 gap-1.5 mb-3">
+                    {Object.entries({
+                      'Lenguaje': sug.habilidades.lenguaje,
+                      'Grafismo': sug.habilidades.grafismo,
+                      'Lectura/Escritura': sug.habilidades.lectura_escritura,
+                      'Matemáticas': sug.habilidades.matematicas,
+                    }).map(([label, val]) => (
+                      <div key={label} className="flex items-center gap-1.5">
+                        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="h-1.5 rounded-full bg-crecimiento-400"
+                            style={{ width: `${Math.min(100, (val / 5) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-gray-500 w-20 truncate">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">
+                      {sug.asignaciones_actuales} niño{sug.asignaciones_actuales !== 1 ? 's' : ''} asignado{sug.asignaciones_actuales !== 1 ? 's' : ''}
+                    </span>
+                    <Link
+                      href={`/dashboard/ninos/${modalSugerencias.ninoId}/asignar-voluntario?sugerido=${sug.voluntario_id}`}
+                      onClick={() => setModalSugerencias(null)}
+                      className="flex items-center gap-1 text-xs font-medium text-crecimiento-600 hover:text-crecimiento-700"
+                    >
+                      Asignar <ChevronRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <p className="text-[11px] text-gray-400 text-center">
+                Sugerencias basadas en autoevaluaciones, disponibilidad y zona. No reemplazan el criterio del equipo.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       </main>
     </div>
   );
