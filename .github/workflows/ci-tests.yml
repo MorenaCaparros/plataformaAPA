@@ -75,15 +75,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key-placeholder
           SUPABASE_SERVICE_ROLE_KEY: test-service-role-key-placeholder
 
-      - name: Upload coverage a Codecov (opcional)
-        uses: codecov/codecov-action@v4
-        if: always()
-        continue-on-error: true
-        with:
-          files: ./coverage/lcov.info
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
-
   # ──────────────────────────────────────────────────────────
   # JOB 2: Build check (verifica que el proyecto compila)
   # ──────────────────────────────────────────────────────────
