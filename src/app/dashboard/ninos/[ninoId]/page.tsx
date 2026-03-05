@@ -981,10 +981,10 @@ export default function NinoPerfilPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-crecimiento-500 mx-auto mb-4" />
-          <p className="text-gray-600">Cargando perfil...</p>
+      <div className="min-h-screen bg-gradient-to-br from-sol-50 via-white to-crecimiento-50 flex items-center justify-center">
+        <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-8 shadow-[0_8px_32px_rgba(164,198,57,0.15)] text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-sol-200 border-t-crecimiento-400 mx-auto mb-4" />
+          <p className="text-neutro-piedra font-outfit">Cargando perfil...</p>
         </div>
       </div>
     );
@@ -995,9 +995,9 @@ export default function NinoPerfilPage() {
   const edadTexto = formatearEdad(nino.fecha_nacimiento, nino.rango_etario);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-6">
+    <div className="min-h-screen bg-gradient-to-br from-sol-50 via-white to-crecimiento-50 pb-28">
       {/* ═══ Header ═══ */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white/70 backdrop-blur-lg border-b border-white/60 shadow-sm sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
           <button
             onClick={() => router.back()}
@@ -2275,13 +2275,13 @@ export default function NinoPerfilPage() {
         )}
 
         {/* ═══ Historial de Sesiones ═══ */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="px-4 sm:px-6 py-4 border-b bg-gray-50">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+        <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 shadow-[0_4px_16px_rgba(164,198,57,0.1)] overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-white/40 bg-white/20">
+            <h2 className="text-xl font-bold text-neutro-carbon font-quicksand flex items-center gap-2">
               <ClipboardList className="w-6 h-6" />
               {isVoluntario ? 'Mis Sesiones Registradas' : 'Historial de Sesiones'}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-sm text-neutro-piedra mt-1 font-outfit">
               {isVoluntario
                 ? 'Tus sesiones con este niño'
                 : 'Todas las sesiones registradas para este niño'}
@@ -2290,38 +2290,38 @@ export default function NinoPerfilPage() {
 
           {sesiones.length === 0 ? (
             <div className="p-8 text-center">
-              <BookOpen className="w-16 h-16 mx-auto mb-3 text-gray-400" />
-              <p className="text-gray-600 mb-2">
+              <BookOpen className="w-16 h-16 mx-auto mb-3 text-neutro-piedra/40" />
+              <p className="text-neutro-piedra font-outfit mb-2">
                 {isVoluntario
                   ? 'Aún no registraste ninguna sesión con este niño'
                   : 'No hay sesiones registradas todavía'}
               </p>
               <button
                 onClick={() => router.push(`/dashboard/sesiones/nueva/${ninoId}`)}
-                className="mt-4 px-6 py-2.5 bg-crecimiento-500 hover:bg-crecimiento-600 text-white rounded-lg font-semibold shadow-md transition-all touch-manipulation min-h-[44px]"
+                className="mt-4 px-6 py-3 bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-2xl font-outfit font-semibold shadow-md transition-all touch-manipulation min-h-[52px] active:scale-95"
               >
                 Registrar Primera Sesión
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="p-4 space-y-2.5">
               {sesiones.map((sesion) => (
-                <div
+                <Link
                   key={sesion.id}
-                  className="p-4 sm:p-5 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/dashboard/sesiones/${sesion.id}`)}
+                  href={`/dashboard/sesiones/${sesion.id}`}
+                  className="flex items-center gap-3 p-4 bg-white/60 rounded-2xl border border-white/60 hover:bg-white/90 hover:shadow-sm transition-all min-h-[60px] touch-manipulation active:scale-[0.99] group"
                 >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900 mb-1">{formatearFecha(sesion.fecha)}</p>
-                      <p className="text-sm text-gray-600">Duración: {sesion.duracion_minutos} minutos</p>
-                    </div>
-                    <ChevronRight className="w-6 h-6 text-gray-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-neutro-carbon font-quicksand">{formatearFecha(sesion.fecha)}</p>
+                    <p className="text-sm text-neutro-piedra font-outfit">
+                      {sesion.duracion_minutos} min
+                      {sesion.observaciones_libres && (
+                        <span className="ml-1.5 text-neutro-piedra/70">· {sesion.observaciones_libres.slice(0, 50)}{sesion.observaciones_libres.length > 50 ? '…' : ''}</span>
+                      )}
+                    </p>
                   </div>
-                  {sesion.observaciones_libres && (
-                    <p className="text-sm text-gray-700 line-clamp-2 mt-2">{sesion.observaciones_libres}</p>
-                  )}
-                </div>
+                  <ChevronRight className="w-5 h-5 text-neutro-piedra/40 flex-shrink-0 group-hover:text-crecimiento-500 transition-colors" />
+                </Link>
               ))}
             </div>
           )}
@@ -2329,18 +2329,37 @@ export default function NinoPerfilPage() {
 
         {/* ═══ Info para voluntarios ═══ */}
         {isVoluntario && (
-          <div className="bg-sol-50 border border-sol-200 rounded-xl p-4">
+          <div className="bg-sol-50/80 backdrop-blur-sm border border-sol-200/60 rounded-3xl p-4">
             <div className="flex gap-3">
               <Info className="w-6 h-6 text-sol-600 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm text-sol-900 font-medium mb-1">Vista de Voluntario</p>
-                <p className="text-sm text-sol-700">
+                <p className="text-sm text-sol-900 font-medium mb-1 font-quicksand">Vista de Voluntario</p>
+                <p className="text-sm text-sol-700 font-outfit">
                   Solo ves tus propias sesiones con este niño. Los coordinadores y el equipo profesional pueden ver todas las sesiones.
                 </p>
               </div>
             </div>
           </div>
         )}
+
+        {/* ═══ Sticky bottom CTA (mobile) ═══ */}
+        <div className="fixed bottom-0 left-0 right-0 z-20 bg-white/80 backdrop-blur-xl border-t border-white/60 px-4 pt-3 pb-5 flex gap-3 sm:hidden safe-bottom">
+          <Link
+            href={`/dashboard/sesiones/nueva/${ninoId}`}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 min-h-[52px] bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-2xl font-outfit font-bold text-sm active:scale-95 shadow-[0_4px_16px_rgba(164,198,57,0.35)] touch-manipulation"
+          >
+            <Plus className="w-5 h-5" /> Registrar Sesión
+          </Link>
+          {!isVoluntario && (
+            <Link
+              href={`/dashboard/ninos/${ninoId}/analisis`}
+              className="flex items-center justify-center gap-1.5 px-4 py-3.5 min-h-[52px] bg-white/90 border border-neutro-piedra/20 text-neutro-carbon rounded-2xl font-outfit font-medium text-sm active:scale-95 touch-manipulation"
+            >
+              🧠 IA
+            </Link>
+          )}
+        </div>
+
       </div>
 
       {/* ── Modal: Agregar Zona ─────────────────────────────── */}

@@ -3,7 +3,8 @@
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { ArrowLeft, UserPlus, Plus, Eye } from 'lucide-react';
 import type { NinoListado, RangoEtario } from '@/types/database';
@@ -27,9 +28,7 @@ function MisNinosPageContent() {
   const searchParams = useSearchParams();
   const zonaParam = searchParams.get('zona');
   
-  const [ninos, setNinos] = useState<NinoListado[]>([]);
-  const [zonas, setZonas] = useState<Zona[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [filtroZona, setFiltroZona] = useState<string>(zonaParam || 'todas');
   const [filtroBusqueda, setFiltroBusqueda] = useState<string>('');
   const [activeSession, setActiveSession] = useState<{ ninoId: string; alias: string; minutes: number } | null>(null);
@@ -50,12 +49,97 @@ function MisNinosPageContent() {
   // Roles que pueden reasignar la zona de un niño
   const puedeEditarZona = perfil?.rol && ['director', 'admin', 'coordinador', 'psicopedagogia'].includes(perfil.rol);
 
-  useEffect(() => {
-    if (!authLoading && user) {
-      fetchZonas();
-      fetchNinos();
-    }
-  }, [authLoading, user]);
+  // ─── Queries (TanStack Query) ──────────────────────────────
+  const zonasQueryKey = useMemo(() => ['zonas'], []);
+  const { data: zonas = [] } = useQuery<Zona[]>({
+    queryKey: zonasQueryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('zonas')
+        .select('id, nombre')
+        .order('nombre', { ascending: true });
+      if (error) throw error;
+      return (data || []) as Zona[];
+    },
+    enabled: !authLoading && !!user,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const ninosQueryKey = useMemo(
+    () => ['ninos', 'list', perfil?.rol ?? 'unknown', user?.id ?? 'anon'],
+    [perfil?.rol, user?.id]
+  );
+  const { data: ninos = [], isLoading: loadingNinos } = useQuery<NinoListado[]>({
+    queryKey: ninosQueryKey,
+    queryFn: async () => {
+      let ninosData: any[] = [];
+      if (tieneAccesoTotal) {
+        const selectFields = tieneAccesoCompleto
+          ? `id, alias, legajo, rango_etario, nivel_alfabetizacion, escolarizado, grado_escolar, activo, zona_id, zonas(id,nombre), ninos_sensibles(nombre_completo_encrypted,apellido_encrypted)`
+          : `id, alias, legajo, rango_etario, nivel_alfabetizacion, escolarizado, grado_escolar, activo, zona_id, zonas(id,nombre)`;
+        const { data, error } = await supabase
+          .from('ninos')
+          .select(selectFields)
+          .eq('activo', true)
+          .order('alias', { ascending: true });
+        if (error) throw error;
+        ninosData = data || [];
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Sin sesión');
+        const res = await fetch(`/api/asignaciones?voluntario_id=${user?.id}&activo=true`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`Error API: ${res.status}`);
+        const { asignaciones } = await res.json();
+        ninosData = (asignaciones || [])
+          .map((a: any) => a.nino)
+          .filter(Boolean)
+          .map((n: any) => ({ ...n, zonas: n.zona_id ? { id: n.zona_id, nombre: '' } : null }));
+        const seen = new Set();
+        ninosData = ninosData.filter((n: any) => {
+          if (seen.has(n.id)) return false;
+          seen.add(n.id);
+          return true;
+        });
+      }
+      const ninoIds = ninosData.map((n: any) => n.id);
+      let sesionesData: any[] = [];
+      if (ninoIds.length > 0) {
+        try {
+          const { data: allSesiones, error: sesError } = await supabase
+            .from('sesiones')
+            .select('nino_id, fecha')
+            .in('nino_id', ninoIds)
+            .order('fecha', { ascending: false });
+          if (!sesError) sesionesData = allSesiones || [];
+        } catch (e) {
+          console.warn('Tabla sesiones no disponible aún');
+        }
+      }
+      const sesionesMap: Record<string, { count: number; ultima: string | null }> = {};
+      sesionesData.forEach((s: any) => {
+        if (!sesionesMap[s.nino_id]) sesionesMap[s.nino_id] = { count: 0, ultima: s.fecha };
+        sesionesMap[s.nino_id].count++;
+      });
+      return ninosData.map((nino: any): NinoListado => {
+        const info = sesionesMap[nino.id] || { count: 0, ultima: null };
+        return {
+          id: nino.id, alias: nino.alias, legajo: nino.legajo,
+          rango_etario: nino.rango_etario, nivel_alfabetizacion: nino.nivel_alfabetizacion,
+          escolarizado: nino.escolarizado, grado_escolar: nino.grado_escolar,
+          activo: nino.activo, zonas: nino.zonas || null,
+          ninos_sensibles: nino.ninos_sensibles || null,
+          total_sesiones: info.count, ultima_sesion: info.ultima,
+        };
+      });
+    },
+    enabled: !authLoading && !!user,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const loading = authLoading || loadingNinos;
 
   // Actualizar filtro cuando cambia el parámetro de la URL
   useEffect(() => {
@@ -88,152 +172,6 @@ function MisNinosPageContent() {
     const interval = setInterval(check, 30000);
     return () => clearInterval(interval);
   }, [ninos]);
-
-  const fetchZonas = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('zonas')
-        .select('id, nombre')
-        .order('nombre', { ascending: true });
-
-      if (error) throw error;
-      setZonas(data || []);
-    } catch (error) {
-      console.error('Error fetching zonas:', error);
-    }
-  };
-
-  const fetchNinos = async () => {
-    try {
-      let ninosData: any[] = [];
-
-      if (tieneAccesoTotal) {
-        // Roles con acceso total: ver TODOS los niños
-        // Si tiene acceso completo (psico/director/admin), incluir datos sensibles
-        const selectFields = tieneAccesoCompleto
-          ? `
-            id,
-            alias,
-            legajo,
-            rango_etario,
-            nivel_alfabetizacion,
-            escolarizado,
-            grado_escolar,
-            activo,
-            zona_id,
-            zonas (
-              id,
-              nombre
-            ),
-            ninos_sensibles (
-              nombre_completo_encrypted,
-              apellido_encrypted
-            )
-          `
-          : `
-            id,
-            alias,
-            legajo,
-            rango_etario,
-            nivel_alfabetizacion,
-            escolarizado,
-            grado_escolar,
-            activo,
-            zona_id,
-            zonas (
-              id,
-              nombre
-            )
-          `;
-
-        const { data, error } = await supabase
-          .from('ninos')
-          .select(selectFields)
-          .eq('activo', true)
-          .order('alias', { ascending: true });
-
-        if (error) throw error;
-        ninosData = data || [];
-      } else {
-        // Voluntarios: usar API route (service_role) para bypasear RLS en tabla ninos.
-        // El join directo asignaciones → ninos falla silenciosamente por RLS.
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        if (!token) throw new Error('Sin sesión');
-
-        const res = await fetch(`/api/asignaciones?voluntario_id=${user?.id}&activo=true`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error(`Error API: ${res.status}`);
-        const { asignaciones } = await res.json();
-        ninosData = (asignaciones || [])
-          .map((a: any) => a.nino)
-          .filter(Boolean)
-          .map((n: any) => ({
-            ...n,
-            zonas: n.zona_id ? { id: n.zona_id, nombre: '' } : null,
-          }));
-        // Deduplicar por id (por si hay múltiples asignaciones al mismo niño)
-        const seen = new Set();
-        ninosData = ninosData.filter((n: any) => {
-          if (seen.has(n.id)) return false;
-          seen.add(n.id);
-          return true;
-        });
-      }
-
-      // Para cada niño, obtener conteo de sesiones — EN UNA SOLA QUERY
-      const ninoIds = ninosData.map((n: any) => n.id);
-      
-      // Traer todas las sesiones relevantes de una sola vez (resiliente si tabla no existe)
-      let sesionesData: any[] = [];
-      if (ninoIds.length > 0) {
-        try {
-          const { data: allSesiones, error: sesError } = await supabase
-            .from('sesiones')
-            .select('nino_id, fecha')
-            .in('nino_id', ninoIds)
-            .order('fecha', { ascending: false });
-          if (!sesError) sesionesData = allSesiones || [];
-        } catch (e) {
-          console.warn('Tabla sesiones no disponible aún');
-        }
-      }
-
-      // Agrupar en memoria: conteo y última fecha por niño
-      const sesionesMap: Record<string, { count: number; ultima: string | null }> = {};
-      sesionesData.forEach((s: any) => {
-        if (!sesionesMap[s.nino_id]) {
-          sesionesMap[s.nino_id] = { count: 0, ultima: s.fecha }; // primera = más reciente (ya viene DESC)
-        }
-        sesionesMap[s.nino_id].count++;
-      });
-
-      const ninosConSesiones: NinoListado[] = ninosData.map((nino: any) => {
-        const info = sesionesMap[nino.id] || { count: 0, ultima: null };
-        return {
-          id: nino.id,
-          alias: nino.alias,
-          legajo: nino.legajo,
-          rango_etario: nino.rango_etario,
-          nivel_alfabetizacion: nino.nivel_alfabetizacion,
-          escolarizado: nino.escolarizado,
-          grado_escolar: nino.grado_escolar,
-          activo: nino.activo,
-          zonas: nino.zonas || null,
-          ninos_sensibles: nino.ninos_sensibles || null,
-          total_sesiones: info.count,
-          ultima_sesion: info.ultima
-        };
-      });
-
-      setNinos(ninosConSesiones);
-    } catch (error) {
-      console.error('Error fetching niños:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Filtrar niños
   const ninosFiltrados = ninos.filter(nino => {
@@ -281,11 +219,10 @@ function MisNinosPageContent() {
         .eq('id', ninoId);
       if (!error) {
         const zona = zonas.find(z => z.id === nuevaZonaId) ?? null;
-        setNinos(prev =>
-          prev.map(n =>
-            n.id === ninoId
-              ? { ...n, zonas: zona ? { id: zona.id, nombre: zona.nombre } : null }
-              : n
+        const zonaObj = zona ? { id: zona.id, nombre: zona.nombre } : null;
+        queryClient.setQueryData(ninosQueryKey, (old: NinoListado[] = []) =>
+          old.map(n =>
+            n.id === ninoId ? { ...n, zonas: zonaObj } : n
           )
         );
       }
