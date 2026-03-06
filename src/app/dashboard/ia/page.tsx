@@ -1,7 +1,6 @@
 ﻿'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '@/lib/supabase/client';
@@ -19,7 +18,6 @@ import {
   Search,
   RefreshCw,
   CheckCircle2,
-  ArrowRight,
   ChevronRight,
 } from 'lucide-react';
 
@@ -29,6 +27,7 @@ interface Nino {
   alias: string;
   rango_etario: string;
   nivel_alfabetizacion: string | null;
+  zona_id?: string | null;
 }
 
 interface Mensaje {
@@ -67,12 +66,14 @@ export default function ModuloIAPage() {
   const [input, setInput] = useState('');
   const [cargando, setCargando] = useState(false);
 
-  // Niños
+  // Niños - multi-selección
   const [ninos, setNinos] = useState<Nino[]>([]);
-  const [ninoSeleccionado, setNinoSeleccionado] = useState<Nino | null>(null);
+  const [ninosSeleccionados, setNinosSeleccionados] = useState<Nino[]>([]);
   const [busquedaNino, setBusquedaNino] = useState('');
   const [mostrarDropdownNino, setMostrarDropdownNino] = useState(false);
   const [cargandoNinos, setCargandoNinos] = useState(true);
+  const [zonas, setZonas] = useState<{ id: string; nombre: string }[]>([]);
+  const [zonaActiva, setZonaActiva] = useState<string | null>(null);
 
   // Historial
   const [historial, setHistorial] = useState<EntradaHistorial[]>([]);
@@ -126,9 +127,15 @@ export default function ModuloIAPage() {
       } else {
         const { data } = await supabase
           .from('ninos')
-          .select('id, alias, rango_etario, nivel_alfabetizacion')
+          .select('id, alias, rango_etario, nivel_alfabetizacion, zona_id')
           .order('alias', { ascending: true });
         setNinos((data || []) as Nino[]);
+        // Cargar zonas
+        const { data: zonasData } = await supabase
+          .from('zonas')
+          .select('id, nombre')
+          .order('nombre');
+        setZonas((zonasData || []) as { id: string; nombre: string }[]);
       }
     } finally {
       setCargandoNinos(false);
@@ -159,8 +166,8 @@ export default function ModuloIAPage() {
   const enviarConsulta = async (preguntaTexto?: string) => {
     const texto = preguntaTexto || input.trim();
     if (!texto || cargando) return;
-    if (!ninoSeleccionado) {
-      alert('Seleccioná un niño para consultar');
+    if (ninosSeleccionados.length === 0) {
+      alert('Seleccioná al menos un niño para consultar');
       return;
     }
 
@@ -178,7 +185,7 @@ export default function ModuloIAPage() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pregunta: texto, ninoId: ninoSeleccionado.id }),
+        body: JSON.stringify({ pregunta: texto, ninoIds: ninosSeleccionados.map(n => n.id) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error en la consulta');
@@ -213,7 +220,11 @@ export default function ModuloIAPage() {
   const cargarDesdeHistorial = (entrada: EntradaHistorial) => {
     if (entrada.ninos) {
       const ninoEncontrado = ninos.find(n => n.alias === (entrada.ninos as any).alias);
-      if (ninoEncontrado) setNinoSeleccionado(ninoEncontrado);
+      if (ninoEncontrado) setNinosSeleccionados([ninoEncontrado]);
+    } else if ((entrada as any).tags_usados?.length > 0) {
+      const aliasesHistorial: string[] = (entrada as any).tags_usados || [];
+      const ninosEncontrados = ninos.filter(n => aliasesHistorial.includes(n.alias));
+      if (ninosEncontrados.length > 0) setNinosSeleccionados(ninosEncontrados);
     }
     setMensajes([
       { id: `hist-u-${entrada.id}`, rol: 'usuario', contenido: entrada.pregunta, timestamp: new Date(entrada.created_at) },
@@ -226,10 +237,40 @@ export default function ModuloIAPage() {
     n.alias.toLowerCase().includes(busquedaNino.toLowerCase())
   );
 
+  const agregarNino = (n: Nino) => {
+    if (!ninosSeleccionados.find(x => x.id === n.id)) {
+      setNinosSeleccionados(prev => [...prev, n]);
+      setMensajes([]);
+    }
+    setBusquedaNino('');
+    setMostrarDropdownNino(false);
+  };
+
+  const quitarNino = (id: string) => {
+    setNinosSeleccionados(prev => prev.filter(n => n.id !== id));
+    setMensajes([]);
+  };
+
+  const seleccionarTodos = () => {
+    setNinosSeleccionados([...ninos]);
+    setZonaActiva(null);
+    setMensajes([]);
+    setBusquedaNino('');
+  };
+
+  const seleccionarPorZona = (zonaId: string) => {
+    const ninosDeZona = ninos.filter(n => n.zona_id === zonaId);
+    setNinosSeleccionados(ninosDeZona);
+    setZonaActiva(zonaId);
+    setMensajes([]);
+    setBusquedaNino('');
+  };
+
   const limpiarChat = () => {
     setMensajes([]);
-    setNinoSeleccionado(null);
+    setNinosSeleccionados([]);
     setBusquedaNino('');
+    setZonaActiva(null);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -331,77 +372,116 @@ export default function ModuloIAPage() {
         {/* ÁREA PRINCIPAL */}
         <main className="flex-1 flex flex-col overflow-hidden">
 
-          {/* SELECTOR DE NIÑO - siempre visible */}
+          {/* SELECTOR DE NIÑOS - multi-selección */}
           <div className="bg-white border-b border-gray-100 px-4 py-3">
-            <div ref={dropdownRef} className="relative max-w-xl">
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-crecimiento-500" />
-                Niño a consultar
-                <span className="text-red-400 ml-0.5">*</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={ninoSeleccionado ? ninoSeleccionado.alias : busquedaNino}
-                    onChange={e => { setBusquedaNino(e.target.value); setNinoSeleccionado(null); setMostrarDropdownNino(true); }}
-                    onFocus={() => setMostrarDropdownNino(true)}
-                    placeholder={cargandoNinos ? 'Cargando...' : perfil?.rol === 'voluntario' ? 'Buscar entre tus niños asignados...' : 'Buscar niño...'}
-                    disabled={cargandoNinos}
-                    className="w-full pl-9 pr-8 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent disabled:bg-gray-50"
-                  />
-                  {ninoSeleccionado && (
-                    <button onClick={() => { setNinoSeleccionado(null); setBusquedaNino(''); setMensajes([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      <X className="w-3.5 h-3.5" />
+            <div ref={dropdownRef} className="relative max-w-2xl">
+
+              {/* Fila de controles */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <label className="text-xs font-semibold text-gray-600 flex items-center gap-1.5 flex-1 min-w-0">
+                  <User className="w-3.5 h-3.5 text-crecimiento-500 flex-shrink-0" />
+                  Niños a consultar
+                  <span className="text-red-400 ml-0.5">*</span>
+                </label>
+                {perfil?.rol !== 'voluntario' && ninos.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={seleccionarTodos}
+                      className="text-xs px-2.5 py-1 rounded-lg bg-crecimiento-50 text-crecimiento-700 hover:bg-crecimiento-100 border border-crecimiento-200 transition-colors whitespace-nowrap"
+                    >
+                      Todos ({ninos.length})
                     </button>
-                  )}
-                </div>
-                {ninoSeleccionado && (
-                  <Link href={`/dashboard/ninos/${ninoSeleccionado.id}`}
-                    className="flex items-center gap-1 px-3 py-2.5 text-xs text-crecimiento-600 hover:text-crecimiento-800 border border-crecimiento-200 rounded-xl hover:bg-crecimiento-50 transition-colors flex-shrink-0"
-                  >
-                    Ver perfil <ArrowRight className="w-3 h-3" />
-                  </Link>
+                    {zonas.length > 0 && (
+                      <select
+                        value={zonaActiva || ''}
+                        onChange={e => e.target.value ? seleccionarPorZona(e.target.value) : (setNinosSeleccionados([]), setZonaActiva(null), setMensajes([]))}
+                        className="text-xs px-2 py-1 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-gray-300 transition-colors"
+                      >
+                        <option value="">Por zona...</option>
+                        {zonas.map(z => (
+                          <option key={z.id} value={z.id}>{z.nombre}</option>
+                        ))}
+                      </select>
+                    )}
+                    {ninosSeleccionados.length > 0 && (
+                      <button
+                        onClick={() => { setNinosSeleccionados([]); setZonaActiva(null); setMensajes([]); }}
+                        className="text-xs px-2 py-1 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
+              {/* Chips de niños seleccionados */}
+              {ninosSeleccionados.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {ninosSeleccionados.length <= 6 ? (
+                    ninosSeleccionados.map(n => (
+                      <span key={n.id} className="flex items-center gap-1 text-xs bg-crecimiento-100 text-crecimiento-800 px-2 py-1 rounded-full border border-crecimiento-200">
+                        {n.alias}
+                        <button onClick={() => quitarNino(n.id)} className="ml-0.5 text-crecimiento-500 hover:text-crecimiento-800">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-xs bg-crecimiento-100 text-crecimiento-800 px-3 py-1.5 rounded-full border border-crecimiento-200">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {ninosSeleccionados.length} niños seleccionados
+                      <button onClick={() => { setNinosSeleccionados([]); setZonaActiva(null); setMensajes([]); }} className="ml-1 text-crecimiento-500 hover:text-crecimiento-800">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Input de búsqueda para agregar */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={busquedaNino}
+                  onChange={e => { setBusquedaNino(e.target.value); setMostrarDropdownNino(true); }}
+                  onFocus={() => setMostrarDropdownNino(true)}
+                  placeholder={cargandoNinos ? 'Cargando...' : ninosSeleccionados.length > 0 ? 'Agregar otro niño...' : perfil?.rol === 'voluntario' ? 'Buscar entre tus niños asignados...' : 'Buscar y agregar niños...'}
+                  disabled={cargandoNinos}
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-crecimiento-400 focus:border-transparent disabled:bg-gray-50"
+                />
+              </div>
+
               {/* Dropdown */}
-              {mostrarDropdownNino && !ninoSeleccionado && (
+              {mostrarDropdownNino && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 max-h-56 overflow-y-auto">
                   {ninos.length === 0 && !cargandoNinos ? (
                     <div className="px-4 py-6 text-center text-sm text-gray-500">
                       {perfil?.rol === 'voluntario' ? 'No tenés niños asignados actualmente' : 'No hay niños registrados'}
                     </div>
                   ) : ninosFiltrados.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-gray-500">Sin resultados</div>
+                    <div className="px-4 py-3 text-sm text-gray-500">Sin resultados para &quot;{busquedaNino}&quot;</div>
                   ) : (
-                    ninosFiltrados.map(n => (
-                      <button key={n.id}
-                        onClick={() => { setNinoSeleccionado(n); setBusquedaNino(''); setMostrarDropdownNino(false); setMensajes([]); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-crecimiento-50 text-left transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-crecimiento-100 flex items-center justify-center text-crecimiento-700 font-bold text-sm flex-shrink-0">
-                          {n.alias[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{n.alias}</p>
-                          <p className="text-xs text-gray-500">{n.rango_etario}{n.nivel_alfabetizacion ? ` · ${n.nivel_alfabetizacion}` : ''}</p>
-                        </div>
-                      </button>
-                    ))
+                    ninosFiltrados.map(n => {
+                      const yaSeleccionado = ninosSeleccionados.some(x => x.id === n.id);
+                      return (
+                        <button key={n.id}
+                          onClick={() => yaSeleccionado ? quitarNino(n.id) : agregarNino(n)}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${yaSeleccionado ? 'bg-crecimiento-50' : 'hover:bg-gray-50'}`}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${yaSeleccionado ? 'bg-crecimiento-500 text-white' : 'bg-crecimiento-100 text-crecimiento-700'}`}>
+                            {yaSeleccionado ? <CheckCircle2 className="w-4 h-4" /> : n.alias[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-gray-800">{n.alias}</p>
+                            <p className="text-xs text-gray-500">{n.rango_etario}{n.nivel_alfabetizacion ? ` · ${n.nivel_alfabetizacion}` : ''}</p>
+                          </div>
+                          {yaSeleccionado && <span className="text-xs text-crecimiento-600 font-medium flex-shrink-0">✓ Seleccionado</span>}
+                        </button>
+                      );
+                    })
                   )}
-                </div>
-              )}
-
-              {/* Chip niño seleccionado */}
-              {ninoSeleccionado && (
-                <div className="mt-2 px-3 py-2 bg-crecimiento-50 border border-crecimiento-200 rounded-xl flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-crecimiento-600 flex-shrink-0" />
-                  <span className="text-sm text-crecimiento-800">
-                    Consultando sobre <strong>{ninoSeleccionado.alias}</strong>
-                    {ninoSeleccionado.nivel_alfabetizacion && <span className="text-crecimiento-600"> · {ninoSeleccionado.nivel_alfabetizacion}</span>}
-                  </span>
                 </div>
               )}
             </div>
@@ -418,16 +498,16 @@ export default function ModuloIAPage() {
                     <h2 className="text-xl font-bold">Análisis con IA</h2>
                   </div>
                   <p className="text-white/80 text-sm">
-                    Combiná sesiones registradas, planes de intervención y bibliografía psicopedagógica para analizar el progreso de cada niño.
+                    Combiná sesiones registradas, planes de intervención y bibliografía psicopedagógica para analizar el progreso de uno o varios niños.
                   </p>
-                  {!ninoSeleccionado && <p className="mt-2 text-white/90 text-sm font-medium">↑ Seleccioná un niño arriba para comenzar</p>}
+                  {ninosSeleccionados.length === 0 && <p className="mt-2 text-white/90 text-sm font-medium">↑ Seleccioná uno o más niños arriba para comenzar</p>}
                 </div>
 
-                {ninoSeleccionado ? (
+                {ninosSeleccionados.length > 0 ? (
                   <div className="bg-white rounded-2xl border border-gray-200 p-4">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                       <Lightbulb className="w-4 h-4 text-sol-500" />
-                      Preguntas sugeridas para {ninoSeleccionado.alias}
+                      Preguntas sugeridas {ninosSeleccionados.length === 1 ? `para ${ninosSeleccionados[0].alias}` : `para el grupo (${ninosSeleccionados.length} niños)`}
                     </h3>
                     <div className="space-y-2">
                       {SUGERENCIAS_GENERALES.map((sug, i) => (
@@ -443,7 +523,7 @@ export default function ModuloIAPage() {
                 ) : (
                   <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-6 text-center text-gray-400">
                     <User className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">Seleccioná un niño para ver las sugerencias de consulta</p>
+                    <p className="text-sm">Seleccioná uno o más niños para ver las sugerencias de consulta</p>
                   </div>
                 )}
               </div>
@@ -458,8 +538,10 @@ export default function ModuloIAPage() {
                         <Brain className="w-3.5 h-3.5 text-white" />
                       </div>
                       <span className="text-xs text-gray-400 font-medium">Asistente IA</span>
-                      {ninoSeleccionado && (
-                        <span className="text-xs bg-crecimiento-100 text-crecimiento-700 px-2 py-0.5 rounded-full">{ninoSeleccionado.alias}</span>
+                      {ninosSeleccionados.length > 0 && (
+                        <span className="text-xs bg-crecimiento-100 text-crecimiento-700 px-2 py-0.5 rounded-full">
+                          {ninosSeleccionados.length === 1 ? ninosSeleccionados[0].alias : `${ninosSeleccionados.length} niños`}
+                        </span>
                       )}
                     </div>
                   )}
@@ -528,7 +610,9 @@ export default function ModuloIAPage() {
                     <div className="flex gap-1">
                       {[0,1,2].map(i => <span key={i} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
                     </div>
-                    <span className="text-xs text-gray-500">Analizando{ninoSeleccionado ? ` a ${ninoSeleccionado.alias}` : ''}...</span>
+                    <span className="text-xs text-gray-500">
+                      Analizando{ninosSeleccionados.length === 1 ? ` a ${ninosSeleccionados[0].alias}` : ninosSeleccionados.length > 1 ? ` ${ninosSeleccionados.length} niños` : ''}...
+                    </span>
                   </div>
                 </div>
               </div>
@@ -539,12 +623,21 @@ export default function ModuloIAPage() {
 
           {/* INPUT */}
           <div className="bg-white border-t border-gray-200 px-4 py-3">
-            {ninoSeleccionado && (
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs bg-crecimiento-50 text-crecimiento-700 border border-crecimiento-200 px-2.5 py-1 rounded-full flex items-center gap-1.5">
-                  <User className="w-3 h-3" />
-                  Consultando sobre <strong className="ml-1">{ninoSeleccionado.alias}</strong>
-                </span>
+            {ninosSeleccionados.length > 0 && (
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                {ninosSeleccionados.length <= 3 ? (
+                  ninosSeleccionados.map(n => (
+                    <span key={n.id} className="text-xs bg-crecimiento-50 text-crecimiento-700 border border-crecimiento-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {n.alias}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs bg-crecimiento-50 text-crecimiento-700 border border-crecimiento-200 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                    <User className="w-3 h-3" />
+                    {ninosSeleccionados.length} niños seleccionados
+                  </span>
+                )}
               </div>
             )}
             <form onSubmit={e => { e.preventDefault(); enviarConsulta(); }} className="flex gap-2 items-end">
@@ -553,14 +646,14 @@ export default function ModuloIAPage() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarConsulta(); } }}
-                placeholder={!ninoSeleccionado ? 'Seleccioná un niño arriba para consultar...' : `Preguntá sobre ${ninoSeleccionado.alias}... (Enter para enviar)`}
+                placeholder={ninosSeleccionados.length === 0 ? 'Seleccioná al menos un niño arriba para consultar...' : ninosSeleccionados.length === 1 ? `Preguntá sobre ${ninosSeleccionados[0].alias}... (Enter para enviar)` : `Preguntá sobre el grupo de ${ninosSeleccionados.length} niños... (Enter para enviar)`}
                 rows={2}
-                disabled={cargando || !ninoSeleccionado}
+                disabled={cargando || ninosSeleccionados.length === 0}
                 className="flex-1 px-4 py-3 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-400 focus:border-transparent resize-none disabled:bg-gray-50 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
-                disabled={cargando || !input.trim() || !ninoSeleccionado}
+                disabled={cargando || !input.trim() || ninosSeleccionados.length === 0}
                 className="p-3 bg-gradient-to-br from-purple-500 to-crecimiento-500 text-white rounded-xl hover:from-purple-600 hover:to-crecimiento-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md active:scale-95 flex-shrink-0"
               >
                 {cargando ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}

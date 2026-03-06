@@ -1,4 +1,4 @@
-﻿// API Route - MÃ³dulo IA centralizado
+// API Route - MÃ³dulo IA centralizado
 // Toda consulta requiere un niÃ±o seleccionado.
 // La IA relaciona: perfil del niÃ±o + sesiones + planes de intervenciÃ³n + biblioteca RAG.
 // Acceso por rol: voluntarios solo ven sus niÃ±os asignados; admin/equipo ven todos.
@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callGeminiWithKeyRotation, generarEmbedding } from '@/lib/ia/gemini';
-import { PROMPT_IA_CENTRALIZADO, PROMPT_CHAT_BIBLIOTECA, PROMPT_ANALISIS_SESION } from '@/lib/ia/prompts';
+import { PROMPT_IA_CENTRALIZADO, PROMPT_CHAT_BIBLIOTECA, PROMPT_ANALISIS_SESION, PROMPT_IA_GRUPAL } from '@/lib/ia/prompts';
 
 // â”€â”€ LÃ­mite diario de llamadas a Gemini â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Configurable con GEMINI_MAX_DAILY_CALLS en .env.local / Netlify env vars.
@@ -115,21 +115,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: limiteUsuario.mensaje }, { status: 429 });
     }
 
-    const { pregunta, ninoId } = await request.json();
+    const body = await request.json();
+    const pregunta: string = body.pregunta;
+    // Acepta ninoId (legacy, un nino) o ninoIds (nuevo, multiples ninos)
+    const ninoIds: string[] = Array.isArray(body.ninoIds) && body.ninoIds.length > 0
+      ? body.ninoIds
+      : body.ninoId
+      ? [body.ninoId]
+      : [];
 
     if (!pregunta?.trim()) {
       return NextResponse.json({ error: 'Pregunta requerida' }, { status: 400 });
     }
 
-    // ninoId es OBLIGATORIO â€” siempre se trabaja en contexto de un niÃ±o especÃ­fico
-    if (!ninoId) {
+    if (ninoIds.length === 0) {
       return NextResponse.json(
-        { error: 'SeleccionÃ¡ un niÃ±o antes de consultar. Cada consulta debe estar asociada a un niÃ±o especÃ­fico.' },
+        { error: 'Selecciona al menos un nino antes de consultar.' },
         { status: 400 }
       );
     }
 
-    // â”€â”€ Verificar rol y acceso al niÃ±o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // -- Verificar rol y acceso --
     const { data: perfil } = await supabase
       .from('perfiles')
       .select('rol')
@@ -138,58 +144,31 @@ export async function POST(request: NextRequest) {
 
     const rol = perfil?.rol || 'voluntario';
 
-    // Voluntarios: solo pueden consultar sobre sus niÃ±os asignados
+    // Voluntarios: solo pueden consultar sobre sus ninos asignados
     if (rol === 'voluntario') {
-      const { data: asignacion } = await supabase
+      const { data: asignaciones } = await supabase
         .from('asignaciones')
-        .select('id')
+        .select('nino_id')
         .eq('voluntario_id', user.id)
-        .eq('nino_id', ninoId)
         .eq('activa', true)
-        .maybeSingle();
+        .in('nino_id', ninoIds);
 
-      if (!asignacion) {
+      const idsAsignados = (asignaciones || []).map((a: any) => a.nino_id);
+      const sinAcceso = ninoIds.filter(id => !idsAsignados.includes(id));
+      if (sinAcceso.length > 0) {
         return NextResponse.json(
-          { error: 'No tenÃ©s acceso a este niÃ±o. Solo podÃ©s consultar sobre los niÃ±os que tenÃ©s asignados.' },
+          { error: 'No tienes acceso a algunos de los ninos seleccionados.' },
           { status: 403 }
         );
       }
     }
 
-    // â”€â”€ Obtener datos del niÃ±o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const { data: nino, error: ninoError } = await supabase
-      .from('ninos')
-      .select('id, alias, rango_etario, nivel_alfabetizacion, escolarizado')
-      .eq('id', ninoId)
-      .single();
-
-    if (ninoError || !nino) {
-      return NextResponse.json({ error: 'NiÃ±o no encontrado' }, { status: 404 });
-    }
-
-    // â”€â”€ Obtener Ãºltimas sesiones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const { data: sesiones } = await supabase
-      .from('sesiones')
-      .select('fecha, duracion_minutos, items, observaciones_libres')
-      .eq('nino_id', ninoId)
-      .order('fecha', { ascending: false })
-      .limit(8);
-
-    // â”€â”€ Obtener planes de intervenciÃ³n activos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const { data: planes } = await supabase
-      .from('planes_intervencion')
-      .select('titulo, area, descripcion, objetivos, actividades_sugeridas, estado, prioridad, fecha_inicio, fecha_fin_estimada')
-      .eq('nino_id', ninoId)
-      .in('estado', ['activo', 'en_progreso'])
-      .order('prioridad', { ascending: true });
-
-    // â”€â”€ BÃºsqueda semÃ¡ntica en biblioteca (RAG) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    let fragmentosBibliografia = 'No hay documentos cargados en la biblioteca aÃºn.';
+    // -- Busqueda semantica en biblioteca (RAG) - comun para todos --
+    let fragmentosBibliografia = 'No hay documentos cargados en la biblioteca aun.';
     let fuentesUsadas: { titulo: string; autor: string }[] = [];
 
     try {
       const queryEmbedding = await generarEmbedding(pregunta);
-
       const { data: chunks } = await supabase.rpc('match_documents', {
         query_embedding: queryEmbedding,
         match_threshold: 0.60,
@@ -198,87 +177,170 @@ export async function POST(request: NextRequest) {
       });
 
       if (chunks && chunks.length > 0) {
-        fragmentosBibliografia = chunks.map((chunk: any, i: number) => `
---- Fragmento ${i + 1} ---
-ðŸ“„ Documento: ${chunk.documento.titulo}
-âœï¸ Autor: ${chunk.documento.autor}
-
-${chunk.texto}
-`).join('\n');
-
+        fragmentosBibliografia = chunks.map((chunk: any, i: number) =>
+          `--- Fragmento ${i + 1} ---\nDocumento: ${chunk.documento.titulo}\nAutor: ${chunk.documento.autor}\n\n${chunk.texto}`
+        ).join('\n\n');
         fuentesUsadas = chunks.map((c: any) => ({
           titulo: c.documento.titulo,
           autor: c.documento.autor,
         }));
       }
     } catch (embeddingError) {
-      // Si falla el embedding/RAG, continÃºa sin bibliografÃ­a
-      console.error('Error en bÃºsqueda RAG (no crÃ­tico):', embeddingError);
+      console.error('Error en busqueda RAG (no critico):', embeddingError);
       fragmentosBibliografia = 'No se pudo acceder a la biblioteca en este momento.';
     }
 
-    // â”€â”€ Armar el prompt centralizado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const perfilJson = JSON.stringify({
-      alias: nino.alias,
-      rango_etario: nino.rango_etario,
-      nivel_alfabetizacion: nino.nivel_alfabetizacion || 'No especificado',
-      escolarizado: nino.escolarizado ?? 'No especificado',
-    }, null, 2);
+    // -- Un solo nino: comportamiento original --
+    if (ninoIds.length === 1) {
+      const ninoId = ninoIds[0];
 
-    const sesionesJson = sesiones && sesiones.length > 0
-      ? JSON.stringify(sesiones.map((s: any) => ({
-          fecha: s.fecha,
-          duracion_minutos: s.duracion_minutos,
-          items: s.items,
-          observaciones: s.observaciones_libres,
-        })), null, 2)
-      : 'No hay sesiones registradas aÃºn.';
+      const { data: nino, error: ninoError } = await supabase
+        .from('ninos')
+        .select('id, alias, rango_etario, nivel_alfabetizacion, escolarizado')
+        .eq('id', ninoId)
+        .single();
 
-    const planesJson = planes && planes.length > 0
-      ? JSON.stringify(planes.map((p: any) => ({
-          titulo: p.titulo,
-          area: p.area,
-          descripcion: p.descripcion,
-          objetivos: p.objetivos,
-          actividades_sugeridas: p.actividades_sugeridas,
-          estado: p.estado,
-          prioridad: p.prioridad,
-          fecha_inicio: p.fecha_inicio,
-          fecha_fin_estimada: p.fecha_fin_estimada,
-        })), null, 2)
-      : 'No hay planes de intervenciÃ³n activos.';
+      if (ninoError || !nino) {
+        return NextResponse.json({ error: 'Nino no encontrado' }, { status: 404 });
+      }
 
-    const promptFinal = PROMPT_IA_CENTRALIZADO
-      .replace('{perfil_json}', perfilJson)
-      .replace('{sesiones_json}', sesionesJson)
-      .replace('{planes_json}', planesJson)
+      const { data: sesiones } = await supabase
+        .from('sesiones')
+        .select('fecha, duracion_minutos, items, observaciones_libres')
+        .eq('nino_id', ninoId)
+        .order('fecha', { ascending: false })
+        .limit(8);
+
+      const { data: planes } = await supabase
+        .from('planes_intervencion')
+        .select('titulo, area, descripcion, objetivos, actividades_sugeridas, estado, prioridad, fecha_inicio, fecha_fin_estimada')
+        .eq('nino_id', ninoId)
+        .in('estado', ['activo', 'en_progreso'])
+        .order('prioridad', { ascending: true });
+
+      const perfilJson = JSON.stringify({
+        alias: nino.alias,
+        rango_etario: nino.rango_etario,
+        nivel_alfabetizacion: nino.nivel_alfabetizacion || 'No especificado',
+        escolarizado: nino.escolarizado ?? 'No especificado',
+      }, null, 2);
+
+      const sesionesJson = sesiones && sesiones.length > 0
+        ? JSON.stringify(sesiones.map((s: any) => ({
+            fecha: s.fecha,
+            duracion_minutos: s.duracion_minutos,
+            items: s.items,
+            observaciones: s.observaciones_libres,
+          })), null, 2)
+        : 'No hay sesiones registradas aun.';
+
+      const planesJson = planes && planes.length > 0
+        ? JSON.stringify(planes.map((p: any) => ({
+            titulo: p.titulo,
+            area: p.area,
+            descripcion: p.descripcion,
+            objetivos: p.objetivos,
+            actividades_sugeridas: p.actividades_sugeridas,
+            estado: p.estado,
+            prioridad: p.prioridad,
+            fecha_inicio: p.fecha_inicio,
+            fecha_fin_estimada: p.fecha_fin_estimada,
+          })), null, 2)
+        : 'No hay planes de intervencion activos.';
+
+      const promptFinal = PROMPT_IA_CENTRALIZADO
+        .replace('{perfil_json}', perfilJson)
+        .replace('{sesiones_json}', sesionesJson)
+        .replace('{planes_json}', planesJson)
+        .replace('{fragmentos_rag}', fragmentosBibliografia)
+        .replace('{pregunta}', pregunta.trim())
+        .replace(/{alias}/g, nino.alias);
+
+      const respuesta = await callGeminiWithKeyRotation(promptFinal);
+
+      await supabase.from('historial_consultas_ia').insert({
+        usuario_id: user.id,
+        modo: 'analisis_nino',
+        nino_id: ninoId,
+        pregunta: pregunta.trim(),
+        respuesta,
+        fuentes: fuentesUsadas.length > 0 ? fuentesUsadas : null,
+        tags_usados: null,
+        tokens_aprox: Math.round((promptFinal.length + respuesta.length) / 4),
+      });
+
+      return NextResponse.json({
+        respuesta,
+        fuentes: fuentesUsadas,
+        contexto: { nino: nino.alias, sesiones: sesiones?.length || 0, planes: planes?.length || 0 },
+      });
+    }
+
+    // -- Multiples ninos: flujo grupal --
+    const { data: ninos } = await supabase
+      .from('ninos')
+      .select('id, alias, rango_etario, nivel_alfabetizacion, escolarizado')
+      .in('id', ninoIds);
+
+    if (!ninos || ninos.length === 0) {
+      return NextResponse.json({ error: 'No se encontraron los ninos seleccionados' }, { status: 404 });
+    }
+
+    const ninosConDatos = await Promise.all(
+      ninos.map(async (nino: any) => {
+        const [{ data: sesiones }, { data: planes }] = await Promise.all([
+          supabase
+            .from('sesiones')
+            .select('fecha, duracion_minutos, items, observaciones_libres')
+            .eq('nino_id', nino.id)
+            .order('fecha', { ascending: false })
+            .limit(5),
+          supabase
+            .from('planes_intervencion')
+            .select('titulo, area, descripcion, objetivos, estado, prioridad')
+            .eq('nino_id', nino.id)
+            .in('estado', ['activo', 'en_progreso'])
+            .order('prioridad', { ascending: true }),
+        ]);
+        return {
+          alias: nino.alias,
+          rango_etario: nino.rango_etario,
+          nivel_alfabetizacion: nino.nivel_alfabetizacion || 'No especificado',
+          escolarizado: nino.escolarizado ?? 'No especificado',
+          sesiones_recientes: sesiones && sesiones.length > 0
+            ? sesiones.map((s: any) => ({ fecha: s.fecha, duracion: s.duracion_minutos, items: s.items, observaciones: s.observaciones_libres }))
+            : 'Sin sesiones registradas',
+          planes_activos: planes && planes.length > 0
+            ? planes.map((p: any) => ({ titulo: p.titulo, area: p.area, objetivos: p.objetivos, estado: p.estado }))
+            : 'Sin planes activos',
+        };
+      })
+    );
+
+    const ninosJson = JSON.stringify(ninosConDatos, null, 2);
+    const promptFinal = PROMPT_IA_GRUPAL
+      .replace('{ninos_json}', ninosJson)
       .replace('{fragmentos_rag}', fragmentosBibliografia)
-      .replace('{pregunta}', pregunta.trim())
-      .replace(/{alias}/g, nino.alias);
+      .replace('{pregunta}', pregunta.trim());
 
-    // â”€â”€ Llamar a Gemini (con rotaciÃ³n de keys) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const respuesta = await callGeminiWithKeyRotation(promptFinal);
+    const aliases = ninos.map((n: any) => n.alias);
 
-    // â”€â”€ Guardar en historial â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     await supabase.from('historial_consultas_ia').insert({
       usuario_id: user.id,
-      modo: 'analisis_nino',
-      nino_id: ninoId,
+      modo: 'analisis_grupal',
+      nino_id: null,
       pregunta: pregunta.trim(),
       respuesta,
       fuentes: fuentesUsadas.length > 0 ? fuentesUsadas : null,
-      tags_usados: null,
+      tags_usados: aliases,
       tokens_aprox: Math.round((promptFinal.length + respuesta.length) / 4),
     });
 
     return NextResponse.json({
       respuesta,
       fuentes: fuentesUsadas,
-      contexto: {
-        nino: nino.alias,
-        sesiones: sesiones?.length || 0,
-        planes: planes?.length || 0,
-      },
+      contexto: { ninos: aliases, total: ninos.length },
     });
 
   } catch (error: any) {
