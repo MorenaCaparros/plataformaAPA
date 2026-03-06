@@ -92,8 +92,7 @@ export default function AdminDashboard() {
           id,
           fecha,
           duracion_minutos,
-          tipo_sesion,
-          ninos!inner(alias, rango_etario)
+          ninos!sesiones_nino_id_fkey(alias, rango_etario)
         `)
         .gte('fecha', hoyInicio.toISOString())
         .lte('fecha', hoyFin.toISOString())
