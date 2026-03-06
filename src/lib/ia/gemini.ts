@@ -48,3 +48,75 @@ export function getEmbeddingModel(): GenerativeModel {
 // Exportar para compatibilidad con código existente
 // NOTA: Usar getModel() y getEmbeddingModel() en su lugar
 export { getGenAI as genAI };
+
+// ─── Rotación de API keys ──────────────────────────────────────────────────
+// Soporta hasta 5 keys: GOOGLE_AI_API_KEY, GOOGLE_AI_API_KEY_2, ..., GOOGLE_AI_API_KEY_5
+// Útil en tests multi-usuario para evitar rate limits del plan gratis (15 RPM por key)
+
+function getApiKeys(): string[] {
+  // Orden: KEY_2..KEY_5 primero, KEY_1 como último recurso
+  return [
+    process.env.GOOGLE_AI_API_KEY_2,
+    process.env.GOOGLE_AI_API_KEY_3,
+    process.env.GOOGLE_AI_API_KEY_4,
+    process.env.GOOGLE_AI_API_KEY_5,
+    process.env.GOOGLE_AI_API_KEY,   // fallback
+  ].filter(Boolean) as string[];
+}
+
+/**
+ * Genera texto con Gemini rotando keys automáticamente en caso de rate limit (429).
+ * Ideal para rutas de API que pueden recibir llamadas simultáneas.
+ */
+export async function callGeminiWithKeyRotation(prompt: string): Promise<string> {
+  const keys = getApiKeys();
+
+  if (keys.length === 0) {
+    throw new Error('GOOGLE_AI_API_KEY no está configurada');
+  }
+
+  let ultimoError: any;
+  for (const key of keys) {
+    try {
+      const ai = new GoogleGenerativeAI(key);
+      const model = ai.getGenerativeModel({
+        model: 'gemini-2.0-flash',
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        },
+      });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (err: any) {
+      ultimoError = err;
+      // 429 = rate limit → rotar a la siguiente key
+      const status = err?.status || err?.httpErrorCode;
+      if (status === 429 || err?.message?.includes('429')) {
+        continue;
+      }
+      // Otro error → propagar directamente
+      throw err;
+    }
+  }
+
+  throw new Error(
+    'Límite de consultas alcanzado en todas las API keys. Intentá en un momento.'
+  );
+}
+
+/**
+ * Genera embedding vectorial para búsqueda semántica (siempre usa la key primaria).
+ * Gemini text-embedding-004 → 768 dimensiones.
+ */
+export async function generarEmbedding(texto: string): Promise<number[]> {
+  const key = process.env.GOOGLE_AI_API_KEY;
+  if (!key) throw new Error('GOOGLE_AI_API_KEY no está configurada');
+
+  const ai = new GoogleGenerativeAI(key);
+  const model = ai.getGenerativeModel({ model: 'text-embedding-004' });
+  const result = await model.embedContent(texto);
+  return result.embedding.values;
+}

@@ -2,9 +2,88 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getModel } from '@/lib/ia/gemini';
-import { generateEmbedding } from '@/lib/ia/rag';
+import { callGeminiWithKeyRotation, generarEmbedding } from '@/lib/ia/gemini';
 import { PROMPT_CHAT_BIBLIOTECA, PROMPT_ANALISIS_SESION } from '@/lib/ia/prompts';
+
+// ── Límite diario de llamadas a Gemini ────────────────────────────────────
+// Configurable con GEMINI_MAX_DAILY_CALLS en .env.local / Netlify env vars.
+// Usa historial_consultas_ia para contar llamadas del día en curso.
+// Por defecto: 300 (suficiente para una prueba de un día con 10 personas).
+const MAX_DAILY_CALLS = parseInt(process.env.GEMINI_MAX_DAILY_CALLS || '300', 10);
+
+// ── Límites por usuario ────────────────────────────────────────────────────
+// MAX_CALLS_PER_USER_PER_HOUR: máximo de consultas por usuario en 1 hora (default: 10)
+// MIN_MINUTES_BETWEEN_CALLS: minutos mínimos entre consultas del mismo usuario (default: 10)
+const MAX_CALLS_PER_USER_PER_HOUR = parseInt(process.env.GEMINI_MAX_PER_USER_HORA || '10', 10);
+const MIN_MINUTES_BETWEEN_CALLS   = parseInt(process.env.GEMINI_MIN_MINUTOS_ENTRE  || '10', 10);
+
+async function verificarLimiteDiario(
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<{ bloqueado: boolean; uso: number; limite: number }> {
+  try {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const { count } = await supabase
+      .from('historial_consultas_ia')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', hoy.toISOString());
+
+    const uso = count ?? 0;
+    return { bloqueado: uso >= MAX_DAILY_CALLS, uso, limite: MAX_DAILY_CALLS };
+  } catch {
+    return { bloqueado: false, uso: 0, limite: MAX_DAILY_CALLS };
+  }
+}
+
+async function verificarLimiteUsuario(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<{ bloqueado: boolean; mensaje: string }> {
+  try {
+    const ahora = new Date();
+
+    // 1) Última consulta del usuario → cooldown entre consultas
+    const { data: ultima } = await supabase
+      .from('historial_consultas_ia')
+      .select('created_at')
+      .eq('usuario_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (ultima?.created_at) {
+      const diff = (ahora.getTime() - new Date(ultima.created_at).getTime()) / 1000 / 60;
+      if (diff < MIN_MINUTES_BETWEEN_CALLS) {
+        const espera = Math.ceil(MIN_MINUTES_BETWEEN_CALLS - diff);
+        return {
+          bloqueado: true,
+          mensaje: `Esperá ${espera} minuto${espera !== 1 ? 's' : ''} antes de hacer otra consulta.`,
+        };
+      }
+    }
+
+    // 2) Consultas en la última hora → tope por usuario
+    const haceUnaHora = new Date(ahora.getTime() - 60 * 60 * 1000);
+    const { count } = await supabase
+      .from('historial_consultas_ia')
+      .select('*', { count: 'exact', head: true })
+      .eq('usuario_id', userId)
+      .gte('created_at', haceUnaHora.toISOString());
+
+    const usoHora = count ?? 0;
+    if (usoHora >= MAX_CALLS_PER_USER_PER_HOUR) {
+      return {
+        bloqueado: true,
+        mensaje: `Alcanzaste el límite de ${MAX_CALLS_PER_USER_PER_HOUR} consultas por hora. Intentá más tarde.`,
+      };
+    }
+
+    return { bloqueado: false, mensaje: '' };
+  } catch {
+    return { bloqueado: false, mensaje: '' };
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +93,23 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
+    // ── Límite diario global ───────────────────────────────────────────────
+    const { bloqueado, uso, limite } = await verificarLimiteDiario(supabase);
+    if (bloqueado) {
+      return NextResponse.json(
+        {
+          error: `Se alcanzó el límite diario de consultas (${uso}/${limite}). El límite se reinicia a medianoche. Contactá al administrador si necesitás más.`,
+        },
+        { status: 429 }
+      );
+    }
+
+    // ── Límite por usuario (cooldown + tope por hora) ──────────────────────
+    const limiteUsuario = await verificarLimiteUsuario(supabase, user.id);
+    if (limiteUsuario.bloqueado) {
+      return NextResponse.json({ error: limiteUsuario.mensaje }, { status: 429 });
     }
 
     const { pregunta, tipo = 'biblioteca', ninoId, sesionIds, tags: tagsFiltro } = await request.json();
@@ -105,7 +201,7 @@ ${listaNinos}
           : 'No hay documentos en la biblioteca.';
 
       // Segundo: Búsqueda semántica — restringida a los docs del filtro si hay tags
-      const queryEmbedding = await generateEmbedding(pregunta);
+      const queryEmbedding = await generarEmbedding(pregunta);
 
       // Si hay filtro de tags y tenemos IDs concretos, pasarlos al RPC para restringir la búsqueda
       const documentoIds = todosDocumentos?.map((d: any) => d.id) || [];
@@ -115,20 +211,15 @@ ${listaNinos}
 
       if (documentoIds.length > 0) {
         // Búsqueda vectorial limitada a los docs filtrados
+        // Nota: pasar el array directamente (NO JSON.stringify) para compatibilidad con pgvector
         const rpcResult = await supabase.rpc('match_documents', {
-          query_embedding: JSON.stringify(queryEmbedding),
+          query_embedding: queryEmbedding,
           match_threshold: 0.65,
-          match_count: tagsFiltro?.length > 0 ? 6 : 8  // menos chunks si ya filtramos por tag
+          match_count: tagsFiltro?.length > 0 ? 6 : 8,
+          filter_documento_ids: tagsFiltro?.length > 0 ? documentoIds : null,
         });
         chunks = rpcResult.data;
         searchError = rpcResult.error;
-
-        // Si hay filtro activo, descartar chunks de documentos no incluidos
-        if (tagsFiltro?.length > 0 && chunks) {
-          chunks = chunks.filter((c: any) =>
-            documentoIds.includes(c.documento_id || c.documento?.id)
-          );
-        }
       }
 
       if (searchError) {
@@ -168,9 +259,8 @@ INSTRUCCIONES:
 - Si no hay información relevante, sugiere documentos que podrían ayudar
 - Sé preciso y pedagógico en tus respuestas`;
 
-      // Generar respuesta
-      const result = await getModel().generateContent(promptEnriquecido);
-      const respuesta = result.response.text();
+      // Generar respuesta (con rotación de keys para soportar múltiples usuarios)
+      const respuesta = await callGeminiWithKeyRotation(promptEnriquecido);
 
       return NextResponse.json({
         respuesta,
@@ -207,12 +297,12 @@ INSTRUCCIONES:
       if (sesionesError) throw sesionesError;
 
       // Buscar información relevante en biblioteca
-      const queryEmbedding = await generateEmbedding(pregunta);
+      const queryEmbedding = await generarEmbedding(pregunta);
       const { data: chunks } = await supabase
         .rpc('match_documents', {
-          query_embedding: JSON.stringify(queryEmbedding),
+          query_embedding: queryEmbedding,
           match_threshold: 0.6,
-          match_count: 3
+          match_count: 3,
         });
 
       // Formatear datos para el prompt
@@ -243,9 +333,8 @@ INSTRUCCIONES:
         .replace('{fragmentos_rag}', bibliografia)
         .replace('{pregunta_especifica}', pregunta);
 
-      // Generar respuesta
-      const result = await getModel().generateContent(prompt);
-      const respuesta = result.response.text();
+      // Generar respuesta (con rotación de keys)
+      const respuesta = await callGeminiWithKeyRotation(prompt);
 
       return NextResponse.json({
         respuesta,
