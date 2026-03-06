@@ -38,9 +38,8 @@ export function getModel(): GenerativeModel {
 // Función para obtener el modelo de embeddings (lazy initialization)
 export function getEmbeddingModel(): GenerativeModel {
   if (!embeddingModel) {
-    embeddingModel = getGenAI().getGenerativeModel({ 
-      model: 'text-embedding-004'
-    });
+    // embedding-001: compatible con v1beta, 768 dims
+    embeddingModel = getGenAI().getGenerativeModel({ model: 'embedding-001' });
   }
   return embeddingModel;
 }
@@ -116,7 +115,8 @@ export async function generarEmbedding(texto: string): Promise<number[]> {
   if (!key) throw new Error('GOOGLE_AI_API_KEY no está configurada');
 
   const ai = new GoogleGenerativeAI(key);
-  const model = ai.getGenerativeModel({ model: 'text-embedding-004' });
+  // embedding-001 es compatible con v1beta (768 dims, igual que text-embedding-004)
+  const model = ai.getGenerativeModel({ model: 'embedding-001' });
   const result = await model.embedContent(texto);
   return result.embedding.values;
 }
