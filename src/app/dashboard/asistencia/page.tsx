@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -40,10 +41,9 @@ export default function AsistenciaPage() {
   const { user, perfil, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [ninos, setNinos] = useState<NinoAsistencia[]>([]);
-  const [zonas, setZonas] = useState<Zona[]>([]);
+  const queryClient = useQueryClient();
+
   const [zonaFiltro, setZonaFiltro] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [seleccion, setSeleccion] = useState<Record<string, 'presente' | 'ausente' | null>>({});
@@ -54,7 +54,6 @@ export default function AsistenciaPage() {
 
   // ── Tab y asistencia de voluntarios ─────────────────────────────────────
   const [tab, setTab] = useState<Tab>('ninos');
-  const [voluntarios, setVoluntarios] = useState<VoluntarioAsistencia[]>([]);
   const [seleccionVol, setSeleccionVol] = useState<Record<string, 'presente' | 'ausente' | null>>({});
   const [seleccionVolOriginal, setSeleccionVolOriginal] = useState<Record<string, 'presente' | 'ausente' | null>>({});
   const [savedVol, setSavedVol] = useState(false);
@@ -65,166 +64,143 @@ export default function AsistenciaPage() {
   const puedeVerZonas = !esVoluntario;
   const puedeVerVoluntarios = !!esCoordinadorOSuperior;
 
-  useEffect(() => {
-    if (!authLoading && user && perfil) {
-      fetchNinos();
-      if (puedeVerZonas) fetchZonas();
-    }
-  }, [authLoading, user, perfil]);
+  // ── Query: Zonas (caché compartida con otras páginas) ─────────────────
+  const { data: zonas = [] } = useQuery<Zona[]>({
+    queryKey: ['zonas'],
+    queryFn: async () => {
+      const { data } = await supabase.from('zonas').select('id, nombre').order('nombre');
+      return data || [];
+    },
+    enabled: !!user && !authLoading && puedeVerZonas,
+    staleTime: 1000 * 60 * 10,
+  });
 
-  useEffect(() => {
-    if (ninos.length > 0) fetchExistentes();
-  }, [fecha, ninos]);
-
-  useEffect(() => {
-    if (puedeVerVoluntarios && tab === 'voluntarios') {
-      fetchVoluntarios();
-    }
-  }, [tab, puedeVerVoluntarios]);
-
-  useEffect(() => {
-    if (voluntarios.length > 0 && tab === 'voluntarios') fetchExistentesVol();
-  }, [fecha, voluntarios, tab]);
-
-  const fetchZonas = async () => {
-    const { data } = await supabase.from('zonas').select('id, nombre').order('nombre');
-    setZonas(data || []);
-  };
-
-  const fetchNinos = async () => {
-    try {
-      setLoading(true);
-      let ninosData: NinoAsistencia[] = [];
-
+  // ── Query: Niños ──────────────────────────────────────────────────────
+  const { data: ninos = [], isLoading: loadingNinos } = useQuery<NinoAsistencia[]>({
+    queryKey: ['asistencia-ninos', user?.id, perfil?.rol, perfil?.zona_id],
+    queryFn: async () => {
       if (esVoluntario) {
-        // Voluntarios: SOLO sus niños asignados
         const { data, error } = await supabase
           .from('asignaciones')
           .select('nino_id, ninos (id, alias, rango_etario, zona_id, zonas (nombre))')
           .eq('voluntario_id', user!.id)
           .eq('activa', true);
-
         if (error) throw error;
-        ninosData = (data || [])
+        return (data || [])
           .map((a: any) => a.ninos)
           .filter(Boolean)
           .map((n: any) => ({
-            id: n.id,
-            alias: n.alias,
-            rango_etario: n.rango_etario,
-            zona_id: n.zona_id || null,
-            zona_nombre: n.zonas?.nombre || null,
+            id: n.id, alias: n.alias, rango_etario: n.rango_etario,
+            zona_id: n.zona_id || null, zona_nombre: n.zonas?.nombre || null,
           }));
       } else {
-        const query = supabase
+        let query = supabase
           .from('ninos')
           .select('id, alias, rango_etario, zona_id, zonas (nombre)')
           .eq('activo', true)
           .order('alias', { ascending: true });
-
         if (perfil?.rol === 'coordinador' && perfil?.zona_id) {
-          query.eq('zona_id', perfil.zona_id);
+          query = query.eq('zona_id', perfil.zona_id);
         }
-
         const { data, error } = await query;
         if (error) throw error;
-        ninosData = (data || []).map((n: any) => ({
-          id: n.id,
-          alias: n.alias,
-          rango_etario: n.rango_etario,
-          zona_id: n.zona_id || null,
-          zona_nombre: n.zonas?.nombre || null,
+        return (data || []).map((n: any) => ({
+          id: n.id, alias: n.alias, rango_etario: n.rango_etario,
+          zona_id: n.zona_id || null, zona_nombre: n.zonas?.nombre || null,
         }));
       }
+    },
+    enabled: !!user && !authLoading && !!perfil,
+    staleTime: 1000 * 60 * 5,
+  });
 
-      setNinos(ninosData);
-    } catch (error) {
-      console.error('Error fetching niños:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ── Query: Asistencias existentes (niños) por fecha ───────────────────
+  const ninoIds = useMemo(() => ninos.map(n => n.id), [ninos]);
+  const { data: existentesRaw = [] } = useQuery<AsistenciaExistente[]>({
+    queryKey: ['asistencia-existentes-ninos', fecha, ninoIds.join(',')],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('asistencias')
+        .select('id, nino_id, presente, motivo_ausencia')
+        .eq('fecha', fecha)
+        .in('nino_id', ninoIds);
+      if (error) throw error;
+      return (data || []) as AsistenciaExistente[];
+    },
+    enabled: ninoIds.length > 0,
+    staleTime: 0, // Siempre refrescar (datos del día)
+  });
 
-  const fetchVoluntarios = async () => {
-    try {
+  // Sincronizar datos de BD → estado de edición
+  useEffect(() => {
+    const map: Record<string, AsistenciaExistente> = {};
+    const sel: Record<string, 'presente' | 'ausente' | null> = {};
+    const mot: Record<string, string> = {};
+    existentesRaw.forEach((a) => {
+      map[a.nino_id] = a;
+      sel[a.nino_id] = a.presente ? 'presente' : 'ausente';
+      mot[a.nino_id] = a.motivo_ausencia || '';
+    });
+    setExistentes(map);
+    setSeleccion(sel);
+    setSeleccionOriginal({ ...sel });
+    setMotivos(mot);
+    setSaved(false);
+  }, [existentesRaw]);
+
+  // ── Query: Voluntarios ────────────────────────────────────────────────
+  const { data: voluntarios = [] } = useQuery<VoluntarioAsistencia[]>({
+    queryKey: ['asistencia-voluntarios-lista'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('perfiles')
         .select('id, nombre, apellido, zona_id, zonas (nombre)')
         .eq('rol', 'voluntario')
         .eq('activo', true)
         .order('nombre', { ascending: true });
-
       if (error) throw error;
-      setVoluntarios(
-        (data || []).map((v: any) => ({
-          id: v.id,
-          nombre: [v.nombre, v.apellido].filter(Boolean).join(' ') || 'Sin nombre',
-          zona_nombre: v.zonas?.nombre || null,
-          zona_id: v.zona_id || null,
-        }))
-      );
-    } catch (error) {
-      console.error('Error fetching voluntarios:', error);
-    }
-  };
+      return (data || []).map((v: any) => ({
+        id: v.id,
+        nombre: [v.nombre, v.apellido].filter(Boolean).join(' ') || 'Sin nombre',
+        zona_nombre: v.zonas?.nombre || null,
+        zona_id: v.zona_id || null,
+      }));
+    },
+    enabled: puedeVerVoluntarios && tab === 'voluntarios',
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const fetchExistentesVol = async () => {
-    try {
-      const volIds = voluntarios.map((v) => v.id);
-      if (volIds.length === 0) return;
-
+  // ── Query: Asistencias existentes (voluntarios) por fecha ─────────────
+  const volIds = useMemo(() => voluntarios.map(v => v.id), [voluntarios]);
+  const { data: existentesVolRaw = [] } = useQuery<{ voluntario_id: string; presente: boolean }[]>({
+    queryKey: ['asistencia-existentes-vol', fecha, volIds.join(',')],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('asistencia_voluntarios')
         .select('voluntario_id, presente')
         .eq('fecha', fecha)
         .in('voluntario_id', volIds);
-
       if (error) throw error;
+      return data || [];
+    },
+    enabled: volIds.length > 0 && tab === 'voluntarios',
+    staleTime: 0,
+  });
 
-      const sel: Record<string, 'presente' | 'ausente' | null> = {};
-      (data || []).forEach((a: any) => {
-        sel[a.voluntario_id] = a.presente ? 'presente' : 'ausente';
-      });
-      setSeleccionVol(sel);
-      setSeleccionVolOriginal({ ...sel });
-      setSavedVol(false);
-    } catch (error) {
-      console.error('Error fetching asistencia voluntarios:', error);
-    }
-  };
+  // Sincronizar datos de BD → estado de edición voluntarios
+  useEffect(() => {
+    const sel: Record<string, 'presente' | 'ausente' | null> = {};
+    existentesVolRaw.forEach((a) => {
+      sel[a.voluntario_id] = a.presente ? 'presente' : 'ausente';
+    });
+    setSeleccionVol(sel);
+    setSeleccionVolOriginal({ ...sel });
+    setSavedVol(false);
+  }, [existentesVolRaw]);
 
-  const fetchExistentes = async () => {
-    try {
-      const ninoIds = ninos.map(n => n.id);
-      if (ninoIds.length === 0) return;
+  const loading = loadingNinos;
 
-      const { data, error } = await supabase
-        .from('asistencias')
-        .select('id, nino_id, presente, motivo_ausencia')
-        .eq('fecha', fecha)
-        .in('nino_id', ninoIds);
 
-      if (error) throw error;
-
-      const map: Record<string, AsistenciaExistente> = {};
-      const sel: Record<string, 'presente' | 'ausente' | null> = {};
-      const mot: Record<string, string> = {};
-
-      (data || []).forEach((a: any) => {
-        map[a.nino_id] = a;
-        sel[a.nino_id] = a.presente ? 'presente' : 'ausente';
-        mot[a.nino_id] = a.motivo_ausencia || '';
-      });
-
-      setExistentes(map);
-      setSeleccion(sel);
-      setSeleccionOriginal({ ...sel });
-      setMotivos(mot);
-      setSaved(false);
-    } catch (error) {
-      console.error('Error fetching asistencias:', error);
-    }
-  };
 
   const toggleNino = (ninoId: string) => {
     setSeleccion(prev => {
@@ -269,7 +245,7 @@ export default function AsistenciaPage() {
       if (error) throw error;
 
       setSavedVol(true);
-      await fetchExistentesVol();
+      queryClient.invalidateQueries({ queryKey: ['asistencia-existentes-vol', fecha] });
     } catch (error: any) {
       console.error('Error guardando asistencia voluntarios:', error);
     } finally {
@@ -335,7 +311,7 @@ export default function AsistenciaPage() {
       if (error) throw error;
 
       setSaved(true);
-      await fetchExistentes();
+      queryClient.invalidateQueries({ queryKey: ['asistencia-existentes-ninos', fecha] });
     } catch (error: any) {
       console.error('Error guardando asistencia:', error);
     } finally {

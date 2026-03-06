@@ -3,7 +3,8 @@
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState, Suspense } from 'react';
+import { useState, useMemo, Suspense } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { 
   ArrowLeft, 
@@ -94,12 +95,8 @@ function AsignacionesPageContent() {
   const searchParams = useSearchParams();
   const zonaParam = searchParams.get('zona');
   
-  const [loading, setLoading] = useState(true);
-  const [ninos, setNinos] = useState<NinoConAsignacion[]>([]);
-  const [voluntarios, setVoluntarios] = useState<VoluntarioConCarga[]>([]);
-  const [zonas, setZonas] = useState<Zona[]>([]);
-  const [estadisticas, setEstadisticas] = useState<EstadisticasGlobales | null>(null);
-  
+  const queryClient = useQueryClient();
+
   // Filtros
   const [filtroZona, setFiltroZona] = useState<string>(zonaParam || 'todas');
   const [filtroEstadoNino, setFiltroEstadoNino] = useState<'todos' | 'asignado' | 'sin_asignar'>('todos');
@@ -119,51 +116,25 @@ function AsignacionesPageContent() {
   const rolesPermitidos = ['director', 'coordinador', 'psicopedagogia', 'equipo_profesional'];
   const tieneAcceso = perfil?.rol && rolesPermitidos.includes(perfil.rol);
 
-  useEffect(() => {
-    if (!authLoading && user) {
-      if (!tieneAcceso) {
-        router.push('/dashboard');
-        return;
-      }
-      fetchData();
-    }
-  }, [authLoading, user, perfil, tieneAcceso]);
+  // ─── Zonas ────────────────────────────────────────────────────────────────
+  const { data: zonas = [] } = useQuery<Zona[]>({
+    queryKey: ['zonas'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('zonas')
+        .select('id, nombre')
+        .order('nombre', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !authLoading && !!tieneAcceso,
+    staleTime: 1000 * 60 * 10,
+  });
 
-  useEffect(() => {
-    if (zonaParam) {
-      setFiltroZona(zonaParam);
-    }
-  }, [zonaParam]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        fetchZonas(),
-        fetchNinosConAsignaciones(''),
-        fetchVoluntariosConCarga(''),
-      ]);
-    } catch (error) {
-      console.error('Error cargando datos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchZonas = async () => {
-    const { data, error } = await supabase
-      .from('zonas')
-      .select('id, nombre')
-      .order('nombre', { ascending: true });
-
-    if (!error && data) {
-      setZonas(data);
-    }
-  };
-
-  const fetchNinosConAsignaciones = async (_token: string) => {
-    try {
-      // Obtener todos los niños
+  // ─── Niños con asignaciones ───────────────────────────────────────────────
+  const { data: ninos = [], isLoading: loadingNinos, refetch: refetchNinos } = useQuery<NinoConAsignacion[]>({
+    queryKey: ['asignaciones-ninos'],
+    queryFn: async () => {
       const { data: ninosData, error: ninosError } = await supabase
         .from('ninos')
         .select(`
@@ -174,10 +145,8 @@ function AsignacionesPageContent() {
           zona:zonas(nombre)
         `)
         .order('alias', { ascending: true });
-
       if (ninosError) throw ninosError;
 
-      // Obtener todas las asignaciones activas con voluntario y niño via Supabase directly
       const { data: asignacionesData, error: asigError } = await supabase
         .from('asignaciones')
         .select(`
@@ -189,10 +158,8 @@ function AsignacionesPageContent() {
           voluntario:perfiles!asignaciones_voluntario_id_fkey(id, nombre, apellido)
         `)
         .eq('activa', true);
-
       if (asigError) throw asigError;
 
-      // Normalize voluntario_nombre
       const asignaciones = (asignacionesData || []).map((a: any) => ({
         ...a,
         voluntario_nombre: a.voluntario
@@ -200,7 +167,6 @@ function AsignacionesPageContent() {
           : 'Voluntario',
       }));
 
-      // Obtener niños que YA tienen evaluación psicopedagógica (entrevista tipo='inicial')
       let ninosConEvaluacion = new Set<string>();
       try {
         const { data: evalData } = await supabase
@@ -208,14 +174,10 @@ function AsignacionesPageContent() {
           .select('nino_id')
           .eq('tipo', 'inicial');
         ninosConEvaluacion = new Set((evalData || []).map((d: any) => d.nino_id));
-      } catch {
-        // ignorar si falla
-      }
+      } catch { /* ignorar */ }
 
-      // Combinar datos
-      const ninosConAsignacion: NinoConAsignacion[] = (ninosData || []).map((nino: any) => {
+      return (ninosData || []).map((nino: any) => {
         const asignacion = asignaciones?.find((a: any) => a.nino_id === nino.id);
-        
         return {
           id: nino.id,
           alias: nino.alias,
@@ -232,28 +194,15 @@ function AsignacionesPageContent() {
           } : null,
         };
       });
+    },
+    enabled: !!user && !authLoading && !!tieneAcceso,
+    staleTime: 1000 * 60 * 2,
+  });
 
-      setNinos(ninosConAsignacion);
-
-      // Calcular estadísticas
-      const totalNinos = ninosConAsignacion.length;
-      const ninosAsignados = ninosConAsignacion.filter(n => n.asignacion !== null).length;
-
-      setEstadisticas(prev => ({
-        ...prev!,
-        total_ninos: totalNinos,
-        ninos_asignados: ninosAsignados,
-        ninos_sin_asignar: totalNinos - ninosAsignados,
-      }));
-
-    } catch (error) {
-      console.error('Error fetching niños:', error);
-    }
-  };
-
-  const fetchVoluntariosConCarga = async (_token: string) => {
-    try {
-      // Obtener voluntarios con sus zonas
+  // ─── Voluntarios con carga ────────────────────────────────────────────────
+  const { data: voluntarios = [], isLoading: loadingVol, refetch: refetchVol } = useQuery<VoluntarioConCarga[]>({
+    queryKey: ['asignaciones-voluntarios'],
+    queryFn: async () => {
       const { data: voluntariosData, error: volError } = await supabase
         .from('perfiles')
         .select(`
@@ -264,10 +213,8 @@ function AsignacionesPageContent() {
           zona:zonas(nombre)
         `)
         .eq('rol', 'voluntario');
-
       if (volError) throw volError;
 
-      // Obtener asignaciones activas directamente
       const { data: asignacionesData } = await supabase
         .from('asignaciones')
         .select(`
@@ -281,7 +228,6 @@ function AsignacionesPageContent() {
 
       const asignaciones = asignacionesData || [];
 
-      // Obtener autoevaluaciones completadas
       const { data: autoevaluaciones } = await supabase
         .from('voluntarios_capacitaciones')
         .select('voluntario_id')
@@ -291,15 +237,12 @@ function AsignacionesPageContent() {
         autoevaluaciones?.map((a: { voluntario_id: string }) => a.voluntario_id) || []
       );
 
-      // Combinar datos
-      const voluntariosConCarga: VoluntarioConCarga[] = (voluntariosData || []).map((vol: any) => {
+      return (voluntariosData || []).map((vol: any) => {
         const asignacionesVol = asignaciones.filter((a: any) => a.voluntario_id === vol.id);
         const numAsignaciones = asignacionesVol.length;
-        
         let disponibilidad: 'alta' | 'media' | 'baja' = 'alta';
         if (numAsignaciones >= 3) disponibilidad = 'baja';
         else if (numAsignaciones >= 2) disponibilidad = 'media';
-
         return {
           id: vol.id,
           nombre: [vol.nombre, vol.apellido].filter(Boolean).join(' ') || 'Sin nombre',
@@ -315,27 +258,38 @@ function AsignacionesPageContent() {
           })),
         };
       });
+    },
+    enabled: !!user && !authLoading && !!tieneAcceso,
+    staleTime: 1000 * 60 * 2,
+  });
 
-      setVoluntarios(voluntariosConCarga);
+  const loading = loadingNinos || loadingVol;
 
-      // Actualizar estadísticas de voluntarios
-      const totalVol = voluntariosConCarga.length;
-      const volDisponibles = voluntariosConCarga.filter(v => v.disponibilidad === 'alta').length;
-      const volSobrecargados = voluntariosConCarga.filter(v => v.disponibilidad === 'baja').length;
+  // ─── Estadísticas derivadas (useMemo) ─────────────────────────────────────
+  const estadisticas = useMemo<EstadisticasGlobales | null>(() => {
+    if (!ninos.length && !voluntarios.length) return null;
+    const ninosAsignados = ninos.filter(n => n.asignacion !== null).length;
+    return {
+      total_ninos: ninos.length,
+      ninos_asignados: ninosAsignados,
+      ninos_sin_asignar: ninos.length - ninosAsignados,
+      total_voluntarios: voluntarios.length,
+      voluntarios_disponibles: voluntarios.filter(v => v.disponibilidad === 'alta').length,
+      voluntarios_sobrecargados: voluntarios.filter(v => v.disponibilidad === 'baja').length,
+    };
+  }, [ninos, voluntarios]);
 
-      setEstadisticas(prev => ({
-        total_ninos: prev?.total_ninos || 0,
-        ninos_asignados: prev?.ninos_asignados || 0,
-        ninos_sin_asignar: prev?.ninos_sin_asignar || 0,
-        total_voluntarios: totalVol,
-        voluntarios_disponibles: volDisponibles,
-        voluntarios_sobrecargados: volSobrecargados,
-      }));
-
-    } catch (error) {
-      console.error('Error fetching voluntarios:', error);
-    }
+  const refetchData = () => {
+    refetchNinos();
+    refetchVol();
+    queryClient.invalidateQueries({ queryKey: ['zonas'] });
   };
+
+  // Redirigir si no tiene acceso
+  if (!authLoading && user && !tieneAcceso) {
+    router.push('/dashboard');
+    return null;
+  }
 
   // Filtrar niños
   const ninosFiltrados = ninos.filter(nino => {
@@ -412,17 +366,6 @@ function AsignacionesPageContent() {
     );
   }
 
-  if (!tieneAcceso) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-600">No tienes permisos para acceder a esta página</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -443,7 +386,7 @@ function AsignacionesPageContent() {
               </div>
             </div>
             <button
-              onClick={fetchData}
+              onClick={refetchData}
               className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
