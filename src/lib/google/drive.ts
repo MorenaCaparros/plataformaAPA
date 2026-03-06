@@ -67,6 +67,11 @@ export async function listDriveFiles(folderId?: string): Promise<DriveFile[]> {
     return (response.data.files || []) as DriveFile[];
   } catch (error: any) {
     console.error('Error listando archivos de Drive:', error.message);
+    // invalid_grant = refresh token expirado → retornar vacío en lugar de 500
+    if (error.message?.includes('invalid_grant') || error.code === 401) {
+      console.warn('[Drive] Credenciales OAuth2 inválidas o expiradas. Re-generá el refresh token.');
+      return [];
+    }
     throw new Error(`Error al acceder a Google Drive: ${error.message}`);
   }
 }
@@ -131,6 +136,11 @@ export async function listDriveFolders(parentFolderId?: string): Promise<DriveFo
     return (response.data.files || []) as DriveFolder[];
   } catch (error: any) {
     console.error('Error listando carpetas de Drive:', error.message);
+    // invalid_grant = refresh token expirado → retornar vacío en lugar de 500
+    if (error.message?.includes('invalid_grant') || error.code === 401) {
+      console.warn('[Drive] Credenciales OAuth2 inválidas o expiradas. Re-generá el refresh token.');
+      return [];
+    }
     throw new Error(`Error al listar carpetas: ${error.message}`);
   }
 }

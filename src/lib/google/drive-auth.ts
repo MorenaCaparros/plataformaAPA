@@ -29,10 +29,11 @@ function getCleanPrivateKey(): string {
  * Crea un cliente de Google Drive autenticado.
  * Intenta OAuth2 primero (para subir archivos con cuota del usuario).
  * Si no hay OAuth2 configurado, cae a Service Account (solo lectura).
+ * Soporta GOOGLE_CLIENT_ID o GOOGLE_OAUTH_CLIENT_ID (ambos nombres).
  */
 export function createDriveUploadClient() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
   // Si hay OAuth2 configurado, usarlo (permite crear archivos)

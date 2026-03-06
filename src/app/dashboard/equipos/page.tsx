@@ -149,10 +149,13 @@ export default function EquiposPage() {
     setGuardandoZona(true);
     setErrorZona('');
     try {
-      const { error } = await supabase
-        .from('zonas')
-        .insert({ nombre: nuevaZonaNombre.trim(), descripcion: nuevaZonaDesc.trim() || null });
-      if (error) throw error;
+      const res = await fetch('/api/equipos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nuevaZonaNombre.trim(), descripcion: nuevaZonaDesc.trim() || null }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'Error al crear la zona');
       setShowAddZona(false);
       setNuevaZonaNombre('');
       setNuevaZonaDesc('');
@@ -171,11 +174,13 @@ export default function EquiposPage() {
     setGuardandoEdit(true);
     setErrorEdit('');
     try {
-      const { error } = await supabase
-        .from('zonas')
-        .update({ nombre: editNombre.trim(), descripcion: editDesc.trim() || null })
-        .eq('id', zonaEditando.id);
-      if (error) throw error;
+      const res = await fetch('/api/equipos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: zonaEditando.id, nombre: editNombre.trim(), descripcion: editDesc.trim() || null }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'Error al guardar los cambios');
       setZonaEditando(null);
       await fetchEquipos();
     } catch (err: any) {
@@ -196,8 +201,9 @@ export default function EquiposPage() {
     }
     setGuardandoDelete(true);
     try {
-      const { error } = await supabase.from('zonas').delete().eq('id', confirmDeleteId);
-      if (error) throw error;
+      const res = await fetch(`/api/equipos?id=${confirmDeleteId}`, { method: 'DELETE' });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'Error al eliminar la zona');
       setConfirmDeleteId(null);
       await fetchEquipos();
     } catch (err: any) {

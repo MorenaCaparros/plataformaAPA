@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
     const folderId = searchParams.get('folderId') || undefined;
 
     // Verificar que las credenciales estén configuradas
-    const hasOAuth2 = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN;
+    const hasOAuth2 = (process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_OAUTH_CLIENT_ID) &&
+                      (process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_OAUTH_CLIENT_SECRET) &&
+                      process.env.GOOGLE_REFRESH_TOKEN;
     const hasServiceAccount = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
     if (!process.env.GOOGLE_DRIVE_FOLDER_ID || (!hasOAuth2 && !hasServiceAccount)) {
       return NextResponse.json({ 

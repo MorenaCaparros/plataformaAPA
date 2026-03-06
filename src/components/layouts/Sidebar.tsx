@@ -119,7 +119,7 @@ export default function Sidebar() {
           ${collapsed ? 'lg:w-20' : 'lg:w-[280px]'}
           
           /* Mobile: Full height drawer desde la izquierda - SIEMPRE ANCHO COMPLETO */
-          ${mobileOpen ? 'left-0 top-0 bottom-0 w-[280px] rounded-r-3xl border-r-white/60' : '-left-full w-[280px]'}
+          ${mobileOpen ? 'left-0 top-0 bottom-0 w-[280px] rounded-r-3xl border-r-white/60' : '-left-full w-[280px] pointer-events-none'}
         `}
       >
         <div className="flex flex-col h-full p-4 lg:p-4">
