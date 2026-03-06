@@ -63,11 +63,20 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Rutas públicas
-  const publicPaths = ['/login', '/registro', '/recuperar-contrasena', '/restablecer-contrasena', '/auth/callback', '/privacidad', '/terminos'];
-  const isPublicPath = publicPaths.some((path) =>
+  // Rutas de autenticación (redirigir a dashboard si ya está logueado)
+  const authPaths = ['/login', '/registro', '/recuperar-contrasena', '/restablecer-contrasena', '/auth/callback'];
+  const isAuthPath = authPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
+
+  // Rutas públicas legales (accesibles para TODOS, autenticados o no)
+  const legalPaths = ['/privacidad', '/terminos'];
+  const isLegalPath = legalPaths.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  );
+
+  // Rutas públicas = auth + legales
+  const isPublicPath = isAuthPath || isLegalPath;
 
   // 🔥 EXCLUIR RUTAS DE API - manejan su propia autenticación
   // Excepción: /api/auth/signout necesita pasar por el middleware para limpiar cookies
@@ -77,13 +86,18 @@ export async function middleware(request: NextRequest) {
     return response; // Dejar pasar sin verificar cookies
   }
 
+  // Rutas legales: siempre accesibles, no redirigir nunca
+  if (isLegalPath) {
+    return response;
+  }
+
   // Si no está autenticado y trata de acceder a ruta protegida
   if (!user && !isPublicPath && request.nextUrl.pathname !== '/') {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Si está autenticado y trata de acceder a login/registro
-  if (user && isPublicPath) {
+  if (user && isAuthPath) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
