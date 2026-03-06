@@ -1,5 +1,4 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -18,7 +17,8 @@ export async function GET(request: NextRequest) {
   }
 
   if (code) {
-    const cookieStore = cookies();
+    // Crear la response de redirect PRIMERO para adjuntar cookies directamente
+    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,21 +26,14 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           get(name: string) {
-            return cookieStore.get(name)?.value;
+            return request.cookies.get(name)?.value;
           },
           set(name: string, value: string, options: CookieOptions) {
-            try {
-              cookieStore.set({ name, value, ...options });
-            } catch {
-              // Route handler puede setear cookies
-            }
+            // Setear cookies directamente en la response de redirect
+            redirectResponse.cookies.set({ name, value, ...options });
           },
           remove(name: string, options: CookieOptions) {
-            try {
-              cookieStore.set({ name, value: '', ...options });
-            } catch {
-              // Ignorar errores de cookies en server components
-            }
+            redirectResponse.cookies.set({ name, value: '', ...options });
           },
         },
       }
@@ -55,8 +48,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Redirigir al dashboard después del login exitoso con Google
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    // Retornar la response que YA tiene las cookies de sesión adjuntas
+    return redirectResponse;
   }
 
   // Sin código ni error — redirigir a login
