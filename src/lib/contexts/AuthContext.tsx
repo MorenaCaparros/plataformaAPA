@@ -74,11 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    // Limpiar estado local primero
-    setUser(null);
-    setPerfil(null);
-    // Llamar a la API route del servidor para invalidar la sesión y limpiar cookies
-    // Usamos fetch + window.location para forzar navegación completa (no SPA)
+    // NO limpiar estado local antes del redirect: causaría un flash mostrando "Usuario"
+    // en el sidebar mientras el fetch está en vuelo. Como window.location.href causa
+    // navegación completa, React descarta el estado de todas formas.
     await fetch('/api/auth/signout', { method: 'POST' });
     window.location.href = '/login';
   };

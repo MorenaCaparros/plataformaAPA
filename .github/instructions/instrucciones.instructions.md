@@ -139,6 +139,22 @@ applyTo: '**'
 - ✅ Historial de commits limpio y organizado
 - ✅ Rollback fácil si algo no funciona como se esperaba
 
+### 3. BRANCH PROTECTION (PENDIENTE DE CONFIGURAR)
+
+📌 **Decisión tomada (pendiente de implementar en GitHub Settings):**
+
+Configurar **branch protection rules en `main`** para que ningún merge desde `qa` (ni ninguna otra rama) pueda realizarse a menos que **todos los checks de CI pasen**.
+
+**Cómo implementarlo cuando se decida:**
+1. Ir a GitHub → Settings → Branches → Add branch protection rule
+2. Branch name pattern: `main`
+3. Activar: ✅ "Require status checks to pass before merging"
+4. Seleccionar los checks: `unit-tests` y `build-check` (los jobs del workflow `ci-tests.yml`)
+5. Activar: ✅ "Require branches to be up to date before merging"
+6. Guardar
+
+**Estado actual:** CI corre en push a `test` y en PRs a `main`, pero **no bloquea** merges ni pushes. Los pushes directos a `main` siguen siendo posibles sin restricción.
+
 ---
 
 ## Contexto General
