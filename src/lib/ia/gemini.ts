@@ -79,7 +79,7 @@ export async function callGeminiWithKeyRotation(prompt: string): Promise<string>
     try {
       const ai = new GoogleGenerativeAI(key);
       const model = ai.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-1.5-flash',
         generationConfig: {
           temperature: 0.7,
           topK: 40,
