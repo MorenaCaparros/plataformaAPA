@@ -21,6 +21,7 @@ import {
   ArrowRightOnRectangleIcon,
   MapPinIcon,
 } from '@heroicons/react/24/outline';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 interface NavItem {
   name: string;
@@ -119,7 +120,7 @@ export default function Sidebar() {
           ${collapsed ? 'lg:w-20' : 'lg:w-[280px]'}
           
           /* Mobile: Full height drawer desde la izquierda - SIEMPRE ANCHO COMPLETO */
-          ${mobileOpen ? 'left-0 top-0 bottom-0 w-[280px] rounded-r-3xl border-r-white/60' : '-left-full w-[280px] pointer-events-none'}
+          ${mobileOpen ? 'left-0 top-0 bottom-0 w-[280px] rounded-r-3xl border-r-white/60' : '-left-full w-[280px] pointer-events-none lg:pointer-events-auto'}
         `}
       >
         <div className="flex flex-col h-full p-4 lg:p-4">
@@ -226,11 +227,13 @@ export default function Sidebar() {
               )}
             </Link>
 
+            <ThemeToggle collapsed={collapsed && !isMobile} />
+
             <button
               onClick={handleSignOut}
               className={`
                 w-full flex items-center gap-3 px-4 py-3 lg:px-3 lg:py-2.5 rounded-2xl
-                text-impulso-600 hover:bg-impulso-50 border border-impulso-200/50
+                text-impulso-600 hover:bg-impulso-50 dark:hover:bg-impulso-900/20 border border-impulso-200/50
                 transition-colors active:scale-95 min-h-[44px]
                 ${collapsed && !isMobile ? 'lg:justify-center' : ''}
               `}

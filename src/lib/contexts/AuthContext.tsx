@@ -74,10 +74,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    // NO limpiar estado local antes del redirect: causaría un flash mostrando "Usuario"
-    // en el sidebar mientras el fetch está en vuelo. Como window.location.href causa
-    // navegación completa, React descarta el estado de todas formas.
-    await fetch('/api/auth/signout', { method: 'POST' });
+    // Usar signOut del cliente directamente para que el cookie adapter custom
+    // (document.cookie) limpie la sesión localmente vía remove().
+    // Además invalida el token en Supabase y dispara SIGNED_OUT en onAuthStateChange.
+    await supabase.auth.signOut();
     window.location.href = '/login';
   };
 

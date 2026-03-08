@@ -6,6 +6,7 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -51,14 +52,23 @@ const config: Config = {
           carbon: '#2D3436',
           piedra: '#636E72',
         },
+        // Superficies para modo oscuro
+        dark: {
+          bg:       '#1C1E1F', // fondo principal
+          surface:  '#262829', // tarjetas
+          elevated: '#2F3133', // hover / elevado
+          border:   '#383B3D', // bordes
+          text:     '#F0EDE6', // texto principal (cálido, eco del lienzo)
+          muted:    '#8E9599', // texto secundario
+        },
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
       fontFamily: {
         quicksand: ['Quicksand', 'sans-serif'],
         outfit: ['Outfit', 'sans-serif'],
-        nunito: ['Nunito', 'sans-serif'], // Backup
-        'dm-sans': ['DM Sans', 'sans-serif'], // Backup
+        nunito: ['Nunito', 'sans-serif'],
+        'dm-sans': ['DM Sans', 'sans-serif'],
       },
       animation: {
         blob: "blob 20s ease-in-out infinite",
@@ -77,6 +87,9 @@ const config: Config = {
         'glow-crecimiento-lg': '0 12px 48px rgba(164, 198, 57, 0.25)',
         'glow-impulso': '0 8px 32px rgba(230, 57, 70, 0.15)',
         'glow-impulso-lg': '0 12px 48px rgba(230, 57, 70, 0.25)',
+        // Dark mode glows — más intensos porque no compiten con fondo claro
+        'glow-sol-dark': '0 8px 32px rgba(242, 201, 76, 0.25)',
+        'glow-crecimiento-dark': '0 8px 32px rgba(164, 198, 57, 0.25)',
       },
     },
   },
