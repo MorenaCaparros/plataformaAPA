@@ -123,11 +123,11 @@ export default function AutoevaluacionesPage() {
   };
 
   const areaColors: Record<string, string> = {
-    lenguaje: 'bg-sol-100 text-sol-700',
-    grafismo: 'bg-green-100 text-green-800',
-    lectura_escritura: 'bg-purple-100 text-purple-800',
-    matematicas: 'bg-orange-100 text-orange-800',
-    mixta: 'bg-impulso-100 text-impulso-700',
+    lenguaje: 'bg-impulso-50 text-impulso-500',
+    grafismo: 'bg-crecimiento-50 text-crecimiento-700',
+    lectura_escritura: 'bg-sol-50 text-sol-700',
+    matematicas: 'bg-sol-100 text-sol-600',
+    mixta: 'bg-neutro-piedra/10 text-neutro-carbon',
   };
 
   // Áreas presentes en las plantillas cargadas
@@ -236,10 +236,10 @@ export default function AutoevaluacionesPage() {
                   {/* Badge de área */}
                   <span
                     className={`inline-block px-4 py-2 rounded-2xl text-sm font-semibold mb-4 font-outfit border ${
-                      plantilla.area === 'lenguaje' ? 'bg-impulso-50 text-impulso-700 border-impulso-200/30' :
-                      plantilla.area === 'grafismo' ? 'bg-crecimiento-50 text-crecimiento-700 border-crecimiento-200/30' :
+                      plantilla.area === 'lenguaje'          ? 'bg-impulso-50 text-impulso-500 border-impulso-200/30' :
+                      plantilla.area === 'grafismo'          ? 'bg-crecimiento-50 text-crecimiento-700 border-crecimiento-200/30' :
                       plantilla.area === 'lectura_escritura' ? 'bg-sol-50 text-sol-700 border-sol-200/30' :
-                      plantilla.area === 'matematicas' ? 'bg-impulso-50 text-impulso-700 border-impulso-200/30' :
+                      plantilla.area === 'matematicas'       ? 'bg-sol-100 text-sol-600 border-sol-200/30' :
                       'bg-neutro-lienzo text-neutro-carbon border-neutro-piedra/30'
                     }`}
                   >

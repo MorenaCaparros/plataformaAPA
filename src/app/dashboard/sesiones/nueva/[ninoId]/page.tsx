@@ -622,38 +622,6 @@ export default function NuevaSesionPage() {
           )}
         </div>
 
-        {/* Tipo de sesión — visible para equipo_profesional y roles con acceso completo */}
-        {(perfil?.rol === 'equipo_profesional' || perfil?.rol === 'psicopedagogia' || perfil?.rol === 'director' || perfil?.rol === 'coordinador' || perfil?.rol === 'trabajador_social') && (
-          <div className="bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 shadow-[0_4px_16px_rgba(242,201,76,0.08)] p-4 mb-4">
-            <label className="text-sm font-medium mb-3 flex items-center gap-2 text-neutro-carbon font-outfit">
-              <Users className="w-4 h-4" />
-              Tipo de sesión
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                { value: 'individual', label: 'Individual', emoji: '🧒', desc: 'Con el niño/a' },
-                { value: 'con_padres', label: 'Con familia', emoji: '👨‍👩‍👧', desc: 'Con padres/tutores' },
-                { value: 'grupal', label: 'Grupal', emoji: '👥', desc: 'Varios niños' },
-              ] as const).map(tipo => (
-                <button
-                  key={tipo.value}
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, tipo_sesion: tipo.value }))}
-                  className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 transition-all active:scale-95 text-center ${
-                    formData.tipo_sesion === tipo.value
-                      ? 'border-crecimiento-500 bg-crecimiento-50 text-crecimiento-900'
-                      : 'border-gray-200 bg-white/60 text-neutro-piedra hover:border-crecimiento-300 hover:bg-crecimiento-50/40'
-                  }`}
-                >
-                  <span className="text-2xl">{tipo.emoji}</span>
-                  <span className="text-xs font-semibold font-outfit leading-tight">{tipo.label}</span>
-                  <span className="text-[10px] font-outfit opacity-70 leading-tight">{tipo.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ── SECCIÓN 1: Actividad del día ── */}
         <div className="mb-2">
           <div className="flex items-center gap-2 mb-3 px-1">

@@ -74,10 +74,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    // Usar signOut del cliente directamente para que el cookie adapter custom
-    // (document.cookie) limpie la sesión localmente vía remove().
-    // Además invalida el token en Supabase y dispara SIGNED_OUT en onAuthStateChange.
-    await supabase.auth.signOut();
+    // Llamar el API route para que el servidor limpie las cookies via Set-Cookie headers.
+    // Esto es más confiable que el client-side remove() que manipula document.cookie.
+    try {
+      await fetch('/api/auth/signout', { method: 'POST' });
+    } catch {
+      // Si falla el API route, intentar signOut cliente como fallback
+      await supabase.auth.signOut();
+    }
     window.location.href = '/login';
   };
 

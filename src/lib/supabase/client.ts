@@ -31,7 +31,9 @@ export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
       document.cookie = `${name}=${encodeURIComponent(value)}; path=${options.path ?? '/'}; max-age=${SESSION_MAX_AGE}; samesite=lax${secure}`;
     },
     remove(name: string, options: CookieOptions) {
-      document.cookie = `${name}=; path=${options.path ?? '/'}; max-age=0`;
+      // Incluir samesite y secure igual que en set() para que el browser haga match
+      const secure = process.env.NODE_ENV === 'production' ? '; secure' : '';
+      document.cookie = `${name}=; path=${options.path ?? '/'}; max-age=0; samesite=lax${secure}`;
     },
   },
 });

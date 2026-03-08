@@ -21,7 +21,8 @@ export async function createClient() {
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value: '', ...options });
+            // maxAge: 0 es obligatorio para que el browser expire la cookie
+            cookieStore.set({ name, value: '', ...options, maxAge: 0 });
           } catch (error) {
             // Server Component no puede remover cookies
           }

@@ -48,7 +48,7 @@ const AREAS: { value: Area; label: string; color: string; bg: string }[] = [
   { value: 'lenguaje', label: 'Lenguaje y Vocabulario', color: 'text-impulso-700', bg: 'bg-impulso-50 border-impulso-200/30' },
   { value: 'grafismo', label: 'Grafismo y Motricidad Fina', color: 'text-crecimiento-700', bg: 'bg-crecimiento-50 border-crecimiento-200/30' },
   { value: 'lectura_escritura', label: 'Lectura y Escritura', color: 'text-sol-700', bg: 'bg-sol-50 border-sol-200/30' },
-  { value: 'matematicas', label: 'Nociones Matemáticas', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200/30' },
+  { value: 'matematicas', label: 'Nociones Matemáticas', color: 'text-sol-600', bg: 'bg-sol-50 border-sol-200/30' },
 ];
 
 const TIPOS_PREGUNTA: { value: TipoPregunta; label: string; desc: string }[] = [
