@@ -61,6 +61,13 @@ export default function EquiposPage() {
   const [ninosPorZona, setNinosPorZona] = useState<Record<string, {id: string; alias: string; rango_etario: string}[]>>({});
   const [cargandoNinosZona, setCargandoNinosZona] = useState<string | null>(null);
 
+  // ─── Modal Asignar Niños a zona ────────────────────────────────────────────
+  const [zonaAsignandoNinos, setZonaAsignandoNinos] = useState<Equipo | null>(null);
+  const [busquedaNino, setBusquedaNino] = useState('');
+  const [todosNinos, setTodosNinos] = useState<{id: string; alias: string; zona_id: string | null; rango_etario: string | null}[]>([]);
+  const [loadingNinosList, setLoadingNinosList] = useState(false);
+  const [guardandoNinoZona, setGuardandoNinoZona] = useState(false);
+
   const puedeGestionar = perfil && ROLES_PUEDEN_GESTIONAR.includes(perfil.rol);
 
   const toggleNinosZona = async (zonaId: string) => {
@@ -94,47 +101,40 @@ export default function EquiposPage() {
   const fetchEquipos = async () => {
     try {
       setLoading(true);
-      const { data: zonasData, error: zonasError } = await supabase
-        .from('zonas')
-        .select('id, nombre, descripcion')
-        .order('nombre', { ascending: true });
 
-      if (zonasError) throw zonasError;
+      // ── 3 queries en paralelo en vez de N×3 queries (fix N+1) ─────────────
+      const [zonasRes, ninosRes, perfilesRes] = await Promise.all([
+        supabase.from('zonas').select('id, nombre, descripcion').order('nombre', { ascending: true }),
+        supabase.from('ninos').select('zona_id').eq('activo', true).not('zona_id', 'is', null),
+        supabase.from('perfiles').select('zona_id, rol, nombre, apellido').in('rol', ['voluntario', 'coordinador']).not('zona_id', 'is', null),
+      ]);
 
-      const equiposConStats = await Promise.all(
-        (zonasData || []).map(async (zona: any) => {
-          const { count: countNinos } = await supabase
-            .from('ninos')
-            .select('*', { count: 'exact', head: true })
-            .eq('zona_id', zona.id);
+      if (zonasRes.error) throw zonasRes.error;
 
-          const { count: countVoluntarios } = await supabase
-            .from('perfiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('zona_id', zona.id)
-            .eq('rol', 'voluntario');
+      // Computar conteos en JS
+      const conteoNinos: Record<string, number> = {};
+      (ninosRes.data || []).forEach((n: any) => {
+        if (n.zona_id) conteoNinos[n.zona_id] = (conteoNinos[n.zona_id] || 0) + 1;
+      });
 
-          const { data: coordinadores } = await supabase
-            .from('perfiles')
-            .select('nombre, apellido')
-            .eq('zona_id', zona.id)
-            .eq('rol', 'coordinador')
-            .limit(1);
+      const conteoVols: Record<string, number> = {};
+      const primerCoord: Record<string, string> = {};
+      (perfilesRes.data || []).forEach((v: any) => {
+        if (!v.zona_id) return;
+        if (v.rol === 'voluntario') conteoVols[v.zona_id] = (conteoVols[v.zona_id] || 0) + 1;
+        if (v.rol === 'coordinador' && !primerCoord[v.zona_id]) {
+          primerCoord[v.zona_id] = [v.nombre, v.apellido].filter(Boolean).join(' ');
+        }
+      });
 
-          return {
-            id: zona.id,
-            nombre: zona.nombre,
-            descripcion: zona.descripcion,
-            total_ninos: countNinos || 0,
-            total_voluntarios: countVoluntarios || 0,
-            coordinador: coordinadores?.[0]
-              ? [coordinadores[0].nombre, coordinadores[0].apellido].filter(Boolean).join(' ')
-              : null,
-          };
-        })
-      );
-
-      setEquipos(equiposConStats);
+      setEquipos((zonasRes.data || []).map((zona: any) => ({
+        id: zona.id,
+        nombre: zona.nombre,
+        descripcion: zona.descripcion,
+        total_ninos: conteoNinos[zona.id] || 0,
+        total_voluntarios: conteoVols[zona.id] || 0,
+        coordinador: primerCoord[zona.id] || null,
+      })));
     } catch (error) {
       console.error('Error cargando equipos:', error);
     } finally {
@@ -213,7 +213,55 @@ export default function EquiposPage() {
     }
   };
 
-  // ─── Abrir modal asignación ────────────────────────────────────────────────
+  // ─── Abrir modal asignación niños ──────────────────────────────────────────
+  const openAsignacionNinos = useCallback(async (zona: Equipo) => {
+    setZonaAsignandoNinos(zona);
+    setBusquedaNino('');
+    setLoadingNinosList(true);
+    try {
+      const { data, error } = await supabase
+        .from('ninos')
+        .select('id, alias, zona_id, rango_etario')
+        .eq('activo', true)
+        .order('alias', { ascending: true });
+      if (error) throw error;
+      setTodosNinos(data || []);
+    } catch (err) {
+      console.error('Error cargando niños:', err);
+    } finally {
+      setLoadingNinosList(false);
+    }
+  }, []);
+
+  // ─── Toggle zona de un niño ───────────────────────────────────────────────
+  const toggleZonaNino = async (nino: {id: string; alias: string; zona_id: string | null; rango_etario: string | null}) => {
+    if (!zonaAsignandoNinos) return;
+    setGuardandoNinoZona(true);
+    try {
+      const newZonaId = nino.zona_id === zonaAsignandoNinos.id ? null : zonaAsignandoNinos.id;
+      const { error } = await supabase
+        .from('ninos')
+        .update({ zona_id: newZonaId })
+        .eq('id', nino.id);
+      if (error) throw error;
+      setTodosNinos(prev =>
+        prev.map(n => n.id === nino.id ? { ...n, zona_id: newZonaId } : n)
+      );
+    } catch (err) {
+      console.error('Error asignando zona a niño:', err);
+    } finally {
+      setGuardandoNinoZona(false);
+    }
+  };
+
+  const ninosFiltrados = todosNinos.filter(n => {
+    const term = busquedaNino.toLowerCase();
+    return n.alias?.toLowerCase().includes(term);
+  });
+  const ninosEnEstaZona = ninosFiltrados.filter(n => n.zona_id === zonaAsignandoNinos?.id);
+  const ninosOtros = ninosFiltrados.filter(n => n.zona_id !== zonaAsignandoNinos?.id);
+
+  // ─── Abrir modal asignación voluntarios ──────────────────────────────────
   const openAsignacion = useCallback(async (zona: Equipo) => {
     setZonaAsignando(zona);
     setBusquedaVol('');
@@ -332,6 +380,114 @@ export default function EquiposPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Asignar Niños */}
+      {zonaAsignandoNinos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b flex-shrink-0">
+              <div>
+                <h3 className="font-bold text-neutro-carbon font-quicksand text-lg">
+                  👶 Niños — {zonaAsignandoNinos.nombre}
+                </h3>
+                <p className="text-xs text-neutro-piedra font-outfit mt-0.5">
+                  Tocá un niño para asignarlo o quitarlo de esta zona
+                </p>
+              </div>
+              <button onClick={() => { setZonaAsignandoNinos(null); fetchEquipos(); }} className="p-2 hover:bg-neutro-lienzo rounded-xl transition-colors flex-shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-5 pt-4 pb-2 flex-shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutro-piedra" />
+                <input
+                  type="text"
+                  value={busquedaNino}
+                  onChange={e => setBusquedaNino(e.target.value)}
+                  placeholder="Buscar niño..."
+                  className="w-full pl-9 pr-4 py-2.5 border border-neutro-piedra/20 rounded-xl font-outfit text-sm focus:ring-2 focus:ring-impulso-300 focus:border-impulso-400 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-4 min-h-0">
+              {loadingNinosList ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-impulso-200 border-t-impulso-400 mx-auto"></div>
+                </div>
+              ) : (
+                <>
+                  {ninosEnEstaZona.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-impulso-700 uppercase tracking-wide mb-2 font-outfit">
+                        En esta zona ({ninosEnEstaZona.length})
+                      </p>
+                      <div className="space-y-2">
+                        {ninosEnEstaZona.map(nino => (
+                          <button key={nino.id} onClick={() => toggleZonaNino(nino)} disabled={guardandoNinoZona}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-impulso-50 border border-impulso-200/60 rounded-2xl hover:bg-impulso-100 transition-all text-left disabled:opacity-60 min-h-[52px]">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-impulso-900 font-outfit text-sm truncate">{nino.alias}</p>
+                              {nino.rango_etario && <p className="text-xs text-impulso-700 font-outfit">{nino.rango_etario} años</p>}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-xs text-impulso-600 font-outfit font-medium">Asignado</span>
+                              <div className="w-5 h-5 rounded-full bg-impulso-500 flex items-center justify-center">
+                                <Check className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ninosOtros.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-neutro-piedra uppercase tracking-wide mb-2 font-outfit">
+                        Sin zona / otra zona ({ninosOtros.length})
+                      </p>
+                      <div className="space-y-2">
+                        {ninosOtros.map(nino => (
+                          <button key={nino.id} onClick={() => toggleZonaNino(nino)} disabled={guardandoNinoZona}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white border border-neutro-piedra/15 rounded-2xl hover:bg-impulso-50 hover:border-impulso-200 transition-all text-left disabled:opacity-60 min-h-[52px]">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-neutro-carbon font-outfit text-sm truncate">{nino.alias}</p>
+                              <p className="text-xs text-neutro-piedra font-outfit">
+                                {nino.rango_etario && `${nino.rango_etario} años`}
+                                {nino.zona_id && nino.zona_id !== zonaAsignandoNinos?.id && (
+                                  <span className="ml-2 text-sol-600">(otra zona)</span>
+                                )}
+                                {!nino.zona_id && <span className="ml-1 text-neutro-piedra/70">sin zona asignada</span>}
+                              </p>
+                            </div>
+                            <div className="w-5 h-5 rounded-full border-2 border-neutro-piedra/30 flex-shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {ninosFiltrados.length === 0 && (
+                    <div className="text-center py-8">
+                      <p className="text-neutro-piedra font-outfit text-sm">No hay niños registrados</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="p-5 border-t flex-shrink-0">
+              <button onClick={() => { setZonaAsignandoNinos(null); fetchEquipos(); }}
+                className="w-full px-4 py-3 bg-gradient-to-r from-impulso-500 to-impulso-400 text-white rounded-2xl font-outfit font-semibold text-sm hover:shadow-[0_8px_24px_rgba(230,57,70,0.2)] transition-all min-h-[48px]">
+                Listo
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -653,10 +809,17 @@ export default function EquiposPage() {
                         <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedNinos === equipo.id ? 'rotate-180' : ''}`} />
                       </button>
                       {puedeGestionar ? (
-                        <button onClick={() => openAsignacion(equipo)}
-                          className="flex-1 text-center px-4 py-2.5 bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.3)] transition-all font-outfit font-medium text-sm min-h-[44px] flex items-center justify-center gap-1.5">
-                          <Users className="w-4 h-4" /> Voluntarios
-                        </button>
+                        <>
+                          <button onClick={() => openAsignacionNinos(equipo)}
+                            className="flex-1 text-center px-4 py-2.5 bg-gradient-to-r from-impulso-500 to-impulso-400 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(230,57,70,0.2)] transition-all font-outfit font-medium text-sm min-h-[44px] flex items-center justify-center gap-1.5"
+                            title="Asignar niños a esta zona">
+                            <Baby className="w-4 h-4" /> Asignar
+                          </button>
+                          <button onClick={() => openAsignacion(equipo)}
+                            className="flex-1 text-center px-4 py-2.5 bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white rounded-2xl hover:shadow-[0_8px_24px_rgba(164,198,57,0.3)] transition-all font-outfit font-medium text-sm min-h-[44px] flex items-center justify-center gap-1.5">
+                            <Users className="w-4 h-4" /> Voluntarios
+                          </button>
+                        </>
                       ) : (
                         <Link href={`/dashboard/usuarios?zona=${equipo.id}`}
                           className="flex-1 text-center px-4 py-2.5 bg-crecimiento-50 text-crecimiento-700 rounded-2xl hover:bg-crecimiento-100 transition-all font-outfit font-medium text-sm min-h-[44px] flex items-center justify-center gap-1.5 border border-crecimiento-200/40">

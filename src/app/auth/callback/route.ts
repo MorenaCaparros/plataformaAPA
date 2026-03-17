@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// 400 días — igual que middleware.ts y server.ts
+const SESSION_MAX_AGE = 60 * 60 * 24 * 400;
+
 // Cliente admin para poder upsert perfiles sin restricciones RLS
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,7 +53,8 @@ export async function GET(request: NextRequest) {
             return request.cookies.get(name)?.value;
           },
           set(name: string, value: string, options: CookieOptions) {
-            redirectResponse.cookies.set({ name, value, ...options });
+            // maxAge al final para que nuestro valor gane sobre el corto de Supabase
+            redirectResponse.cookies.set({ name, value, ...options, maxAge: SESSION_MAX_AGE });
           },
           remove(name: string, options: CookieOptions) {
             redirectResponse.cookies.set({ name, value: '', ...options });

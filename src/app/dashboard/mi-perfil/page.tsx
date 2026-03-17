@@ -425,7 +425,7 @@ export default function MiPerfilPage() {
                 </div>
               </div>
 
-              {/* Sección voluntario: Max niños y horas disponibles */}
+              {/* Sección voluntario: Max niños */}
               {perfilCompleto?.rol === 'voluntario' && (
                 <div className="mt-8 pt-6 border-t border-white/40">
                   <h3 className="text-lg font-bold text-neutro-carbon mb-6 font-quicksand flex items-center gap-2">
@@ -433,7 +433,7 @@ export default function MiPerfilPage() {
                     Disponibilidad
                   </h3>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 max-w-xs gap-6">
                     {/* Max niños */}
                     <div className="bg-impulso-50/40 backdrop-blur-sm border border-impulso-200/30 rounded-2xl p-5">
                       <label className="block text-sm font-medium text-neutro-piedra mb-1 font-outfit">
@@ -460,39 +460,7 @@ export default function MiPerfilPage() {
                       </div>
                     </div>
 
-                    {/* Horas disponibles */}
-                    <div className="bg-crecimiento-50/40 backdrop-blur-sm border border-crecimiento-200/30 rounded-2xl p-5">
-                      <label className="block text-sm font-medium text-neutro-piedra mb-1 font-outfit">
-                        Horas semanales disponibles
-                      </label>
-                      <p className="text-xs text-neutro-piedra/70 mb-3 font-outfit">
-                        ¿Cuántas horas por semana podés dedicar?
-                      </p>
-                      <div className="flex items-center justify-center gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setHorasDisponibles(Math.max(1, horasDisponibles - 1))}
-                          className="w-11 h-11 rounded-xl bg-white/80 hover:bg-neutro-carbon/5 text-neutro-carbon font-bold transition-all flex items-center justify-center text-xl border border-white/60"
-                        >
-                          −
-                        </button>
-                        <div className="text-center min-w-[60px]">
-                          <span className="text-3xl font-bold text-crecimiento-600 font-quicksand">
-                            {horasDisponibles}
-                          </span>
-                          <p className="text-xs text-neutro-piedra font-outfit mt-0.5">
-                            {horasDisponibles === 1 ? 'hora' : 'horas'} / semana
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setHorasDisponibles(Math.min(40, horasDisponibles + 1))}
-                          className="w-11 h-11 rounded-xl bg-white/80 hover:bg-neutro-carbon/5 text-neutro-carbon font-bold transition-all flex items-center justify-center text-xl border border-white/60"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
+                    {/* Horas disponibles — ocultas del perfil del voluntario (se registran en autoevaluación) */}
                   </div>
                 </div>
               )}

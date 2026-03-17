@@ -17,6 +17,9 @@ import {
   UserCircleIcon,
   UserGroupIcon,
   ClipboardDocumentCheckIcon,
+  ClipboardDocumentListIcon,
+  ChatBubbleLeftRightIcon,
+  ShieldExclamationIcon,
   SparklesIcon,
   ArrowRightOnRectangleIcon,
   MapPinIcon,
@@ -28,6 +31,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
+  showBadge?: boolean; // muestra badge de no-leídos (solo Mensajes)
 }
 
 const navigation: NavItem[] = [
@@ -40,16 +44,36 @@ const navigation: NavItem[] = [
   { name: 'Módulo IA', href: '/dashboard/ia', icon: SparklesIcon, roles: ['director', 'psicopedagogia', 'coordinador', 'equipo_profesional'] },
   { name: 'Usuarios', href: '/dashboard/usuarios', icon: UserGroupIcon, roles: ['director', 'admin', 'psicopedagogia', 'coordinador', 'equipo_profesional'] },
   { name: 'Zonas', href: '/dashboard/equipos', icon: MapPinIcon, roles: ['director', 'admin', 'coordinador', 'psicopedagogia', 'equipo_profesional'] },
+  { name: 'Mensajes', href: '/dashboard/mensajes', icon: ChatBubbleLeftRightIcon, showBadge: true },
   { name: 'Mi Perfil', href: '/dashboard/mi-perfil', icon: UserCircleIcon },
   { name: 'Configuración', href: '/dashboard/configuracion', icon: Cog6ToothIcon, roles: ['director', 'admin'] },
+  { name: 'Auditoría', href: '/dashboard/admin/auditoria', icon: ClipboardDocumentListIcon, roles: ['director', 'admin'] },
+  { name: 'Moderación', href: '/dashboard/admin/mensajes', icon: ShieldExclamationIcon, roles: ['director', 'admin'] },
 ];
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [noLeidosMsgs, setNoLeidosMsgs] = useState(0);
   const pathname = usePathname();
   const { user, perfil, signOut } = useAuth();
+
+  // Fetch no-leídos de mensajes
+  useEffect(() => {
+    if (!user) return;
+    const fetchNoLeidos = async () => {
+      try {
+        const res = await fetch('/api/mensajes/conversaciones');
+        const data = await res.json();
+        const total = (data.conversaciones || []).reduce((acc: number, c: { no_leidos: number }) => acc + (c.no_leidos || 0), 0);
+        setNoLeidosMsgs(total);
+      } catch { /* silencioso */ }
+    };
+    fetchNoLeidos();
+    const interval = setInterval(fetchNoLeidos, 30000); // cada 30s
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleSignOut = async () => {
     // signOut() ya maneja la redirección con window.location.href
@@ -193,10 +217,24 @@ export default function Sidebar() {
                   `}
                   title={(collapsed && !isMobile) ? item.name : undefined}
                 >
-                  <Icon className="w-6 h-6 lg:w-5 lg:h-5 flex-shrink-0" />
+                  <div className="relative flex-shrink-0">
+                    <Icon className="w-6 h-6 lg:w-5 lg:h-5" />
+                    {item.showBadge && noLeidosMsgs > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-impulso-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
+                        {noLeidosMsgs > 9 ? '9+' : noLeidosMsgs}
+                      </span>
+                    )}
+                  </div>
                   {/* En mobile SIEMPRE mostrar nombre, en desktop solo si no está collapsed */}
                   {(isMobile || !collapsed) && (
-                    <span className="font-outfit font-medium text-base lg:text-sm">{item.name}</span>
+                    <span className="font-outfit font-medium text-base lg:text-sm flex items-center gap-2">
+                      {item.name}
+                      {item.showBadge && noLeidosMsgs > 0 && (
+                        <span className="px-1.5 py-0.5 bg-impulso-100 text-impulso-700 text-[10px] font-bold rounded-full">
+                          {noLeidosMsgs > 9 ? '9+' : noLeidosMsgs}
+                        </span>
+                      )}
+                    </span>
                   )}
                 </Link>
               );

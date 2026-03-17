@@ -37,6 +37,12 @@ interface VoluntarioAsistencia {
 
 type Tab = 'ninos' | 'voluntarios';
 
+// Referencias estables para evitar bucle infinito de re-renders
+// (= [] en el destructure de useQuery crea un nuevo Array en cada render,
+// lo que dispara useEffect → setState → re-render → ... hasta que React crashea)
+const EMPTY_EXISTENTES: AsistenciaExistente[] = [];
+const EMPTY_EXISTENTES_VOL: { voluntario_id: string; presente: boolean }[] = [];
+
 export default function AsistenciaPage() {
   const { user, perfil, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -58,6 +64,16 @@ export default function AsistenciaPage() {
   const [seleccionVolOriginal, setSeleccionVolOriginal] = useState<Record<string, 'presente' | 'ausente' | null>>({});
   const [savedVol, setSavedVol] = useState(false);
   const [savingVol, setSavingVol] = useState(false);
+
+  // ── Ghost-click guard (mobile) ────────────────────────────────────────
+  // Al navegar desde el sidebar en táctil, el touch genera un click sintético
+  // ~300ms después, justo sobre los botones "Todos presentes/ausentes".
+  // Los mantenemos invisibles e inhabilitados 400ms para absorber ese evento.
+  const [mountReady, setMountReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMountReady(true), 400);
+    return () => clearTimeout(t);
+  }, []);
 
   const esVoluntario = perfil?.rol === 'voluntario';
   const esCoordinadorOSuperior = perfil?.rol && ['coordinador', 'psicopedagogia', 'director', 'admin', 'trabajador_social'].includes(perfil.rol);
@@ -116,7 +132,7 @@ export default function AsistenciaPage() {
 
   // ── Query: Asistencias existentes (niños) por fecha ───────────────────
   const ninoIds = useMemo(() => ninos.map(n => n.id), [ninos]);
-  const { data: existentesRaw = [] } = useQuery<AsistenciaExistente[]>({
+  const { data: existentesRaw = EMPTY_EXISTENTES } = useQuery<AsistenciaExistente[]>({
     queryKey: ['asistencia-existentes-ninos', fecha, ninoIds.join(',')],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -172,7 +188,7 @@ export default function AsistenciaPage() {
 
   // ── Query: Asistencias existentes (voluntarios) por fecha ─────────────
   const volIds = useMemo(() => voluntarios.map(v => v.id), [voluntarios]);
-  const { data: existentesVolRaw = [] } = useQuery<{ voluntario_id: string; presente: boolean }[]>({
+  const { data: existentesVolRaw = EMPTY_EXISTENTES_VOL } = useQuery<{ voluntario_id: string; presente: boolean }[]>({
     queryKey: ['asistencia-existentes-vol', fecha, volIds.join(',')],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -437,16 +453,18 @@ export default function AsistenciaPage() {
         <div className="flex gap-2 mb-4">
           <button
             type="button"
+            disabled={!mountReady}
             onClick={() => tab === 'ninos' ? marcarTodos('presente') : marcarTodosVol('presente')}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] bg-crecimiento-50 border border-crecimiento-200/60 text-crecimiento-700 rounded-2xl font-outfit font-semibold text-sm hover:bg-crecimiento-100 active:scale-95 transition-all"
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] bg-crecimiento-50 border border-crecimiento-200/60 text-crecimiento-700 rounded-2xl font-outfit font-semibold text-sm hover:bg-crecimiento-100 active:scale-95 transition-all ${!mountReady ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
           >
             <CheckCircle className="w-4 h-4" />
             Todos presentes
           </button>
           <button
             type="button"
+            disabled={!mountReady}
             onClick={() => tab === 'ninos' ? marcarTodos('ausente') : marcarTodosVol('ausente')}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] bg-impulso-50 border border-impulso-200/60 text-impulso-700 rounded-2xl font-outfit font-semibold text-sm hover:bg-impulso-100 active:scale-95 transition-all"
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] bg-impulso-50 border border-impulso-200/60 text-impulso-700 rounded-2xl font-outfit font-semibold text-sm hover:bg-impulso-100 active:scale-95 transition-all ${!mountReady ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
           >
             <XCircle className="w-4 h-4" />
             Todos ausentes

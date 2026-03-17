@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// 400 días: mismo maxAge que en el cliente browser para consistencia
+// 400 días: igual que en el cliente browser y en server.ts
 const SESSION_MAX_AGE = 60 * 60 * 24 * 400;
 
 export async function middleware(request: NextRequest) {
@@ -20,8 +20,11 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // Asegurar que las cookies de sesión sean persistentes (no solo de sesión del navegador)
-          const persistentOptions = { maxAge: SESSION_MAX_AGE, ...options };
+          // Asegurar que las cookies de sesión sean persistentes.
+          // IMPORTANTE: maxAge va al FINAL para que nuestro valor gane
+          // sobre el maxAge corto que Supabase puede enviar en options
+          // (ej: 3600 s para el access token).
+          const persistentOptions = { ...options, maxAge: SESSION_MAX_AGE };
           request.cookies.set({
             name,
             value,

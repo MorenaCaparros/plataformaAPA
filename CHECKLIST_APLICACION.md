@@ -139,7 +139,7 @@
 - [x] **Subir archivos desde la Biblioteca Drive** — botón "📤 Subir archivo" para roles `director`, `psicopedagogia`, `equipo_profesional` con modal inline
 - [x] **Descripción de documentos** — campo de descripción al subir (guardado como `description` en Drive)
 - [x] **Palabras clave/tags** — campo de tags separados por coma al subir (guardado como `appProperties.tags` en Drive); preview con pastillas de colores
-- [ ] Búsqueda por palabras clave/tags en Drive (requiere listar appProperties en el GET)
+- [x] **Búsqueda por palabras clave/tags en Drive** — `filtroTag` + `allTags` desde `appProperties.tags`; chips filtrables en la biblioteca Drive
 
 ## 2. 🟠 Biblioteca RAG — Tags en documentos (Nuevo)
 - [x] **Columna `tags TEXT[]`** en tabla `documentos` + índice GIN para búsqueda eficiente
@@ -149,7 +149,7 @@
 - [x] **Filtro por tag** en la biblioteca — chips clickeables muestran solo docs del tag seleccionado
 - [x] **Filtro por tag en el chat IA** — chips en el chat de biblioteca pre-filtran qué documentos consulta la IA (menos tokens, más precisión)
 - [x] **Tags visibles en las cards** de la biblioteca — pastillas de colores por inicial del tag
-- [ ] Búsqueda por palabras clave/tags en Google Drive (requiere listar `appProperties` en el GET de archivos)
+- [x] **Búsqueda por palabras clave/tags en Google Drive** — implementado vía `appProperties` en el GET; chips filtrables en `/dashboard/biblioteca/drive`
 
 ## 3. 🟠 Módulo centralizado "Análisis con IA"
 - [x] **Página dedicada `/dashboard/ia`** — selector de modo, chat enriquecido, historial, fuentes
@@ -159,55 +159,65 @@
 - [x] **Filtro por tags en modo Biblioteca** — mismos chips que la biblioteca RAG
 - [x] **Fuentes siempre visibles** en la respuesta del asistente
 - [x] **Sidebar actualizado** — enlace "✨ Módulo IA" visible para `director`, `psicopedagogia`, `equipo_profesional`
-- [ ] **Cards en vez de bloques de texto** (mejora UX futura — hoy usa markdown)
-- [ ] **Soporte para diagramas de flujo** (roadmap)
-- [ ] **Eliminar "Analizar con IA"** de perfiles individuales de niños (mantener por ahora, centralizar después)
+- [ ] **Cards en vez de bloques de texto** (mejora UX futura — hoy usa markdown) 🗓️ roadmap
+- [ ] **Soporte para diagramas de flujo** 🗓️ roadmap
+- [ ] **Eliminar "Analizar con IA"** de perfiles individuales (centralizar después) 🗓️ roadmap
 
 ## 4. 🟠 Equipo Profesional — Matching y acceso IA
-- [ ] **Sistema de matching** voluntario-niño debe funcionar correctamente (depende de autoevaluaciones funcionando)
-- [ ] **Acceso al módulo "Análisis con IA"** también desde el rol equipo profesional
+- [x] **Sistema de matching** voluntario-niño funciona correctamente — `/api/matching/sugerencias` incluye `equipo_profesional`; autoevaluaciones funcionales
+- [x] **Acceso al módulo "Análisis con IA"** desde el rol equipo profesional — Sidebar + página ya lo incluyen
 
 ## 5. 🟠 Admin — Visibilidad y tracking
-- [ ] **Última conexión visible** para TODOS los perfiles (voluntarios, equipo profesional)
-- [ ] **Tracking de capacitaciones**: ver qué voluntarios completaron y cuáles no
+- [x] **Última conexión visible** para TODOS los perfiles — columna `ultima_conexion` en `/dashboard/usuarios`; fecha formateada en cada fila
+- [x] **Tracking de capacitaciones** — filtro "Capacitaciones: Todos / Pendiente / Al día" en `/dashboard/usuarios`; borra color en badge por estado
 
 ## 6. 🟠 Gestión de Zonas
-- [ ] Página dedicada de gestión de zonas (CRUD: crear, editar, eliminar)
-- [ ] Filtrado por zona
-- [ ] "Zonas" como sección propia (no redirigir a usuarios)
-- [ ] Poder cambiar/asignar zona
-- [ ] Ver niños y voluntarios filtrados por zona
+- [x] Página dedicada de gestión de zonas (CRUD: crear, editar, eliminar) — `/dashboard/equipos`
+- [x] Filtrado por zona — filtros en `/dashboard/asignaciones` por zona
+- [x] "Zonas" como sección propia — ítem en Sidebar con ícono MapPin
+- [x] Poder cambiar/asignar zona — editor inline en perfil de niño y en `/dashboard/equipos`
+- [x] Ver niños y voluntarios filtrados por zona — modal "Asignar Niños" + modal "Voluntarios" en cards de zona
 
 ## 7. 🟠 Asignaciones Equipo-Niño
-- [ ] Agregar equipo al niño — poder asignar un niño a un equipo/zona fácilmente
-- [ ] Mantener horas en BD pero ocultar de la vista del voluntario
+- [x] Agregar equipo al niño — modal "Asignar Niños" en `/dashboard/equipos`; toggle `zona_id` en tabla `ninos`
+- [x] Mantener horas en BD pero ocultar de la vista del voluntario — campo eliminado de `/dashboard/mi-perfil`; persiste en BD y visible en perfil del voluntario para coordinadores+
 
 ## 8. 🟠 Sesión Persistente
-- [ ] Mantener sesión iniciada (persistencia de auth — no cerrar al recargar/cerrar app)
-- [ ] Investigar e implementar solución de sesión persistente
+- [x] Mantener sesión iniciada — fix spread order en `middleware.ts`, `server.ts` y `auth/callback/route.ts`; `maxAge = 400 días`
+- [x] Investigar e implementar solución de sesión persistente — `SESSION_MAX_AGE = 60*60*24*400` siempre gana sobre `options.maxAge` de Supabase
 
 ## 9. 🟠 Estética Mobile
-- [ ] Menú hamburguesa en parte izquierda superior (verificar que no obstaculice)
-- [ ] Revisar todos los flujos en celular
-- [ ] Touch targets de 44x44px mínimo en todos los botones
+- [x] Menú hamburguesa en parte izquierda superior — `fixed top-4 left-4 z-[60]` en `Sidebar.tsx`; no obstaculiza (layout tiene `pt-20` en mobile)
+- [x] Revisar todos los flujos en celular — nav items con `min-h-[56px]` en mobile; `active:scale-95`; drawer overlay desde izquierda
+- [x] Touch targets de 44x44px mínimo en todos los botones — nav items 56px, sign out 44px, botones principales con `min-h-[48px]`
 
-## 10. 🟡 Auditoría (Log de cambios)
-- [ ] **Log completo de auditoría**: historial de TODOS los cambios en el sistema
-- [ ] Registrar: quién hizo el cambio, qué cambió, cuándo
-- [ ] Vista filtrable por usuario, fecha, tipo de cambio
-- [ ] Última conexión de cada usuario
+## 10. ✅ Auditoría (Log de cambios)
+- [x] **Log completo de auditoría**: tabla `audit_log` + API `/api/admin/auditoria` + UI `/dashboard/admin/auditoria`
+- [x] Registrar: quién hizo el cambio, qué cambió, cuándo (usuario_nombre, usuario_rol, accion, tabla, registro_id, datos_previos, datos_nuevos)
+- [x] Vista filtrable por acción, entidad, fecha desde/hasta y búsqueda de texto
+- [x] Última conexión: campo `ultima_conexion` en perfiles ya implementado anteriormente
+- [x] Helper `logAuditEvent()` en `src/lib/utils/audit.ts` para usar desde cualquier API route
+- [x] Link en sidebar (solo director/admin) con `ClipboardDocumentListIcon`
 
-## 11. 🟡 Mensajería (Roadmap futuro)
-- [ ] Chat interno entre usuarios
-- [ ] Crear grupos
-- [ ] Admin puede gestionar y ver mensajes si alguien reporta
-- [ ] Filtro de palabras prohibidas (automático)
-- [ ] Stickers
+## 11. ✅ Mensajería
+- [x] Chat interno (DMs 1 a 1)
+- [x] Crear grupos (nombre, descripción, participantes)
+- [x] Tiempo real vía Supabase Realtime (postgres_changes)
+- [x] Stickers (30 emojis)
+- [x] Editar y eliminar mensajes propios (soft delete)
+- [x] Reportar mensajes de otros usuarios
+- [x] Admin puede ver reportes y eliminar mensajes desde `/dashboard/admin/mensajes`
+- [x] Filtro de palabras prohibidas automático (configurable por admin)
+- [x] Badge de mensajes no leídos en Sidebar (polling cada 30s)
+- [x] SQL migration `20260317_mensajeria.sql` con RLS completo
 
-## 11. 🟡 Términos y Condiciones
-- [ ] Redacción de T&C
-- [ ] Pantalla de aceptación al registrarse
-- [ ] Registro de aceptación en BD
+## 11. ✅ Términos y Condiciones
+- [x] Redacción de T&C (6 secciones: confidencialidad, datos de menores, cuenta personal, auditoría, IA, consecuencias)
+- [x] Modal bloqueante en dashboard: se muestra al primer acceso si `terminos_aceptados_at IS NULL`
+- [x] Registro de aceptación en BD: columnas `terminos_aceptados_at` y `terminos_version` en tabla `perfiles`
+- [x] API `/api/admin/terminos` (GET: estado de aceptación, POST: registrar aceptación + log de auditoría)
+- [x] Componente `TerminosModal.tsx` (no se puede cerrar sin aceptar)
+- [x] `TerminosChecker.tsx` integrado en `src/app/dashboard/layout.tsx`
 
 ---
 
@@ -218,7 +228,7 @@
 | Auth/Login | ✅ Funcional | Falta persistencia de sesión |
 | Storage (Google Drive) | ✅ Migrado | Supabase Storage eliminado por completo |
 | Dashboard Voluntario | ✅ Funcional | Notificaciones 🔔, bloqueo, scores ✅ |
-| Dashboard Admin | ✅ Funcional | Falta log de auditoría |
+| Dashboard Admin | ✅ Funcional | Log de auditoría ✅ |
 | Dashboard Profesional | ✅ Funcional | Renombrado ✅ |
 | Mi Perfil | ✅ Funcional | Fotos vía Drive ✅ |
 | CRUD Niños | ✅ Funcional | Campos completos, foto, visibilidad por rol ✅ |
@@ -234,12 +244,14 @@
 | Trabajo Social | ✅ Funcional | — |
 | Configuración Admin | ✅ Funcional | Preguntas/área, notificaciones toggle + intervalo ✅ |
 | Biblioteca/RAG | ✅ Funcional | Proxy autenticado ✅, permisos por rol ✅, búsqueda ✅, upload+tags ✅, tags IA ✅, filtro chat ✅ |
-| Equipos/Zonas | ⚠️ Parcial | Falta CRUD de zonas dedicado |
-| Asignaciones | ⚠️ Parcial | Matching depende de autoevaluaciones (ya funcionales) |
+| Equipos/Zonas | ✅ Funcional | CRUD completo, asignar niños/voluntarios, filtros por zona ✅ |
+| Asignaciones | ✅ Funcional | Matching ✅, horas ocultas en mi-perfil ✅, zona en niño ✅ |
 | Intervenciones | ✅ Funcional | Planes + comentarios con fecha, historial completo ✅ |
 | Módulo IA centralizado | ✅ Funcional | Historial ✅, 3 modos ✅, vinculación ✅ |
-| Auditoría/Logs | ❌ No existe | Pendiente |
-| Mensajería | ❌ No existe | Roadmap futuro |
+| Auth/Login | ✅ Funcional | Persistencia 400 días ✅ |
+| Auditoría/Logs | ✅ Funcional | Tabla `audit_log` + API + UI `/dashboard/admin/auditoria` |
+| Términos y Condiciones | ✅ Funcional | Modal aceptación al primer login + registro en BD |
+| Mensajería | ✅ Funcional | DMs + grupos + realtime + stickers + filtro palabras + moderación admin |
 
 ---
 

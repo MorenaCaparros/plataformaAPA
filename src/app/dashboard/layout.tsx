@@ -1,5 +1,6 @@
 import Sidebar from '@/components/layouts/Sidebar';
 import AnimatedBackground from '@/components/layouts/AnimatedBackground';
+import TerminosChecker from '@/components/layouts/TerminosChecker';
 
 export default function DashboardLayout({
   children,
@@ -10,6 +11,9 @@ export default function DashboardLayout({
     <div className="min-h-screen relative">
       {/* Background animado */}
       <AnimatedBackground />
+
+      {/* Verificador de T&C (cliente) */}
+      <TerminosChecker />
 
       {/* Layout con Sidebar */}
       <div className="flex">

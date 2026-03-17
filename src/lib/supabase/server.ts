@@ -1,6 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+// 400 días — igual que middleware.ts y client.ts
+const SESSION_MAX_AGE = 60 * 60 * 24 * 400;
+
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -14,9 +17,10 @@ export async function createClient() {
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value, ...options });
+            // maxAge al final para que nuestro valor gane sobre el corto de Supabase
+            cookieStore.set({ name, value, ...options, maxAge: SESSION_MAX_AGE });
           } catch (error) {
-            // Server Component no puede setear cookies
+            // Server Component no puede setear cookies — ignorar
           }
         },
         remove(name: string, options: CookieOptions) {
@@ -24,7 +28,7 @@ export async function createClient() {
             // maxAge: 0 es obligatorio para que el browser expire la cookie
             cookieStore.set({ name, value: '', ...options, maxAge: 0 });
           } catch (error) {
-            // Server Component no puede remover cookies
+            // Server Component no puede remover cookies — ignorar
           }
         },
       },
