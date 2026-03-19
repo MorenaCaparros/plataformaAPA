@@ -23,6 +23,7 @@ import {
   SparklesIcon,
   ArrowRightOnRectangleIcon,
   MapPinIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 
@@ -48,6 +49,7 @@ const navigation: NavItem[] = [
   { name: 'Mi Perfil', href: '/dashboard/mi-perfil', icon: UserCircleIcon },
   { name: 'Configuración', href: '/dashboard/configuracion', icon: Cog6ToothIcon, roles: ['director', 'admin'] },
   { name: 'Auditoría', href: '/dashboard/admin/auditoria', icon: ClipboardDocumentListIcon, roles: ['director', 'admin'] },
+  { name: 'Log de Auditoría', href: '/dashboard/audit-log', icon: ShieldCheckIcon, roles: ['director', 'admin'] },
   { name: 'Moderación', href: '/dashboard/admin/mensajes', icon: ShieldExclamationIcon, roles: ['director', 'admin'] },
 ];
 
