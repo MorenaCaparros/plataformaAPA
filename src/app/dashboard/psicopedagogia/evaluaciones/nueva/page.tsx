@@ -1,9 +1,25 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import SelectorNino from '@/components/forms/SelectorNino';
+import VoiceTextarea from '@/components/ui/VoiceTextarea';
 import { supabase } from '@/lib/supabase/client';
+
+const NIVELES_ALFABETIZACION = [
+  'Pre-silábico',
+  'Silábico (sin valor sonoro)',
+  'Silábico (con valor sonoro)',
+  'Silábico-Alfabético',
+  'Alfabético (en consolidación)',
+  'Alfabético (consolidado)',
+];
+
+interface Nino {
+  id: string;
+  alias: string;
+  rango_etario: string | null;
+  legajo: string | null;
+}
 
 function NuevaEvaluacionForm() {
   const router = useRouter();
@@ -11,7 +27,9 @@ function NuevaEvaluacionForm() {
   const ninoIdParam = searchParams.get('ninoId');
 
   const [loading, setLoading] = useState(false);
-  const [ninoId, setNinoId] = useState<string | null>(ninoIdParam);
+  const [ninoId, setNinoId] = useState<string>(ninoIdParam ?? '');
+  const [ninos, setNinos] = useState<Nino[]>([]);
+  const [loadingNinos, setLoadingNinos] = useState(true);
 
   const [formData, setFormData] = useState({
     // Lenguaje y Vocabulario
@@ -54,6 +72,17 @@ function NuevaEvaluacionForm() {
     observaciones_generales: '',
     recomendaciones: '',
   });
+
+  useEffect(() => {
+    supabase
+      .from('ninos')
+      .select('id, alias, rango_etario, legajo')
+      .order('alias', { ascending: true })
+      .then(({ data }) => {
+        setNinos(data || []);
+        setLoadingNinos(false);
+      });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,8 +139,32 @@ function NuevaEvaluacionForm() {
             Evaluación diagnóstica de ingreso - Escala 1 (Muy Bajo) a 5 (Muy Alto)
           </p>
         </div>
-{/* Selector de Niño */}
-        <SelectorNino onSelect={setNinoId} initialNinoId={ninoIdParam} />
+
+        {/* Selector de Niño (dropdown) */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <label className="block text-lg font-semibold text-gray-900 mb-3">
+            Seleccionar Niño/a <span className="text-red-500">*</span>
+          </label>
+          {loadingNinos ? (
+            <div className="h-10 bg-gray-100 rounded animate-pulse" />
+          ) : (
+            <select
+              value={ninoId}
+              onChange={(e) => setNinoId(e.target.value)}
+              className="w-full border border-gray-300 rounded-md p-3 text-sm bg-white focus:ring-2 focus:ring-crecimiento-500 focus:border-crecimiento-500 outline-none"
+              required
+            >
+              <option value="">— Seleccioná un niño/a —</option>
+              {ninos.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.alias}
+                  {n.legajo ? ` (Legajo: ${n.legajo})` : ''}
+                  {n.rango_etario ? ` — ${n.rango_etario} años` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
 
         
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -222,13 +275,10 @@ function NuevaEvaluacionForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Notas adicionales
                 </label>
-                <textarea
+                <VoiceTextarea
                   value={formData.notas_lenguaje}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notas_lenguaje: e.target.value })
-                  }
+                  onChange={(v) => setFormData({ ...formData, notas_lenguaje: v })}
                   rows={3}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   placeholder="Observaciones específicas sobre lenguaje y vocabulario..."
                 />
               </div>
@@ -310,13 +360,10 @@ function NuevaEvaluacionForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Notas adicionales
                 </label>
-                <textarea
+                <VoiceTextarea
                   value={formData.notas_grafismo}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notas_grafismo: e.target.value })
-                  }
+                  onChange={(v) => setFormData({ ...formData, notas_grafismo: v })}
                   rows={3}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   placeholder="Observaciones específicas sobre grafismo y motricidad..."
                 />
               </div>
@@ -334,16 +381,10 @@ function NuevaEvaluacionForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Dificultades identificadas
                 </label>
-                <textarea
+                <VoiceTextarea
                   value={formData.dificultades_identificadas}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      dificultades_identificadas: e.target.value,
-                    })
-                  }
+                  onChange={(v) => setFormData({ ...formData, dificultades_identificadas: v })}
                   rows={4}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   placeholder="Enumerar dificultades específicas detectadas..."
                   required
                 />
@@ -353,13 +394,10 @@ function NuevaEvaluacionForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Fortalezas observadas
                 </label>
-                <textarea
+                <VoiceTextarea
                   value={formData.fortalezas}
-                  onChange={(e) =>
-                    setFormData({ ...formData, fortalezas: e.target.value })
-                  }
+                  onChange={(v) => setFormData({ ...formData, fortalezas: v })}
                   rows={4}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   placeholder="Enumerar fortalezas y aspectos positivos..."
                   required
                 />
@@ -369,32 +407,27 @@ function NuevaEvaluacionForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nivel de alfabetización estimado
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.nivel_alfabetizacion}
-                  onChange={(e) =>
-                    setFormData({ ...formData, nivel_alfabetizacion: e.target.value })
-                  }
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
-                  placeholder="Ej: Pre-silábico, Silábico, etc."
+                  onChange={(e) => setFormData({ ...formData, nivel_alfabetizacion: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-crecimiento-500 focus:border-crecimiento-500 outline-none"
                   required
-                />
+                >
+                  <option value="">— Seleccioná el nivel —</option>
+                  {NIVELES_ALFABETIZACION.map((nivel) => (
+                    <option key={nivel} value={nivel}>{nivel}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Observaciones generales
                 </label>
-                <textarea
+                <VoiceTextarea
                   value={formData.observaciones_generales}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      observaciones_generales: e.target.value,
-                    })
-                  }
+                  onChange={(v) => setFormData({ ...formData, observaciones_generales: v })}
                   rows={4}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   placeholder="Contexto, comportamiento durante la evaluación, otros aspectos relevantes..."
                   required
                 />
@@ -404,13 +437,10 @@ function NuevaEvaluacionForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Recomendaciones iniciales
                 </label>
-                <textarea
+                <VoiceTextarea
                   value={formData.recomendaciones}
-                  onChange={(e) =>
-                    setFormData({ ...formData, recomendaciones: e.target.value })
-                  }
+                  onChange={(v) => setFormData({ ...formData, recomendaciones: v })}
                   rows={4}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   placeholder="Recomendaciones para el plan de intervención..."
                   required
                 />

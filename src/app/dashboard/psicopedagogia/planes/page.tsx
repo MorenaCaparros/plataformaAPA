@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   Target,
   Plus,
@@ -10,7 +11,6 @@ import {
   User,
   MessageSquare,
   Search,
-  Filter,
   Loader2,
   ArrowLeft,
   AlertCircle,
@@ -18,9 +18,26 @@ import {
   PauseCircle,
   XCircle,
   Clock,
+  Copy,
+  Users,
+  BookTemplate,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
+
+interface Plantilla {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  area: string;
+  prioridad: 'baja' | 'media' | 'alta';
+  duracion_semanas: number | null;
+  objetivos: string[];
+  created_at: string;
+  creador: { nombre: string; apellido: string } | null;
+  // count of assigned plans
+  asignaciones: { count: number }[];
+}
 
 interface Plan {
   id: string;
@@ -74,7 +91,12 @@ const PRIORIDAD_CONFIG: Record<string, { label: string; color: string }> = {
 export default function PlanesPage() {
   const { user, perfil } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tabActiva, setTabActiva] = useState<'planes' | 'plantillas'>(
+    searchParams.get('tab') === 'plantillas' ? 'plantillas' : 'planes'
+  );
   const [planes, setPlanes] = useState<Plan[]>([]);
+  const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
@@ -84,6 +106,7 @@ export default function PlanesPage() {
 
   useEffect(() => {
     fetchPlanes();
+    fetchPlantillas();
   }, []);
 
   async function fetchPlanes() {
@@ -97,6 +120,7 @@ export default function PlanesPage() {
           creador:perfiles!planes_intervencion_creado_por_fkey(id, nombre, apellido, rol),
           comentarios:comentarios_intervencion(count)
         `)
+        .eq('es_plantilla', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -105,6 +129,25 @@ export default function PlanesPage() {
       console.error('Error al cargar planes:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchPlantillas() {
+    try {
+      const { data, error } = await supabase
+        .from('planes_intervencion')
+        .select(`
+          id, titulo, descripcion, area, prioridad, duracion_semanas, objetivos, created_at,
+          creador:perfiles!planes_intervencion_creado_por_fkey(nombre, apellido),
+          asignaciones:planes_intervencion!plantilla_origen_id(count)
+        `)
+        .eq('es_plantilla', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPlantillas((data as any) || []);
+    } catch (error) {
+      console.error('Error al cargar plantillas:', error);
     }
   }
 
@@ -155,9 +198,41 @@ export default function PlanesPage() {
               className="inline-flex items-center gap-2 bg-impulso-400 hover:bg-impulso-500 text-white px-5 py-3 rounded-xl font-semibold transition-colors min-h-[44px] shadow-lg shadow-impulso-500/20"
             >
               <Plus className="w-5 h-5" />
-              Nuevo Plan
+              Nueva Plantilla
             </Link>
           )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setTabActiva('planes')}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold font-outfit text-sm transition-colors min-h-[44px] ${
+              tabActiva === 'planes'
+                ? 'bg-impulso-400 text-white shadow-md shadow-impulso-500/20'
+                : 'bg-white/60 text-gray-600 hover:bg-white/80'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Planes asignados
+            <span className={`rounded-full px-2 py-0.5 text-xs ${
+              tabActiva === 'planes' ? 'bg-white/30' : 'bg-gray-100 text-gray-500'
+            }`}>{planes.length}</span>
+          </button>
+          <button
+            onClick={() => setTabActiva('plantillas')}
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold font-outfit text-sm transition-colors min-h-[44px] ${
+              tabActiva === 'plantillas'
+                ? 'bg-impulso-400 text-white shadow-md shadow-impulso-500/20'
+                : 'bg-white/60 text-gray-600 hover:bg-white/80'
+            }`}
+          >
+            <BookTemplate className="w-4 h-4" />
+            Plantillas
+            <span className={`rounded-full px-2 py-0.5 text-xs ${
+              tabActiva === 'plantillas' ? 'bg-white/30' : 'bg-gray-100 text-gray-500'
+            }`}>{plantillas.length}</span>
+          </button>
         </div>
 
         {/* Stats */}
@@ -216,93 +291,200 @@ export default function PlanesPage() {
         </div>
 
         {/* Plans list */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-impulso-400" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-12 text-center">
-            <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="font-quicksand text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              {planes.length === 0 ? 'Sin planes aún' : 'Sin resultados'}
-            </h3>
-            <p className="font-outfit text-gray-500 mb-6">
-              {planes.length === 0
-                ? 'Creá el primer plan de intervención para comenzar el seguimiento.'
-                : 'Probá ajustando los filtros de búsqueda.'}
-            </p>
-            {planes.length === 0 && canCreate && (
-              <Link
-                href="/dashboard/psicopedagogia/planes/nuevo"
-                className="inline-flex items-center gap-2 bg-impulso-400 hover:bg-impulso-500 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
-              >
-                <Plus className="w-5 h-5" />
-                Crear Plan
-              </Link>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((plan) => {
-              const estadoConf = ESTADO_CONFIG[plan.estado];
-              const EstadoIcon = estadoConf.icon;
-              const commentCount = plan.comentarios?.[0]?.count || 0;
-
-              return (
-                <Link
-                  key={plan.id}
-                  href={`/dashboard/psicopedagogia/planes/${plan.id}`}
-                  className="group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-6 transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-1"
+        {tabActiva === 'planes' && (
+          loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-impulso-400" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-12 text-center">
+              <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="font-quicksand text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                {planes.length === 0 ? 'Sin planes asignados' : 'Sin resultados'}
+              </h3>
+              <p className="font-outfit text-gray-500 mb-6">
+                {planes.length === 0
+                  ? 'Creá una plantilla y asignala a un niño/a para comenzar.'
+                  : 'Probá ajustando los filtros de búsqueda.'}
+              </p>
+              {planes.length === 0 && canCreate && (
+                <button
+                  onClick={() => setTabActiva('plantillas')}
+                  className="inline-flex items-center gap-2 bg-impulso-400 hover:bg-impulso-500 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
                 >
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon truncate group-hover:text-impulso-500 transition-colors">
-                        {plan.titulo}
-                      </h3>
-                      <p className="font-outfit text-sm text-neutro-piedra flex items-center gap-1 mt-1">
-                        <User className="w-3.5 h-3.5" />
-                        {plan.nino?.alias || 'Sin niño'}
-                      </p>
+                  <BookTemplate className="w-5 h-5" />
+                  Ver Plantillas
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filtered.map((plan) => {
+                const estadoConf = ESTADO_CONFIG[plan.estado];
+                const EstadoIcon = estadoConf.icon;
+                const commentCount = plan.comentarios?.[0]?.count || 0;
+
+                return (
+                  <Link
+                    key={plan.id}
+                    href={`/dashboard/psicopedagogia/planes/${plan.id}`}
+                    className="group bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-6 transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-1"
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon truncate group-hover:text-impulso-500 transition-colors">
+                          {plan.titulo}
+                        </h3>
+                        <p className="font-outfit text-sm text-neutro-piedra flex items-center gap-1 mt-1">
+                          <User className="w-3.5 h-3.5" />
+                          {plan.nino?.alias || 'Sin niño'}
+                        </p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${estadoConf.color}`}>
+                        <EstadoIcon className="w-3.5 h-3.5" />
+                        {estadoConf.label}
+                      </span>
                     </div>
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${estadoConf.color}`}>
-                      <EstadoIcon className="w-3.5 h-3.5" />
-                      {estadoConf.label}
-                    </span>
-                  </div>
 
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${AREA_COLORS[plan.area]}`}>
-                      {AREA_LABELS[plan.area]}
-                    </span>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${PRIORIDAD_CONFIG[plan.prioridad].color}`}>
-                      {PRIORIDAD_CONFIG[plan.prioridad].label}
-                    </span>
-                  </div>
+                    {/* Badges */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${AREA_COLORS[plan.area]}`}>
+                        {AREA_LABELS[plan.area]}
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${PRIORIDAD_CONFIG[plan.prioridad].color}`}>
+                        {PRIORIDAD_CONFIG[plan.prioridad].label}
+                      </span>
+                    </div>
 
-                  {/* Description preview */}
-                  {plan.descripcion && (
-                    <p className="font-outfit text-sm text-gray-500 mb-4 line-clamp-2">
-                      {plan.descripcion}
-                    </p>
-                  )}
+                    {/* Description preview */}
+                    {plan.descripcion && (
+                      <p className="font-outfit text-sm text-gray-500 mb-4 line-clamp-2">
+                        {plan.descripcion}
+                      </p>
+                    )}
 
-                  {/* Footer */}
-                  <div className="flex items-center justify-between text-xs text-neutro-piedra font-outfit border-t border-gray-100 dark:border-gray-700 pt-3">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {new Date(plan.fecha_inicio).toLocaleDateString('es-AR')}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      {commentCount} {commentCount === 1 ? 'comentario' : 'comentarios'}
-                    </span>
-                  </div>
+                    {/* Footer */}
+                    <div className="flex items-center justify-between text-xs text-neutro-piedra font-outfit border-t border-gray-100 dark:border-gray-700 pt-3">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(plan.fecha_inicio).toLocaleDateString('es-AR')}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        {commentCount} {commentCount === 1 ? 'comentario' : 'comentarios'}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )
+        )}
+
+        {/* Plantillas tab */}
+        {tabActiva === 'plantillas' && (
+          plantillas.length === 0 ? (
+            <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-12 text-center">
+              <BookTemplate className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="font-quicksand text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                Sin plantillas aún
+              </h3>
+              <p className="font-outfit text-gray-500 mb-6">
+                Creá plantillas reutilizables de planes para asignarlas a múltiples niños.
+              </p>
+              {canCreate && (
+                <Link
+                  href="/dashboard/psicopedagogia/planes/nuevo"
+                  className="inline-flex items-center gap-2 bg-impulso-400 hover:bg-impulso-500 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                  Nueva Plantilla
                 </Link>
-              );
-            })}
-          </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {plantillas.map((plantilla) => {
+                const asignaciones = plantilla.asignaciones?.[0]?.count || 0;
+                return (
+                  <div
+                    key={plantilla.id}
+                    className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-6 shadow-lg flex flex-col"
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-quicksand text-lg font-semibold text-neutro-carbon truncate">
+                          {plantilla.titulo}
+                        </h3>
+                        <p className="font-outfit text-xs text-neutro-piedra mt-0.5">
+                          {plantilla.creador?.nombre} {plantilla.creador?.apellido}
+                        </p>
+                      </div>
+                      <Copy className="w-4 h-4 text-impulso-400 flex-shrink-0 mt-1" />
+                    </div>
+
+                    {/* Badges */}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${AREA_COLORS[plantilla.area]}`}>
+                        {AREA_LABELS[plantilla.area]}
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${PRIORIDAD_CONFIG[plantilla.prioridad].color}`}>
+                        {PRIORIDAD_CONFIG[plantilla.prioridad].label}
+                      </span>
+                      {plantilla.duracion_semanas && (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-impulso-50 text-impulso-700">
+                          <Clock className="w-3 h-3 inline mr-1" />
+                          {plantilla.duracion_semanas} sem.
+                        </span>
+                      )}
+                    </div>
+
+                    {plantilla.descripcion && (
+                      <p className="font-outfit text-sm text-gray-500 mb-3 line-clamp-2 flex-1">
+                        {plantilla.descripcion}
+                      </p>
+                    )}
+
+                    {/* Objetivos preview */}
+                    {plantilla.objetivos?.length > 0 && (
+                      <ul className="mb-4 space-y-1">
+                        {plantilla.objetivos.slice(0, 2).map((obj, i) => (
+                          <li key={i} className="font-outfit text-xs text-gray-500 flex items-start gap-1">
+                            <span className="text-impulso-400 mt-0.5">•</span>
+                            <span className="line-clamp-1">{obj}</span>
+                          </li>
+                        ))}
+                        {plantilla.objetivos.length > 2 && (
+                          <li className="font-outfit text-xs text-gray-400">
+                            +{plantilla.objetivos.length - 2} objetivos más
+                          </li>
+                        )}
+                      </ul>
+                    )}
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700 pt-3 mt-auto">
+                      <span className="font-outfit text-xs text-neutro-piedra flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5" />
+                        {asignaciones} {asignaciones === 1 ? 'asignación' : 'asignaciones'}
+                      </span>
+                      {canCreate && (
+                        <Link
+                          href={`/dashboard/psicopedagogia/planes/asignar/${plantilla.id}`}
+                          className="inline-flex items-center gap-1.5 bg-impulso-400 hover:bg-impulso-500 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors min-h-[36px]"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Asignar a niños
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
     </div>

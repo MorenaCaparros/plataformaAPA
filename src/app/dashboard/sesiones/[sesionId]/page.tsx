@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { CATEGORIAS_LABELS, type Categoria, VALOR_NO_COMPLETADO, LABEL_NO_COMPLETADO, calcularPromedioItems } from '@/lib/constants/items-observacion';
 import { ArrowLeft, Calendar, Clock, BarChart3, FileText } from 'lucide-react';
 
@@ -23,7 +24,7 @@ interface SesionDetalle {
   ninos: {
     alias: string;
     rango_etario: string;
-    nivel_alfabetizacion: string;
+    nivel_alfabetizacion: string | null;
   };
 }
 
@@ -31,16 +32,22 @@ export default function SesionDetallePage() {
   const params = useParams();
   const router = useRouter();
   const sesionId = params.sesionId as string;
-  
+  const { user } = useAuth();
+
   const [sesion, setSesion] = useState<SesionDetalle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    // Esperar a que el usuario esté disponible antes de hacer la consulta
+    if (!user) return;
     fetchSesion();
-  }, [sesionId]);
+  }, [sesionId, user]);
 
   const fetchSesion = async () => {
     try {
+      setLoading(true);
+      setErrorMsg(null);
       const { data, error } = await supabase
         .from('sesiones')
         .select(`
@@ -62,11 +69,14 @@ export default function SesionDetallePage() {
         .single();
 
       if (error) throw error;
-      setSesion(data);
-    } catch (error) {
-      console.error('Error:', error);
-      alert('No se pudo cargar la sesión');
-      router.back();
+
+      // Normalizar ninos: Supabase puede devolver array o objeto según la relación
+      const rawNinos = (data as any).ninos;
+      const ninos = Array.isArray(rawNinos) ? rawNinos[0] : rawNinos;
+      setSesion({ ...(data as any), ninos });
+    } catch (error: any) {
+      console.error('Error al cargar sesión:', error);
+      setErrorMsg(error?.message || 'No se pudo cargar la sesión');
     } finally {
       setLoading(false);
     }
@@ -100,12 +110,29 @@ export default function SesionDetallePage() {
     return 'text-green-600 bg-green-50';
   };
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-8 shadow-[0_8px_32px_rgba(242,201,76,0.15)] text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-sol-200 border-t-crecimiento-400 mx-auto mb-4"></div>
           <p className="text-neutro-piedra font-outfit">Cargando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (errorMsg) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-8 shadow-xl text-center max-w-sm">
+          <p className="text-red-600 font-outfit font-semibold mb-4">No se pudo cargar la sesión</p>
+          <p className="text-neutro-piedra font-outfit text-sm mb-6">{errorMsg}</p>
+          <button
+            onClick={() => router.back()}
+            className="px-6 py-3 bg-sol-400 text-white rounded-2xl font-outfit font-semibold hover:bg-sol-500 transition-colors"
+          >
+            Volver
+          </button>
         </div>
       </div>
     );
@@ -146,9 +173,11 @@ export default function SesionDetallePage() {
             <span className="px-3 py-1.5 bg-impulso-50 text-impulso-700 rounded-2xl border border-impulso-200/30 font-semibold">
               {sesion.ninos.rango_etario} años
             </span>
+            {sesion.ninos.nivel_alfabetizacion && (
             <span className="px-3 py-1.5 bg-sol-50 text-sol-700 rounded-2xl border border-sol-200/30 font-semibold">
               {sesion.ninos.nivel_alfabetizacion}
             </span>
+            )}
           </div>
 
           <div className="bg-gradient-to-br from-crecimiento-50/60 to-sol-50/40 backdrop-blur-sm rounded-2xl border border-crecimiento-200/30 p-5">

@@ -60,18 +60,18 @@ export default function NuevoPlanPage() {
   const [areaFiltro, setAreaFiltro] = useState<string>('todos');
 
   const [form, setForm] = useState({
-    nino_id: '',
     titulo: '',
     descripcion: '',
     area: 'general',
     prioridad: 'media',
-    fecha_fin_estimada: '',
+    duracion_semanas: 4,
     objetivos: [''],
     actividades_sugeridas: '',
   });
 
   useEffect(() => {
-    fetchNinos();
+    // No necesitamos cargar niños — la plantilla se crea sin asignar a un niño
+    setLoadingNinos(false);
   }, []);
 
   function applyTemplate(plantilla: PlantillaPlan) {
@@ -130,10 +130,6 @@ export default function NuevoPlanPage() {
     e.preventDefault();
     setError('');
 
-    if (!form.nino_id) {
-      setError('Seleccioná un niño.');
-      return;
-    }
     if (!form.titulo.trim()) {
       setError('El título es obligatorio.');
       return;
@@ -146,8 +142,36 @@ export default function NuevoPlanPage() {
       const { data, error: insertError } = await supabase
         .from('planes_intervencion')
         .insert({
-          nino_id: form.nino_id,
           creado_por: user!.id,
+          titulo: form.titulo.trim(),
+          descripcion: form.descripcion.trim() || null,
+          area: form.area,
+          prioridad: form.prioridad,
+          duracion_semanas: form.duracion_semanas || null,
+          objetivos: objetivosFiltrados,
+          actividades_sugeridas: form.actividades_sugeridas.trim() || null,
+          es_plantilla: true,
+          // Las plantillas se crean sin nino_id — se asignan después
+          nino_id: null,
+          estado: 'activo',
+          fecha_inicio: new Date().toISOString().slice(0, 10),
+        })
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+
+      setSuccess(true);
+      setTimeout(() => {
+        router.push('/dashboard/psicopedagogia/planes?tab=plantillas');
+      }, 1000);
+    } catch (err: any) {
+      console.error('Error al crear plantilla:', err);
+      setError(err.message || 'Error al crear la plantilla.');
+    } finally {
+      setLoading(false);
+    }
+  }
           titulo: form.titulo.trim(),
           descripcion: form.descripcion.trim() || null,
           area: form.area,
@@ -179,10 +203,10 @@ export default function NuevoPlanPage() {
         <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-12 text-center shadow-xl max-w-md">
           <CheckCircle2 className="w-16 h-16 text-crecimiento-500 mx-auto mb-4" />
           <h3 className="font-quicksand text-xl font-semibold text-gray-900 mb-2">
-            ¡Plan creado exitosamente!
+            ¡Plantilla creada!
           </h3>
           <p className="font-outfit text-gray-500">
-            Redirigiendo al detalle del plan...
+            Ya podés asignarla a niños desde la lista de plantillas.
           </p>
         </div>
       </div>
@@ -205,10 +229,10 @@ export default function NuevoPlanPage() {
           </div>
           <div>
             <h1 className="font-quicksand text-3xl font-bold text-gray-900 dark:text-white">
-              Nuevo Plan de Intervención
+              Nueva Plantilla de Plan
             </h1>
             <p className="font-outfit text-gray-600 dark:text-gray-400 mt-1">
-              Definí objetivos y actividades para un niño
+              Creá una plantilla reutilizable · luego la asignás a los niños
             </p>
           </div>
         </div>
@@ -328,34 +352,7 @@ export default function NuevoPlanPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Niño selector */}
-          <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-6 shadow-lg">
-            <h2 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-impulso-400" />
-              Niño/a
-            </h2>
-            {loadingNinos ? (
-              <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" /> Cargando niños...
-              </div>
-            ) : (
-              <select
-                value={form.nino_id}
-                onChange={(e) => setForm((f) => ({ ...f, nino_id: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 font-outfit text-sm focus:ring-2 focus:ring-impulso-400 focus:border-transparent min-h-[44px]"
-                required
-              >
-                <option value="">Seleccionar niño/a...</option>
-                {ninos.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.alias} — {n.rango_etario}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Título, Área, Prioridad */}
+          {/* Info del plan */}
           <div className="bg-white/60 backdrop-blur-md rounded-3xl border border-white/60 p-6 shadow-lg">
             <h2 className="font-quicksand text-lg font-semibold text-neutro-carbon mb-4">
               Información del Plan
@@ -424,14 +421,20 @@ export default function NuevoPlanPage() {
 
               <div>
                 <label className="block font-outfit text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Fecha estimada de finalización
+                  Duración estimada (semanas)
                 </label>
                 <input
-                  type="date"
-                  value={form.fecha_fin_estimada}
-                  onChange={(e) => setForm((f) => ({ ...f, fecha_fin_estimada: e.target.value }))}
+                  type="number"
+                  min={1}
+                  max={52}
+                  value={form.duracion_semanas}
+                  onChange={(e) => setForm((f) => ({ ...f, duracion_semanas: Number(e.target.value) }))}
+                  placeholder="Ej: 4"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 font-outfit text-sm focus:ring-2 focus:ring-impulso-400 min-h-[44px]"
                 />
+                <p className="font-outfit text-xs text-gray-400 mt-1">
+                  El tiempo corre desde que se asigna la plantilla a un niño/a.
+                </p>
               </div>
 
               <div>

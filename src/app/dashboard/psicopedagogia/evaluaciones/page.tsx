@@ -37,6 +37,7 @@ interface NinoPendiente {
   alias: string;
   ultima_evaluacion: string | null;
   dias_desde_evaluacion: number | null;
+  categoria: 'sin_evaluacion' | 'vencida' | 'a_evaluar' | 'proxima';
 }
 
 interface Zona {
@@ -57,6 +58,8 @@ export default function EvaluacionesPage() {
   const [zonas, setZonas] = useState<Zona[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'evaluaciones' | 'pendientes'>('evaluaciones');
+  const [paginaHistorial, setPaginaHistorial] = useState(1);
+  const PAGE_SIZE_HISTORIAL = 15;
 
   // Filters
   const [busqueda, setBusqueda] = useState('');
@@ -71,6 +74,11 @@ export default function EvaluacionesPage() {
     if (tab === 'evaluaciones') fetchEvaluaciones();
     else fetchNinosPendientes();
   }, [tab]);
+
+  // Resetear paginación de historial cuando cambian filtros
+  useEffect(() => {
+    setPaginaHistorial(1);
+  }, [busqueda, filtroZona, filtroRango, sortKey]);
 
   async function fetchZonas() {
     const { data } = await supabase.from('zonas').select('id, nombre').order('nombre');
@@ -117,7 +125,13 @@ export default function EvaluacionesPage() {
       for (const nino of ninos || []) {
         const entrevistas = (nino as any).entrevistas || [];
         if (entrevistas.length === 0) {
-          pendientes.push({ id: nino.id, alias: nino.alias, ultima_evaluacion: null, dias_desde_evaluacion: null });
+          pendientes.push({
+            id: nino.id,
+            alias: nino.alias,
+            ultima_evaluacion: null,
+            dias_desde_evaluacion: null,
+            categoria: 'sin_evaluacion',
+          });
         } else {
           const ordenadas = [...entrevistas].sort(
             (a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
@@ -125,8 +139,23 @@ export default function EvaluacionesPage() {
           const diasDesde = Math.floor(
             (hoy.getTime() - new Date(ordenadas[0].fecha).getTime()) / (1000 * 60 * 60 * 24)
           );
-          if (diasDesde >= 180) {
-            pendientes.push({ id: nino.id, alias: nino.alias, ultima_evaluacion: ordenadas[0].fecha, dias_desde_evaluacion: diasDesde });
+          // Mostrar a partir de los 150 días (falta ~30 días para los 6 meses)
+          if (diasDesde >= 150) {
+            let categoria: NinoPendiente['categoria'];
+            if (diasDesde >= 210) {
+              categoria = 'vencida'; // Pasaron 7+ meses → muy vencida
+            } else if (diasDesde >= 180) {
+              categoria = 'a_evaluar'; // Justo en los 6 meses
+            } else {
+              categoria = 'proxima'; // Falta ~1 mes
+            }
+            pendientes.push({
+              id: nino.id,
+              alias: nino.alias,
+              ultima_evaluacion: ordenadas[0].fecha,
+              dias_desde_evaluacion: diasDesde,
+              categoria,
+            });
           }
         }
       }
@@ -158,6 +187,19 @@ export default function EvaluacionesPage() {
     });
 
   const hasActiveFilters = busqueda || filtroZona !== 'todas' || filtroRango !== 'todos' || sortKey !== 'fecha_desc';
+
+  // Paginación del historial
+  const totalPaginasHistorial = Math.ceil(evaluacionesFiltradas.length / PAGE_SIZE_HISTORIAL);
+  const evaluacionesPagina = evaluacionesFiltradas.slice(
+    (paginaHistorial - 1) * PAGE_SIZE_HISTORIAL,
+    paginaHistorial * PAGE_SIZE_HISTORIAL
+  );
+
+  // Grupos de pendientes
+  const sinEvaluacion = ninosPendientes.filter((n) => n.categoria === 'sin_evaluacion');
+  const vencidas = ninosPendientes.filter((n) => n.categoria === 'vencida');
+  const aEvaluar = ninosPendientes.filter((n) => n.categoria === 'a_evaluar');
+  const proximas = ninosPendientes.filter((n) => n.categoria === 'proxima');
 
   function clearFilters() {
     setBusqueda(''); setFiltroZona('todas'); setFiltroRango('todos'); setSortKey('fecha_desc');
@@ -389,7 +431,7 @@ export default function EvaluacionesPage() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {evaluacionesFiltradas.map((evaluacion) => {
+              {evaluacionesPagina.map((evaluacion) => {
                 const nivel = getNivel(evaluacion.conclusiones);
                 return (
                   <Link
@@ -454,6 +496,30 @@ export default function EvaluacionesPage() {
                   </Link>
                 );
               })}
+
+              {/* Paginación */}
+              {totalPaginasHistorial > 1 && (
+                <div className="flex items-center justify-center gap-3 pt-4">
+                  <button
+                    onClick={() => { setPaginaHistorial(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    disabled={paginaHistorial === 1}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    <span className="font-bold">{paginaHistorial}</span> / <span className="font-bold">{totalPaginasHistorial}</span>
+                    <span className="ml-2 text-gray-400">({evaluacionesFiltradas.length} en total)</span>
+                  </span>
+                  <button
+                    onClick={() => { setPaginaHistorial(p => Math.min(totalPaginasHistorial, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    disabled={paginaHistorial === totalPaginasHistorial}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              )}
             </div>
           )
         ) : (
@@ -469,36 +535,148 @@ export default function EvaluacionesPage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4">
-              {ninosPendientes.map((nino) => (
-                <Link
-                  key={nino.id}
-                  href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${nino.id}`}
-                  className="block bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all p-5 border-l-4 border-red-500"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <AlertCircle className="w-8 h-8 text-red-500 shrink-0" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">{nino.alias}</h3>
-                        {nino.ultima_evaluacion ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Última evaluación hace <strong>{nino.dias_desde_evaluacion}</strong> días
-                            <span className="ml-2 text-xs text-red-500">(Vencida)</span>
-                          </p>
-                        ) : (
-                          <p className="text-sm text-red-500 dark:text-red-400 font-medium">
-                            Sin evaluación inicial
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <span className="flex items-center gap-2 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-4 py-2 rounded-lg text-sm font-medium">
-                      <Plus className="w-4 h-4" /> Evaluar
-                    </span>
+            <div className="space-y-6">
+              {/* Sin evaluación inicial */}
+              {sinEvaluacion.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-3 h-3 rounded-full bg-red-600 inline-block" />
+                    <h3 className="font-semibold text-red-700 dark:text-red-400">
+                      Sin evaluación inicial ({sinEvaluacion.length})
+                    </h3>
                   </div>
-                </Link>
-              ))}
+                  <div className="grid gap-3">
+                    {sinEvaluacion.map((nino) => (
+                      <Link
+                        key={nino.id}
+                        href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${nino.id}`}
+                        className="block bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all p-4 border-l-4 border-red-600"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="w-6 h-6 text-red-600 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-gray-900 dark:text-white">{nino.alias}</p>
+                              <p className="text-sm text-red-600 font-medium">Sin evaluación inicial</p>
+                            </div>
+                          </div>
+                          <span className="flex items-center gap-1.5 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-3 py-1.5 rounded-lg text-sm font-medium">
+                            <Plus className="w-4 h-4" /> Evaluar
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Vencidas (>210 días = más de 7 meses) */}
+              {vencidas.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
+                    <h3 className="font-semibold text-red-600 dark:text-red-400">
+                      Vencidas — más de 7 meses ({vencidas.length})
+                    </h3>
+                  </div>
+                  <div className="grid gap-3">
+                    {vencidas.map((nino) => (
+                      <Link
+                        key={nino.id}
+                        href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${nino.id}`}
+                        className="block bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all p-4 border-l-4 border-red-500"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-gray-900 dark:text-white">{nino.alias}</p>
+                              <p className="text-sm text-gray-500">
+                                Última evaluación hace <strong className="text-red-600">{nino.dias_desde_evaluacion} días</strong>
+                              </p>
+                            </div>
+                          </div>
+                          <span className="flex items-center gap-1.5 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-3 py-1.5 rounded-lg text-sm font-medium">
+                            <Plus className="w-4 h-4" /> Evaluar
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* A evaluar (180-210 días = justo en los 6 meses) */}
+              {aEvaluar.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-3 h-3 rounded-full bg-orange-500 inline-block" />
+                    <h3 className="font-semibold text-orange-600 dark:text-orange-400">
+                      A evaluar ahora — 6 meses cumplidos ({aEvaluar.length})
+                    </h3>
+                  </div>
+                  <div className="grid gap-3">
+                    {aEvaluar.map((nino) => (
+                      <Link
+                        key={nino.id}
+                        href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${nino.id}`}
+                        className="block bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all p-4 border-l-4 border-orange-500"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Calendar className="w-6 h-6 text-orange-500 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-gray-900 dark:text-white">{nino.alias}</p>
+                              <p className="text-sm text-gray-500">
+                                Última evaluación hace <strong className="text-orange-600">{nino.dias_desde_evaluacion} días</strong>
+                              </p>
+                            </div>
+                          </div>
+                          <span className="flex items-center gap-1.5 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 px-3 py-1.5 rounded-lg text-sm font-medium">
+                            <Plus className="w-4 h-4" /> Evaluar
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Próximas (150-179 días = falta ~1 mes) */}
+              {proximas.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" />
+                    <h3 className="font-semibold text-yellow-700 dark:text-yellow-400">
+                      Próximas — falta menos de 1 mes ({proximas.length})
+                    </h3>
+                  </div>
+                  <div className="grid gap-3">
+                    {proximas.map((nino) => (
+                      <Link
+                        key={nino.id}
+                        href={`/dashboard/psicopedagogia/evaluaciones/nueva?ninoId=${nino.id}`}
+                        className="block bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all p-4 border-l-4 border-yellow-400"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Calendar className="w-6 h-6 text-yellow-500 shrink-0" />
+                            <div>
+                              <p className="font-semibold text-gray-900 dark:text-white">{nino.alias}</p>
+                              <p className="text-sm text-gray-500">
+                                Evaluación en <strong className="text-yellow-700">{180 - (nino.dias_desde_evaluacion ?? 0)} días</strong>
+                              </p>
+                            </div>
+                          </div>
+                          <span className="flex items-center gap-1.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 px-3 py-1.5 rounded-lg text-sm font-medium">
+                            Programar
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )
         )}
