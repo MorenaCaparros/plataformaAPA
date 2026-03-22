@@ -172,30 +172,6 @@ export default function NuevoPlanPage() {
       setLoading(false);
     }
   }
-          titulo: form.titulo.trim(),
-          descripcion: form.descripcion.trim() || null,
-          area: form.area,
-          prioridad: form.prioridad,
-          fecha_fin_estimada: form.fecha_fin_estimada || null,
-          objetivos: objetivosFiltrados,
-          actividades_sugeridas: form.actividades_sugeridas.trim() || null,
-        })
-        .select('id')
-        .single();
-
-      if (insertError) throw insertError;
-
-      setSuccess(true);
-      setTimeout(() => {
-        router.push(`/dashboard/psicopedagogia/planes/${data.id}`);
-      }, 1000);
-    } catch (err: any) {
-      console.error('Error al crear plan:', err);
-      setError(err.message || 'Error al crear el plan.');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   if (success) {
     return (

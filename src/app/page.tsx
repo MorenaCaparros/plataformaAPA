@@ -5,16 +5,19 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-center px-4 relative overflow-hidden">
       {/* Background animado */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0 bg-neutro-lienzo" />
+        <div className="absolute inset-0 bg-neutro-lienzo dark:bg-gray-950" />
         
         {/* Blob 1 - Amarillo */}
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-sol-400/30 rounded-full blur-3xl animate-blob" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-sol-400/30 dark:bg-sol-400/20 rounded-full blur-3xl animate-blob" />
         
         {/* Blob 2 - Verde */}
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-crecimiento-400/25 rounded-full blur-3xl animate-blob animation-delay-2000" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-crecimiento-400/25 dark:bg-crecimiento-400/20 rounded-full blur-3xl animate-blob animation-delay-2000" />
         
         {/* Blob 3 - Centro */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-sol-400/10 rounded-full blur-3xl animate-blob animation-delay-4000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-sol-400/10 dark:bg-sol-400/15 rounded-full blur-3xl animate-blob animation-delay-4000" />
+
+        {/* Blob 4 dark-only - Púrpura (más profundidad en oscuro) */}
+        <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-crecimiento-500/0 dark:bg-crecimiento-500/10 rounded-full blur-3xl animate-blob animation-delay-1000" />
       </div>
 
       <div className="text-center space-y-8 relative z-10">
@@ -25,18 +28,18 @@ export default function Home() {
 
         {/* Títulos */}
         <div className="space-y-3">
-          <h1 className="text-5xl sm:text-6xl font-quicksand font-bold text-neutro-carbon">
+          <h1 className="text-5xl sm:text-6xl font-quicksand font-bold text-neutro-carbon dark:text-white">
             Plataforma APA
           </h1>
-          <p className="text-base sm:text-lg text-crecimiento-600 font-semibold tracking-wide">
+          <p className="text-base sm:text-lg text-crecimiento-600 dark:text-crecimiento-400 font-semibold tracking-wide">
             Acompañar Para Aprender
           </p>
-          <p className="text-lg sm:text-xl text-neutro-piedra font-medium">
+          <p className="text-lg sm:text-xl text-neutro-piedra dark:text-gray-400 font-medium">
             Sistema de seguimiento educativo
           </p>
         </div>
         
-        <div className="flex items-center justify-center gap-2 text-sm text-neutro-piedra">
+        <div className="flex items-center justify-center gap-2 text-sm text-neutro-piedra dark:text-gray-400">
           <span className="font-semibold">GlobalIA</span>
           <span>×</span>
           <span className="font-semibold">Asociación Civil Adelante</span>

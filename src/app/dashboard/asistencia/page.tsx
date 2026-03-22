@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Check, CheckCircle, XCircle, Users, UserCheck, Calendar, Save, AlertTriangle, Filter, BarChart2 } from 'lucide-react';
+import TourGuide from '@/components/ui/TourGuide';
 
 interface NinoAsistencia {
   id: string;
@@ -701,10 +702,10 @@ export default function AsistenciaPage() {
               type="button"
               onClick={handleGuardar}
               disabled={saving || !haycambios}
-              className={`w-full px-6 py-4 min-h-[56px] rounded-2xl font-semibold active:scale-95 flex items-center justify-center gap-2 transition-all font-outfit text-lg ${
+              className={`w-full px-6 py-4 min-h-[56px] rounded-2xl font-semibold active:scale-95 flex items-center justify-center gap-2 transition-all font-outfit ${
                 haycambios
-                  ? 'bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white shadow-glow-crecimiento'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'text-lg bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white shadow-glow-crecimiento'
+                  : 'text-sm bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
               {saving ? (
@@ -716,7 +717,7 @@ export default function AsistenciaPage() {
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-5 h-5" />
+                  <CheckCircle className="w-4 h-4" />
                   Sin cambios pendientes
                 </>
               )}
@@ -739,10 +740,10 @@ export default function AsistenciaPage() {
               type="button"
               onClick={handleGuardarVol}
               disabled={savingVol || !haycambiosVol}
-              className={`w-full px-6 py-4 min-h-[56px] rounded-2xl font-semibold active:scale-95 flex items-center justify-center gap-2 transition-all font-outfit text-lg ${
+              className={`w-full px-6 py-4 min-h-[56px] rounded-2xl font-semibold active:scale-95 flex items-center justify-center gap-2 transition-all font-outfit ${
                 haycambiosVol
-                  ? 'bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white shadow-glow-crecimiento'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'text-lg bg-gradient-to-r from-crecimiento-500 to-crecimiento-400 text-white shadow-glow-crecimiento'
+                  : 'text-sm bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
               {savingVol ? (
@@ -754,7 +755,7 @@ export default function AsistenciaPage() {
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-5 h-5" />
+                  <CheckCircle className="w-4 h-4" />
                   Sin cambios pendientes
                 </>
               )}
@@ -762,6 +763,16 @@ export default function AsistenciaPage() {
           </div>
         </div>
       )}
+      <TourGuide
+        tourId="asistencia"
+        autoStart
+        steps={[
+          { title: 'Registrar asistencia ✅', description: 'Acá registrás quiénes estuvieron presentes hoy. Seleccioná la fecha y marcá o desmarcá a cada niño o voluntario.' },
+          { title: 'Marcar presencia 👤', description: 'Tocá cada nombre para cambiar el estado: verde = presente, rojo = ausente. El estado se guarda automáticamente al tocar guardar.' },
+          { title: 'Guardar cambios 💾', description: 'Al terminar, tocá el botón de guardar en la parte inferior. Los cambios se registran y son visibles para coordinadores.' },
+          { title: 'Planilla completa 📊', description: 'En el botón "Ver planilla" podés ver el historial por mes y filtrar por zona.' },
+        ]}
+      />
     </div>
   );
 }

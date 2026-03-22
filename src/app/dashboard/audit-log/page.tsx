@@ -52,7 +52,57 @@ const TABLA_LABEL: Record<string, string> = {
   sesiones:     'Sesiones',
   asignaciones: 'Asignaciones',
   documentos:   'Documentos',
+  capacitaciones: 'Capacitaciones',
+  asistencias:  'Asistencias',
+  mensajes:     'Mensajes',
+  notificaciones: 'Notificaciones',
 };
+
+// Traduce nombres técnicos de columnas a etiquetas legibles
+const CAMPO_LABEL: Record<string, string> = {
+  nombre:            'Nombre',
+  apellido:          'Apellido',
+  email:             'Correo',
+  rol:               'Rol',
+  activo:            'Estado activo',
+  avatar_url:        'Foto de perfil',
+  updated_at:        'Fecha de modificación',
+  ultima_conexion:   'Última conexión',
+  created_at:        'Fecha de creación',
+  nivel_alfabetizacion: 'Nivel de alfabetización',
+  escolarizado:      'Escolarizado',
+  observaciones:     'Observaciones',
+  fecha:             'Fecha',
+  contenido:         'Contenido',
+  completada:        'Completada',
+  titulo:            'Título',
+  descripcion:       'Descripción',
+  tipo:              'Tipo',
+  zona_id:           'Zona',
+  voluntario_id:     'Voluntario',
+  nino_id:           'Niño',
+  coordinador_id:    'Coordinador',
+  capacitacion_id:   'Capacitación',
+  aceptados_terminos:'Términos aceptados',
+  password:          'Contraseña',
+  leida:             'Leída',
+};
+
+function traducirCampo(campo: string): string {
+  return CAMPO_LABEL[campo] ?? campo.replace(/_/g, ' ');
+}
+
+function generarDescripcion(log: AuditLog): string {
+  const tabla = TABLA_LABEL[log.tabla] ?? log.tabla;
+  const accion = ACCION_BADGE[log.accion]?.label ?? log.accion;
+  const usuario = log.user_email?.split('@')[0] ?? 'Sistema';
+  const campos = log.campos_modificados?.map(traducirCampo).slice(0, 2).join(' y ');
+
+  if (log.accion === 'INSERT') return `${usuario} creó un registro en ${tabla}`;
+  if (log.accion === 'DELETE') return `${usuario} eliminó un registro de ${tabla}`;
+  if (campos) return `${usuario} modificó ${campos} en ${tabla}`;
+  return `${usuario} realizó una ${accion.toLowerCase()} en ${tabla}`;
+}
 
 function AccionBadge({ accion }: { accion: string }) {
   const badge = ACCION_BADGE[accion] ?? { label: accion, classes: 'bg-gray-100 text-gray-700' };
@@ -65,15 +115,17 @@ function AccionBadge({ accion }: { accion: string }) {
 
 function CamposModificados({ campos }: { campos: string[] | null }) {
   if (!campos?.length) return <span className="text-neutro-piedra text-xs">—</span>;
+  const visibles = campos.filter(c => !['updated_at', 'created_at'].includes(c));
+  const lista = visibles.length > 0 ? visibles : campos;
   return (
     <div className="flex flex-wrap gap-1">
-      {campos.slice(0, 4).map((c) => (
-        <span key={c} className="bg-neutro-lienzo border border-neutro-piedra/20 text-neutro-piedra text-xs px-2 py-0.5 rounded-lg font-mono">
-          {c}
+      {lista.slice(0, 4).map((c) => (
+        <span key={c} className="bg-neutro-lienzo border border-neutro-piedra/20 text-neutro-carbon text-xs px-2 py-0.5 rounded-lg">
+          {traducirCampo(c)}
         </span>
       ))}
-      {campos.length > 4 && (
-        <span className="text-neutro-piedra text-xs">+{campos.length - 4}</span>
+      {lista.length > 4 && (
+        <span className="text-neutro-piedra text-xs">+{lista.length - 4} más</span>
       )}
     </div>
   );
@@ -271,18 +323,17 @@ export default function AuditLogPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-neutro-lienzo/60">
-                    <th className="text-left px-6 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Fecha / Hora</th>
+                    <th className="text-left px-6 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Fecha</th>
                     <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Usuario</th>
-                    <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Tabla</th>
-                    <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Acción</th>
-                    <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Campos modificados</th>
-                    <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">ID fila</th>
+                    <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Tipo</th>
+                    <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Qué ocurrió</th>
+                    <th className="text-left px-4 py-3 font-outfit font-semibold text-neutro-piedra text-xs uppercase tracking-wide">Campos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutro-piedra/10">
                   {data?.data.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="text-center py-12 text-neutro-piedra font-outfit">
+                      <td colSpan={5} className="text-center py-12 text-neutro-piedra font-outfit">
                         No hay registros con los filtros seleccionados.
                       </td>
                     </tr>
@@ -350,24 +401,21 @@ function LogRow({ log }: { log: AuditLog }) {
       <td className="px-4 py-3">
         <div className="flex flex-col">
           <span className="font-outfit text-xs font-medium text-neutro-carbon truncate max-w-[160px]">
-            {log.user_email ?? 'Sistema'}
+            {log.user_email?.split('@')[0] ?? 'Sistema'}
           </span>
           {log.user_rol && (
             <span className="font-outfit text-[10px] text-neutro-piedra capitalize">{log.user_rol}</span>
           )}
         </div>
       </td>
-      <td className="px-4 py-3 font-outfit text-xs text-neutro-carbon">
-        {TABLA_LABEL[log.tabla] ?? log.tabla}
-      </td>
       <td className="px-4 py-3">
         <AccionBadge accion={log.accion} />
       </td>
+      <td className="px-4 py-3 font-outfit text-xs text-neutro-carbon max-w-[220px]">
+        {generarDescripcion(log)}
+      </td>
       <td className="px-4 py-3">
         <CamposModificados campos={log.campos_modificados} />
-      </td>
-      <td className="px-4 py-3 font-mono text-[10px] text-neutro-piedra truncate max-w-[120px]">
-        {log.fila_id}
       </td>
     </tr>
   );
@@ -386,9 +434,10 @@ function MobileLogCard({ log }: { log: AuditLog }) {
         <AccionBadge accion={log.accion} />
         <span className="font-outfit text-xs text-neutro-piedra">{fecha}</span>
       </div>
+      <p className="font-outfit text-sm text-neutro-carbon">{generarDescripcion(log)}</p>
       <div className="flex justify-between gap-2">
-        <span className="font-outfit text-xs font-medium text-neutro-carbon">{log.user_email ?? 'Sistema'}</span>
-        <span className="font-outfit text-xs text-neutro-carbon">{TABLA_LABEL[log.tabla] ?? log.tabla}</span>
+        <span className="font-outfit text-xs text-neutro-piedra">{log.user_email?.split('@')[0] ?? 'Sistema'}</span>
+        <span className="font-outfit text-xs text-neutro-piedra capitalize">{log.user_rol}</span>
       </div>
       <CamposModificados campos={log.campos_modificados} />
     </div>

@@ -405,15 +405,17 @@ function MisNinosPageContent() {
                     )}
                     {/* Datos sensibles solo para roles con acceso completo */}
                     {tieneAccesoCompleto && nino.ninos_sensibles && (
-                      <div className="mt-2 space-y-1 bg-impulso-50/30 rounded-2xl p-3 border border-impulso-200/20">
+                      <div className="mt-2 space-y-1 bg-neutro-lienzo/60 rounded-2xl p-3 border border-neutro-piedra/15">
                         {nino.ninos_sensibles.nombre_completo_encrypted && (
-                          <p className="text-sm text-neutro-piedra font-outfit">
-                            <span className="font-semibold text-neutro-carbon">Nombre:</span> {nino.ninos_sensibles.nombre_completo_encrypted}
+                          <p className="text-sm text-neutro-carbon font-outfit">
+                            <span className="font-semibold text-neutro-carbon">Nombre:</span>{' '}
+                            <span className="text-neutro-carbon font-medium">{nino.ninos_sensibles.nombre_completo_encrypted}</span>
                           </p>
                         )}
                         {nino.ninos_sensibles.apellido_encrypted && (
-                          <p className="text-sm text-neutro-piedra font-outfit">
-                            <span className="font-semibold text-neutro-carbon">Apellido:</span> {nino.ninos_sensibles.apellido_encrypted}
+                          <p className="text-sm text-neutro-carbon font-outfit">
+                            <span className="font-semibold text-neutro-carbon">Apellido:</span>{' '}
+                            <span className="text-neutro-carbon font-medium">{nino.ninos_sensibles.apellido_encrypted}</span>
                           </p>
                         )}
                       </div>

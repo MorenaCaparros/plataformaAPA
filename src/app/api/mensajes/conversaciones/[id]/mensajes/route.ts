@@ -86,5 +86,26 @@ export async function POST(
     .update({ updated_at: new Date().toISOString() })
     .eq('id', conversacionId);
 
+  // Notificar al resto de participantes de la conversación
+  const { data: otrosParticipantes } = await supabase
+    .from('participantes_conversacion')
+    .select('usuario_id')
+    .eq('conversacion_id', conversacionId)
+    .neq('usuario_id', user.id);
+
+  if (otrosParticipantes && otrosParticipantes.length > 0) {
+    const remitenteNombre = [perfilRaw?.nombre, perfilRaw?.apellido].filter(Boolean).join(' ') || 'Alguien';
+    const preview = contenido.length > 60 ? contenido.slice(0, 60) + '…' : contenido;
+    const notifs = otrosParticipantes.map((p) => ({
+      usuario_id: p.usuario_id,
+      tipo: 'nuevo_mensaje',
+      titulo: `💬 ${remitenteNombre}`,
+      mensaje: preview,
+      enlace: '/dashboard/mensajes',
+      leida: false,
+    }));
+    await supabase.from('notificaciones').insert(notifs);
+  }
+
   return NextResponse.json({ mensaje }, { status: 201 });
 }

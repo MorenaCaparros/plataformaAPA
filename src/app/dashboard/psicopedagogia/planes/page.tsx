@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
@@ -89,6 +89,14 @@ const PRIORIDAD_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 export default function PlanesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-crecimiento-400" /></div>}>
+      <PlanesContent />
+    </Suspense>
+  );
+}
+
+function PlanesContent() {
   const { user, perfil } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();

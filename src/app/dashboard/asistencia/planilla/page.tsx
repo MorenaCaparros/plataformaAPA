@@ -243,6 +243,35 @@ export default function PlanillaAsistenciaPage() {
               <Calendar className="w-4 h-4" />
               Rango de fechas
             </label>
+
+            {/* Botones rápidos por mes */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {(() => {
+                const ahora = new Date();
+                const meses = [];
+                for (let i = 0; i < 6; i++) {
+                  const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
+                  const desde = d.toISOString().slice(0, 10);
+                  const hasta = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+                  const label = d.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
+                  meses.push({ desde, hasta, label });
+                }
+                return meses.map(m => (
+                  <button
+                    key={m.desde}
+                    onClick={() => { setFechaDesde(m.desde); setFechaHasta(m.hasta); }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-outfit font-medium transition-all capitalize ${
+                      fechaDesde === m.desde && fechaHasta === m.hasta
+                        ? 'bg-crecimiento-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ));
+              })()}
+            </div>
+
             <div className="flex gap-3 items-center">
               <div className="flex-1">
                 <p className="text-xs text-neutro-piedra mb-1 font-outfit">Desde</p>

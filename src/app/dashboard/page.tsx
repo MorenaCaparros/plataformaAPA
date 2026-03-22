@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/contexts/AuthContext';
+import TourGuide, { TourStep } from '@/components/ui/TourGuide';
 import VoluntarioDashboard from '@/components/dashboard/VoluntarioDashboard';
 import AdminDashboard from '@/components/dashboard/AdminDashboard';
 import PsicopedagogiaDashboard from '@/components/dashboard/PsicopedagogiaDashboard';
@@ -67,6 +68,28 @@ const SHORTCUTS: Record<string, Shortcut[]> = {
   ],
 };
 
+const TOUR_STEPS: Record<string, TourStep[]> = {
+  voluntario: [
+    { title: '¡Bienvenido/a! 👋', description: 'Este es tu panel principal. Desde acá podés ver el resumen de tus niños asignados y el estado de tus sesiones recientes.' },
+    { title: 'Registrar asistencia ✅', description: 'Antes de cada sesión, registrá si el niño estuvo presente. Encontrás el botón en el menú como "Asistencia".' },
+    { title: 'Registrar sesión 📝', description: 'Después de cada encuentro, completá el formulario de sesión. Tarda menos de 5 minutos y nos ayuda a seguir el progreso de cada niño.' },
+    { title: 'Mesón lateral 🚶', description: 'Desde el menú lateral (o tocando el ☰ en mobile) podés navegar a todas las secciones: tus niños, sesiones, biblioteca y más.' },
+    { title: '¿Neces itás ayuda? ❓', description: 'Cualquier momento podés tocar el botón ❓ para volver a ver esta guía. ¡Éxito!' },
+  ],
+  admin: [
+    { title: 'Panel de administración 📊', description: 'Desde acá tenés una vista general del programa: métricas, usuarios, zonas y estado del sistema.' },
+    { title: 'Gestión de usuarios 👥', description: 'En "Usuarios" podés crear, editar y desactivar perfiles. Podés asignar roles y zonas a cada persona.' },
+    { title: 'Configuración del sistema ⚙️', description: 'En "Configuración" encontrás los logs de auditoría, términos y condiciones y opciones avanzadas.' },
+    { title: '¿Neces itás ayuda? ❓', description: 'Tocá el ❓ cuando quieras para ver esta guía de nuevo.' },
+  ],
+  equipo: [
+    { title: 'Bienvenido/a al panel 👋', description: 'Desde acá podsé coordinar tu equipo, revisar sesiones y monitorear el progreso de los niños en tu zona.' },
+    { title: 'Niños y asignaciones 🤝', description: 'En "Asignaciones" podsé ver qué voluntario trabaja con cada niño y ajustar los emparejamientos.' },
+    { title: 'Módulo de IA 🧠', description: 'El módulo de IA genera resúmenes automáticos del progreso de los niños y sugiere intervenciones.' },
+    { title: '¿Neces itás ayuda? ❓', description: 'Tocá el ❓ cuando quieras para ver esta guía de nuevo.' },
+  ],
+};
+
 export default function DashboardPage() {
   const { user, perfil, loading } = useAuth();
 
@@ -90,7 +113,6 @@ export default function DashboardPage() {
         {/* Voluntario */}
         {rol === 'voluntario' ? (
           <>
-            <MobileShortcuts shortcuts={SHORTCUTS.voluntario} />
             <div className="mb-6">
               <h2 className="font-quicksand text-3xl font-bold text-neutro-carbon mb-2">
                 ¡Hola, voluntario/a! 👋
@@ -105,21 +127,18 @@ export default function DashboardPage() {
         /* Admin / Director */
         ) : rol === 'director' || rol === 'admin' ? (
           <>
-            <MobileShortcuts shortcuts={SHORTCUTS.admin} />
             <AdminDashboard />
           </>
 
         /* Psicopedagogía — dashboard especializado */
         ) : rol === 'psicopedagogia' ? (
           <>
-            <MobileShortcuts shortcuts={SHORTCUTS.psicopedagogia} />
             <PsicopedagogiaDashboard />
           </>
 
         /* Coordinador, Equipo Profesional, Trabajador/a Social */
         ) : rol === 'coordinador' || rol === 'trabajador_social' || rol === 'trabajadora_social' || rol === 'equipo_profesional' ? (
           <>
-            <MobileShortcuts shortcuts={SHORTCUTS.equipo} />
             <EquipoProfesionalDashboard
               title={
                 rol === 'coordinador' ? 'Panel de Coordinación 📊' :
@@ -165,6 +184,15 @@ export default function DashboardPage() {
         )}
 
       </main>
+
+      {/* Tour de ayuda por rol */}
+      {rol && TOUR_STEPS[rol === 'director' ? 'admin' : rol === 'coordinador' || rol === 'equipo_profesional' || rol === 'trabajador_social' || rol === 'trabajadora_social' ? 'equipo' : rol] && (
+        <TourGuide
+          tourId={`dashboard-${rol}`}
+          steps={TOUR_STEPS[rol === 'director' ? 'admin' : rol === 'coordinador' || rol === 'equipo_profesional' || rol === 'trabajador_social' || rol === 'trabajadora_social' ? 'equipo' : rol]}
+          autoStart
+        />
+      )}
     </div>
   );
 }

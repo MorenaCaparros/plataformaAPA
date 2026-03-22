@@ -308,11 +308,15 @@ export default function MensajesPage() {
       body: JSON.stringify({ tipo: 'directo', otro_usuario_id: otroId }),
     });
     const data = await res.json();
+    if (!res.ok) {
+      console.error('Error al crear conversación:', data.error);
+      return;
+    }
     setModalDM(false);
     setBusquedaUser('');
     setUsuariosBusqueda([]);
     await fetchConvs();
-    activarConv(data.conversacion_id);
+    if (data.conversacion_id) activarConv(data.conversacion_id);
   };
 
   // ── Crear grupo ────────────────────────────────────────────

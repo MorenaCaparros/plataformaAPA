@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Save, CheckCircle2 } from 'lucide-react';
+import { Save, CheckCircle2, ShieldCheck, ClipboardList } from 'lucide-react';
 
 interface ConfigItem {
   clave: string;
@@ -378,12 +378,26 @@ export default function ConfiguracionPage() {
               Seguridad y Privacidad
             </h3>
             <div className="space-y-3">
-              <button className="px-4 py-3 w-full bg-white/80 backdrop-blur-sm border border-white/60 text-neutro-carbon rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all font-medium font-outfit min-h-[56px] active:scale-95">
-                Ver log de accesos
-              </button>
-              <button className="px-4 py-3 w-full bg-white/80 backdrop-blur-sm border border-white/60 text-neutro-carbon rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all font-medium font-outfit min-h-[56px] active:scale-95">
-                Auditoría de permisos
-              </button>
+              <Link
+                href="/dashboard/audit-log"
+                className="flex items-center gap-3 px-4 py-3 w-full bg-white/80 backdrop-blur-sm border border-white/60 text-neutro-carbon rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all font-medium font-outfit min-h-[56px] active:scale-95"
+              >
+                <ShieldCheck className="w-5 h-5 text-crecimiento-600 flex-shrink-0" />
+                <div className="text-left">
+                  <p className="font-semibold text-sm">Log de Auditoría</p>
+                  <p className="text-xs text-neutro-piedra">Ver qué hizo cada usuario en el sistema</p>
+                </div>
+              </Link>
+              <Link
+                href="/dashboard/admin/auditoria"
+                className="flex items-center gap-3 px-4 py-3 w-full bg-white/80 backdrop-blur-sm border border-white/60 text-neutro-carbon rounded-2xl hover:shadow-[0_4px_16px_rgba(242,201,76,0.15)] transition-all font-medium font-outfit min-h-[56px] active:scale-95"
+              >
+                <ClipboardList className="w-5 h-5 text-sol-600 flex-shrink-0" />
+                <div className="text-left">
+                  <p className="font-semibold text-sm">Historial de Acciones</p>
+                  <p className="text-xs text-neutro-piedra">Registro detallado de modificaciones</p>
+                </div>
+              </Link>
             </div>
           </div>
         </div>

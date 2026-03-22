@@ -17,15 +17,16 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('system');
+  const [theme, setThemeState] = useState<Theme>('light');
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
-  // Al montar: leer preferencia guardada
+  // Al montar: leer preferencia guardada (default: light)
   useEffect(() => {
     const saved = localStorage.getItem('apa-theme') as Theme | null;
     if (saved) {
       setThemeState(saved);
     }
+    // Si no hay preferencia guardada, asegurar modo claro
   }, []);
 
   // Aplicar el tema al <html> y calcular resolvedTheme
